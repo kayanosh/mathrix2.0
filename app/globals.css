@@ -1,26 +1,435 @@
 @import "tailwindcss";
 
+/* ── Design tokens ──────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #ffffff;
+  --surface: rgba(0, 0, 0, 0.02);
+  --surface-hover: rgba(0, 0, 0, 0.04);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-bright: rgba(0, 0, 0, 0.12);
+  --text: #111827;
+  --text-muted: #6b7280;
+
+  /* step colours */
+  --c1: #818cf8;
+  --c2: #22d3ee;
+  --c3: #fbbf24;
+  --c4: #f472b6;
+  --c5: #a78bfa;
+  --c-final: #34d399;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* ── shadcn/ui card tokens (Tailwind v4: bg-card → --color-card) ─ */
+@theme {
+  --color-card: #ffffff;
+  --color-card-foreground: #111827;
+  --color-muted-foreground: #6b7280;
+
+  /* Spotlight animation */
+  --animate-spotlight: spotlight 2s ease 0.75s 1 forwards;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Spotlight keyframes ─────────────────────────────── */
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
   }
 }
 
+/* ── Loader spinner (Suspense fallback in SplineScene) ── */
+.loader {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(0, 0, 0, 0.08);
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Base ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; padding: 0; }
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Dot-grid hero background ───────────────────────── */
+.dot-grid {
+  background-image: radial-gradient(circle, rgba(129, 140, 248, 0.12) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ── Glass card ─────────────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-bright {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-bright);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ── Neon green focus ring on hero input ─────────────── */
+.hero-input-bar {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.hero-input-bar:focus-within {
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25), 0 0 16px rgba(34, 197, 94, 0.15);
+}
+
+/* ── KaTeX overrides ────────────────────────────────── */
+.katex {
+  color: #1e293b !important;
+  font-size: 1em;
+}
+
+/* KaTeX on the whiteboard — dark ink, not white */
+.wb-board .katex {
+  color: #0f172a !important;
+}
+.wb-board .wb-equation-final .katex {
+  color: #15803d !important;
+  font-weight: 600;
+}
+
+/* ── Whiteboard surface ─────────────────────────────── */
+.wb-board {
+  background: #fefefe;
+  border: 1px solid #e2e8f0;
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.04),
+    0 8px 24px -4px rgba(0,0,0,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  position: relative;
+}
+
+/* Faint ruled lines — like a lined whiteboard or notebook */
+.wb-rules {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(59,130,246,0.06) 39px,
+      rgba(59,130,246,0.06) 40px
+    );
+  background-position: 0 4px;
+}
+
+/* ── Teacher handwriting elements ───────────────────── */
+.wb-intro {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.wb-topic {
+  color: #475569;
+  border-bottom: 2px solid rgba(59,130,246,0.3);
+  display: inline-block;
+  font-size: 1.1rem;
+}
+.wb-topic-subject {
+  color: #3b82f6;
+  font-weight: 600;
+}
+.wb-topic-sep {
+  color: #94a3b8;
+}
+
+/* Teacher annotations — red marker */
+.wb-annotation {
+  color: #b91c1c;
+  opacity: 1;
+  font-weight: 500;
+  font-size: 1.15rem;
+}
+
+/* The equation lines */
+.wb-equation-line {
+  transition: background 0.2s;
+}
+.wb-equation-line:hover {
+  background: rgba(59,130,246,0.04);
+}
+
+/* Step numbers */
+.wb-step-num {
+  color: #64748b;
+  min-width: 28px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Equations — blue marker pen */
+.wb-equation .katex {
+  font-size: 1.6rem !important;
+}
+
+/* Final answer — green, with double underline */
+.wb-final-answer {
+  background: rgba(22,163,106,0.06);
+  border: 2px solid rgba(22,163,106,0.2);
+  border-radius: 8px;
+  position: relative;
+}
+.wb-final-answer::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 32px;
+  right: 32px;
+  height: 0;
+  border-bottom: 2px solid rgba(22,163,106,0.35);
+  border-top: 2px solid rgba(22,163,106,0.35);
+  padding-top: 2px;
+}
+
+/* Checkmark */
+.wb-checkmark {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+/* Explanation notes — gray, slightly italicised */
+.wb-explanation {
+  color: #475569;
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+/* Balance notation */
+.wb-balance {
+  color: #4f46e5;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+/* Arrow terms */
+.wb-arrow-term {
+  color: #dc2626;
+}
+
+.wb-sign-rule {
+  color: #dc2626;
+  opacity: 0.7;
+}
+
+/* ── Step pair cards (before → arrow → after) ───────── */
+.wb-step-pair {
+  position: relative;
+  background: rgba(59,130,246,0.03);
+  border: 1px solid rgba(59,130,246,0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 4px 0;
+}
+
+.wb-step-before {
+  opacity: 0.6;
+}
+.wb-step-before .katex {
+  font-size: 1.35rem !important;
+  color: #475569 !important;
+}
+
+.wb-step-after .katex {
+  font-size: 1.6rem !important;
+}
+
+.wb-transfer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: visible;
+}
+
+.wb-transfer-label {
+  font-size: 0.75rem;
+  color: #dc2626;
+  background: rgba(220,38,38,0.07);
+  border: 1px solid rgba(220,38,38,0.15);
+  border-radius: 6px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Highlight tagged source terms in the "before" equation */
+.wb-board .wb-step-before [id$="-from"] {
+  color: #dc2626 !important;
+  text-decoration: underline wavy rgba(220,38,38,0.4);
+  text-underline-offset: 3px;
+}
+
+/* Highlight tagged destination terms in the "after" equation */
+.wb-board .wb-step-after [id$="-to"] {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+.wb-step-divider {
+  height: 1px;
+  background: rgba(59,130,246,0.1);
+  margin: 6px 24px;
+}
+
+/* Conclusion — teacher's final remark */
+.wb-conclusion {
+  color: #15803d;
+  border-top: 2px solid rgba(22,163,106,0.25);
+  font-weight: 500;
+}
+
+/* Hint — teacher aside in pencil gray */
+.wb-hint {
+  color: #64748b;
+  font-style: italic;
+  font-size: 1.05rem;
+}
+
+/* ── Whiteboard overlay (full-screen tutor) ─────────── */
+.wb-overlay {
+  background: #f8fafc;
+}
+
+.wb-overlay-header {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.wb-overlay-board {
+  /* Override rounded corners for full-screen */
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: 100%;
+}
+
+.wb-overlay-controls {
+  background: #ffffff;
+  border-top: 1px solid #e2e8f0;
+  box-shadow: 0 -1px 3px rgba(0,0,0,0.04);
+}
+
+.wb-overlay-narration {
+  background: rgba(59,130,246,0.06);
+  border: 1px solid rgba(59,130,246,0.15);
+}
+
+.wb-overlay-block {
+  transition: opacity 0.3s ease;
+}
+
+.wb-overlay-block-active {
+  /* Subtle highlight for the block being narrated */
+  background: rgba(59,130,246,0.03);
+  border-radius: 12px;
+  padding: 4px 8px;
+  margin: -4px -8px;
+}
+
+.katex-display {
+  margin: 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* equation display class — used for large step equations */
+.eq-display .katex {
+  font-size: 1.8rem !important;
+  letter-spacing: -0.01em;
+}
+
+/* ── animate-in utilities (replaces tailwindcss-animate v3 plugin)
+   Tailwind v4 uses @utility instead of a PostCSS plugin.
+   These match the API used by bolt-style-chat.tsx                ── */
+
+@keyframes ani-enter {
+  from {
+    opacity: var(--ani-from-opacity, 1);
+    transform: translateY(var(--ani-from-y, 0));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Composable utilities — apply together: animate-in fade-in slide-in-from-bottom-2 */
+@utility animate-in {
+  animation-name: ani-enter;
+  animation-duration: var(--ani-duration, 150ms);
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+@utility fade-in {
+  --ani-from-opacity: 0;
+}
+
+@utility slide-in-from-bottom-2 {
+  --ani-from-y: 0.5rem;
+}
+
+/* ── Animations ─────────────────────────────────────── */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 16px rgba(52, 211, 153, 0.18), 0 0 0 1px rgba(52,211,153,0.15) inset; }
+  50%       { box-shadow: 0 0 32px rgba(52, 211, 153, 0.35), 0 0 0 1px rgba(52,211,153,0.25) inset; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+
+.animate-float { animation: float 5s ease-in-out infinite; }
+
+.final-box { animation: pulse-glow 2.8s ease-in-out infinite; }
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
+/* ── Gradient text utility ──────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Hero input bar glow on focus-within ────────────── */
+.hero-input-bar:focus-within {
+  border-color: rgba(99,102,241,0.5) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1), 0 4px 16px -4px rgba(99,102,241,0.08);
 }

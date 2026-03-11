@@ -1,0 +1,344 @@
+{
+  "steps": [
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Solve: 3x + 7 = 19</text><text x='540' y='300' text-anchor='middle' font-size='48' fill='#555'>Let's isolate x step by step.</text><text id='term_3x' x='220' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>3x</text><text id='term_plus7' x='390' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>+7</text><text id='eq' x='570' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_19' x='750' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>19</text><text x='540' y='820' text-anchor='middle' font-size='52' fill='#666'>We need to get x by itself.</text><text x='540' y='920' text-anchor='middle' font-size='52' fill='#666'>Step 1: Move +7 across the equals sign.</text><text x='540' y='1020' text-anchor='middle' font-size='52' fill='#666'>When +7 crosses =, it becomes −7.</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#CCCCCC' stroke-width='4'/></svg>",
+      "narration": "We start with 3x + 7 = 19. Our goal is to find the value of x.",
+      "highlightIds": [
+        "term_3x",
+        "term_plus7",
+        "eq",
+        "term_19"
+      ],
+      "animate": [
+        {
+          "targetId": "term_3x",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 0,
+          "durationMs": 600
+        },
+        {
+          "targetId": "term_plus7",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 200,
+          "durationMs": 600
+        },
+        {
+          "targetId": "eq",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 400,
+          "durationMs": 600
+        },
+        {
+          "targetId": "term_19",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 600,
+          "durationMs": 600
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 1: Move +7 across</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#CCCCCC' stroke-width='4'/><text id='term_3x' x='220' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>3x</text><text id='term_plus7' x='390' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>+7</text><text id='eq' x='570' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_19' x='750' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>19</text><path id='arrow_move' d='M 390 540 Q 570 380 750 540' fill='none' stroke='#E63946' stroke-width='8' stroke-dasharray='12,6' marker-end='url(#arrowhead)'/><defs><marker id='arrowhead' markerWidth='10' markerHeight='7' refX='10' refY='3.5' orient='auto'><polygon points='0 0, 10 3.5, 0 7' fill='#E63946'/></marker></defs><text id='arrow_label' x='540' y='460' text-anchor='middle' font-size='52' font-weight='bold' fill='#E63946'>+7 becomes −7</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>+7 moves across =</text><text x='540' y='940' text-anchor='middle' font-size='56' fill='#555'>and becomes −7</text></svg>",
+      "narration": "The +7 is highlighted in red. It will move across the equals sign and become −7.",
+      "highlightIds": [
+        "term_plus7",
+        "arrow_move",
+        "arrow_label"
+      ],
+      "animate": [
+        {
+          "targetId": "term_plus7",
+          "type": "pulse",
+          "params": {
+            "scale": 1.2
+          },
+          "startMs": 0,
+          "durationMs": 600
+        },
+        {
+          "targetId": "arrow_move",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 400,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_label",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 800,
+          "durationMs": 600
+        },
+        {
+          "targetId": "term_plus7",
+          "type": "colorTo",
+          "params": {
+            "color": "#E63946"
+          },
+          "startMs": 0,
+          "durationMs": 400
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 1: Result</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#AADDAA' stroke-width='6'/><text id='term_3x' x='280' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>3x</text><text id='eq' x='500' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_19' x='680' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>19</text><text id='term_minus7' x='870' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#1565C0'>−7</text><path id='arrow_move' d='M 390 540 Q 470 380 680 540' fill='none' stroke='#1565C0' stroke-width='8' marker-end='url(#arrowhead2)'/><defs><marker id='arrowhead2' markerWidth='10' markerHeight='7' refX='10' refY='3.5' orient='auto'><polygon points='0 0, 10 3.5, 0 7' fill='#1565C0'/></marker></defs><text id='arrow_label' x='530' y='460' text-anchor='middle' font-size='52' font-weight='bold' fill='#1565C0'>landed as −7</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>Now we have:</text><text x='540' y='950' text-anchor='middle' font-size='72' font-weight='bold' fill='#222'>3x = 19 − 7</text><text x='540' y='1070' text-anchor='middle' font-size='72' font-weight='bold' fill='#222'>3x = 12</text></svg>",
+      "narration": "After moving +7 across the equals sign it becomes −7, giving us 3x = 19 − 7, which is 3x = 12.",
+      "highlightIds": [
+        "term_minus7",
+        "term_19",
+        "arrow_move"
+      ],
+      "animate": [
+        {
+          "targetId": "term_minus7",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 0,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_move",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 0,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_label",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 500,
+          "durationMs": 600
+        },
+        {
+          "targetId": "term_minus7",
+          "type": "pulse",
+          "params": {
+            "scale": 1.2
+          },
+          "startMs": 700,
+          "durationMs": 600
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 2: Simplify right side</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#CCCCCC' stroke-width='4'/><text id='term_3x' x='280' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>3x</text><text id='eq' x='500' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_19' x='670' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>19</text><text id='term_minus7b' x='860' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>−7</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>Calculate: 19 − 7 = ?</text><rect x='300' y='920' width='480' height='110' rx='20' fill='#FFF3CD' stroke='#FFC107' stroke-width='4'/><text x='540' y='995' text-anchor='middle' font-size='72' font-weight='bold' fill='#B8860B'>19 − 7 = 12</text><text x='540' y='1150' text-anchor='middle' font-size='56' fill='#555'>So now we have:</text><rect x='200' y='1210' width='680' height='130' rx='20' fill='#E8F5E9' stroke='#4CAF50' stroke-width='4'/><text id='result_line' x='540' y='1300' text-anchor='middle' font-size='96' font-weight='bold' fill='#2E7D32'>3x = 12</text></svg>",
+      "narration": "We calculate 19 minus 7 equals 12, so our equation simplifies to 3x = 12.",
+      "highlightIds": [
+        "term_19",
+        "term_minus7b",
+        "result_line"
+      ],
+      "animate": [
+        {
+          "targetId": "term_19",
+          "type": "pulse",
+          "params": {
+            "scale": 1.1
+          },
+          "startMs": 0,
+          "durationMs": 500
+        },
+        {
+          "targetId": "term_minus7b",
+          "type": "pulse",
+          "params": {
+            "scale": 1.1
+          },
+          "startMs": 0,
+          "durationMs": 500
+        },
+        {
+          "targetId": "result_line",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 600,
+          "durationMs": 800
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 3: Move ×3 across</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#CCCCCC' stroke-width='4'/><text id='term_3x2' x='280' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>3x</text><text id='eq' x='500' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_12' x='720' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>12</text><path id='arrow_move' d='M 280 540 Q 500 360 720 540' fill='none' stroke='#E63946' stroke-width='8' stroke-dasharray='12,6' marker-end='url(#arrowhead3)'/><defs><marker id='arrowhead3' markerWidth='10' markerHeight='7' refX='10' refY='3.5' orient='auto'><polygon points='0 0, 10 3.5, 0 7' fill='#E63946'/></marker></defs><text id='arrow_label' x='500' y='440' text-anchor='middle' font-size='52' font-weight='bold' fill='#E63946'>×3 becomes ÷3</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>3 is multiplying x.</text><text x='540' y='950' text-anchor='middle' font-size='56' fill='#555'>When ×3 crosses =, it becomes ÷3.</text></svg>",
+      "narration": "Now 3 is multiplying x. When ×3 moves across the equals sign, it becomes ÷3.",
+      "highlightIds": [
+        "term_3x2",
+        "arrow_move",
+        "arrow_label"
+      ],
+      "animate": [
+        {
+          "targetId": "term_3x2",
+          "type": "colorTo",
+          "params": {
+            "color": "#E63946"
+          },
+          "startMs": 0,
+          "durationMs": 400
+        },
+        {
+          "targetId": "term_3x2",
+          "type": "pulse",
+          "params": {
+            "scale": 1.2
+          },
+          "startMs": 0,
+          "durationMs": 600
+        },
+        {
+          "targetId": "arrow_move",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 400,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_label",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 900,
+          "durationMs": 600
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 3: Result</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#AADDAA' stroke-width='6'/><text id='term_x' x='280' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>x</text><text id='eq' x='500' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_12b' x='670' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>12</text><text id='term_div3' x='860' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#1565C0'>÷3</text><path id='arrow_move' d='M 300 540 Q 430 380 660 540' fill='none' stroke='#1565C0' stroke-width='8' marker-end='url(#arrowhead4)'/><defs><marker id='arrowhead4' markerWidth='10' markerHeight='7' refX='10' refY='3.5' orient='auto'><polygon points='0 0, 10 3.5, 0 7' fill='#1565C0'/></marker></defs><text id='arrow_label' x='490' y='450' text-anchor='middle' font-size='52' font-weight='bold' fill='#1565C0'>landed as ÷3</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>Now we have:</text><text x='540' y='960' text-anchor='middle' font-size='72' font-weight='bold' fill='#222'>x = 12 ÷ 3</text><text x='540' y='1080' text-anchor='middle' font-size='72' font-weight='bold' fill='#222'>x = 4</text></svg>",
+      "narration": "After ×3 moves across the equals sign it becomes ÷3, giving us x = 12 ÷ 3, which equals 4.",
+      "highlightIds": [
+        "term_div3",
+        "term_12b",
+        "arrow_move"
+      ],
+      "animate": [
+        {
+          "targetId": "term_div3",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 0,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_move",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 0,
+          "durationMs": 700
+        },
+        {
+          "targetId": "arrow_label",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 500,
+          "durationMs": 600
+        },
+        {
+          "targetId": "term_div3",
+          "type": "pulse",
+          "params": {
+            "scale": 1.2
+          },
+          "startMs": 800,
+          "durationMs": 600
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#FFF9F0'/><text x='540' y='180' text-anchor='middle' font-size='64' font-weight='bold' fill='#333'>Step 4: Simplify</text><rect x='60' y='480' width='900' height='200' rx='24' fill='none' stroke='#CCCCCC' stroke-width='4'/><text id='term_x2' x='280' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>x</text><text id='eq' x='500' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#222'>=</text><text id='term_12c' x='670' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>12</text><text id='term_div3b' x='860' y='620' text-anchor='middle' font-size='120' font-weight='bold' fill='#E63946'>÷3</text><text x='540' y='860' text-anchor='middle' font-size='56' fill='#555'>Calculate: 12 ÷ 3 = ?</text><rect x='280' y='920' width='520' height='110' rx='20' fill='#FFF3CD' stroke='#FFC107' stroke-width='4'/><text x='540' y='995' text-anchor='middle' font-size='72' font-weight='bold' fill='#B8860B'>12 ÷ 3 = 4</text><text x='540' y='1150' text-anchor='middle' font-size='56' fill='#555'>So our answer is:</text><rect x='200' y='1210' width='680' height='160' rx='30' fill='#E8F5E9' stroke='#4CAF50' stroke-width='6'/><text id='final_answer' x='540' y='1320' text-anchor='middle' font-size='120' font-weight='bold' fill='#2E7D32'>x = 4</text></svg>",
+      "narration": "12 divided by 3 equals 4, so x = 4 is our answer!",
+      "highlightIds": [
+        "term_12c",
+        "term_div3b",
+        "final_answer"
+      ],
+      "animate": [
+        {
+          "targetId": "term_12c",
+          "type": "pulse",
+          "params": {
+            "scale": 1.1
+          },
+          "startMs": 0,
+          "durationMs": 500
+        },
+        {
+          "targetId": "term_div3b",
+          "type": "pulse",
+          "params": {
+            "scale": 1.1
+          },
+          "startMs": 0,
+          "durationMs": 500
+        },
+        {
+          "targetId": "final_answer",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 600,
+          "durationMs": 800
+        },
+        {
+          "targetId": "final_answer",
+          "type": "pulse",
+          "params": {
+            "scale": 1.15
+          },
+          "startMs": 1400,
+          "durationMs": 700
+        }
+      ]
+    },
+    {
+      "svg": "<svg viewBox='0 0 1080 1920' xmlns='http://www.w3.org/2000/svg' font-family='Arial, sans-serif'><rect width='1080' height='1920' fill='#F0FFF4'/><text x='540' y='160' text-anchor='middle' font-size='72' font-weight='bold' fill='#2E7D32'>✓ Check the Answer</text><text x='540' y='280' text-anchor='middle' font-size='56' fill='#555'>Substitute x = 4 back into the original equation.</text><rect x='60' y='360' width='960' height='180' rx='24' fill='none' stroke='#4CAF50' stroke-width='6'/><text id='original_eq' x='540' y='480' text-anchor='middle' font-size='96' font-weight='bold' fill='#222'>3x + 7 = 19</text><text x='540' y='620' text-anchor='middle' font-size='56' fill='#555'>Replace x with 4:</text><rect x='100' y='680' width='880' height='160' rx='20' fill='#FFFDE7' stroke='#FFC107' stroke-width='4'/><text id='sub_step1' x='540' y='790' text-anchor='middle' font-size='88' font-weight='bold' fill='#F57F17'>3(4) + 7 = 19</text><text x='540' y='940' text-anchor='middle' font-size='56' fill='#555'>Calculate left side:</text><rect x='100' y='1000' width='880' height='160' rx='20' fill='#FFFDE7' stroke='#FFC107' stroke-width='4'/><text id='sub_step2' x='540' y='1110' text-anchor='middle' font-size='88' font-weight='bold' fill='#F57F17'>12 + 7 = 19</text><rect x='100' y='1300' width='880' height='160' rx='20' fill='#C8E6C9' stroke='#4CAF50' stroke-width='6'/><text id='check_result' x='540' y='1410' text-anchor='middle' font-size='88' font-weight='bold' fill='#2E7D32'>19 = 19 ✓</text><text x='540' y='1600' text-anchor='middle' font-size='72' font-weight='bold' fill='#2E7D32'>x = 4 is correct!</text></svg>",
+      "narration": "Let's check: substitute x = 4 into 3x + 7. We get 3 times 4 plus 7 equals 12 plus 7 equals 19. That matches! x = 4 is correct.",
+      "highlightIds": [
+        "original_eq",
+        "sub_step1",
+        "sub_step2",
+        "check_result"
+      ],
+      "animate": [
+        {
+          "targetId": "original_eq",
+          "type": "pulse",
+          "params": {
+            "scale": 1.05
+          },
+          "startMs": 0,
+          "durationMs": 600
+        },
+        {
+          "targetId": "sub_step1",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 400,
+          "durationMs": 700
+        },
+        {
+          "targetId": "sub_step2",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 900,
+          "durationMs": 700
+        },
+        {
+          "targetId": "check_result",
+          "type": "fadeIn",
+          "params": {},
+          "startMs": 1400,
+          "durationMs": 800
+        },
+        {
+          "targetId": "check_result",
+          "type": "pulse",
+          "params": {
+            "scale": 1.1
+          },
+          "startMs": 2200,
+          "durationMs": 700
+        }
+      ]
+    }
+  ]
+}
