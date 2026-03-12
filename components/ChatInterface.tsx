@@ -8,6 +8,7 @@ import type { WhiteboardResponse } from "@/types/whiteboard";
 import EquationChain from "./EquationChain";
 import WhiteboardRenderer from "./whiteboard/WhiteboardRenderer";
 import WhiteboardTutor from "./WhiteboardTutor";
+import InlineMath from "./InlineMath";
 import AuthModal from "./AuthModal";
 import PaywallModal from "./PaywallModal";
 import PricingModal from "./PricingModal";
@@ -880,7 +881,7 @@ function MessageBubble({
             )}
           </>
         ) : (
-          <p className="text-gray-700 text-base leading-relaxed">{message.content}</p>
+          <p className="text-gray-700 text-base leading-relaxed"><InlineMath text={message.content} /></p>
         )}
       </div>
     </motion.div>
