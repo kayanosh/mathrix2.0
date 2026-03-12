@@ -350,6 +350,8 @@ export interface WhiteboardResponse {
   casVerified?: boolean;
   /** Detailed verification metadata from the two-pass pipeline */
   verification?: VerificationStatus;
+  /** Original uploaded image (base64 data URI) — shown inline with the explanation */
+  questionImageUrl?: string;
 }
 
 // ── Question Classification ───────────────────────────────────────────────────

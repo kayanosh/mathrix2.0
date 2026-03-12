@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt } from "@/lib/prompts/system";
 import {
@@ -34,18 +34,32 @@ const CRITIC_MAX_TOKENS = 2048;
 /**
  * POST /api/chat
  *
- * Two-pass verification pipeline:
- *   Pass 1 — Solver: Produce a draft solution (structured JSON)
- *   Pass 2 — Critic: Independently verify every step, flag errors
+ * SSE-streaming two-pass verification pipeline:
+ *   Pass 1 — Solver: Produce a draft solution (structured JSON) → streamed immediately
+ *   Pass 2 — Critic: Independently verify every step, flag errors → streamed as update
  *   If critic fails → retry solver once with critic feedback
- *   Only display checked answers to the student
  *
  * Accepts: { messages, level?, examBoard?, subject?, useWhiteboard? }
- * Returns: { whiteboard: WhiteboardResponse, category, validationWarnings, verification }
+ * Returns: Server-Sent Events stream with events:
+ *   - "solver_done"       → { whiteboard, response, category, validationWarnings }
+ *   - "verification_done" → { verification, whiteboard? (if corrected) }
+ *   - "error"             → { error: string }
  */
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+  // We'll build an SSE stream and return it immediately
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      /** Helper to send an SSE event */
+      function send(event: string, data: unknown) {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+        );
+      }
+
+      try {
+        const body = await req.json();
     const {
       messages,
       level,
@@ -54,7 +68,9 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: "Invalid messages" }, { status: 400 });
+      send("error", { error: "Invalid messages" });
+      controller.close();
+      return;
     }
 
     // ── Auth & Usage Enforcement ─────────────────────────────────
@@ -81,10 +97,9 @@ export async function POST(req: NextRequest) {
           .single();
 
         if ((usage?.prompt_count || 0) >= 5) {
-          return NextResponse.json(
-            { error: "limit_reached" },
-            { status: 403 }
-          );
+          send("error", { error: "limit_reached" });
+          controller.close();
+          return;
         }
       }
     }
@@ -214,14 +229,34 @@ export async function POST(req: NextRequest) {
 
     // If still invalid, return fallback
     if (!result.ok || !result.data) {
-      return returnFallback(rawContent, category, result.errors);
+      sendFallback(send, rawContent, category, result.errors);
+      controller.close();
+      return;
     }
 
     // At this point result.data is guaranteed to exist — capture the reference
     let solutionData: WhiteboardResponse = result.data;
 
+    // Attach uploaded image URL so the whiteboard can display it inline
+    if (hasImage && lastUserMsg?.imageUrl) {
+      solutionData.questionImageUrl = lastUserMsg.imageUrl;
+    }
+
+    const legacyResponse = whiteboardToLegacy(solutionData);
+
     // ══════════════════════════════════════════════════════════════════
-    //  VERIFICATION PIPELINE
+    //  STREAM PASS 1 RESULT TO CLIENT (fast perceived response)
+    // ══════════════════════════════════════════════════════════════════
+
+    send("solver_done", {
+      whiteboard: solutionData,
+      response: legacyResponse,
+      category,
+      validationWarnings: result.errors || [],
+    });
+
+    // ══════════════════════════════════════════════════════════════════
+    //  VERIFICATION PIPELINE (runs while client already shows solution)
     // ══════════════════════════════════════════════════════════════════
 
     const verification: VerificationStatus = {
@@ -389,14 +424,17 @@ export async function POST(req: NextRequest) {
     // Stamp verification onto the response
     solutionData.verification = verification;
 
+    // Re-attach uploaded image URL on corrected solutions
+    if (hasImage && lastUserMsg?.imageUrl) {
+      solutionData.questionImageUrl = lastUserMsg.imageUrl;
+    }
+
     console.log(
       `[Pipeline] Done. Confidence: ${verification.confidence} ` +
       `(CAS=${verification.preCasVerified || verification.postCasVerified}, ` +
       `Critic=${verification.criticVerified}, ` +
       `Tools=${verification.toolChecksPassed})`
     );
-
-    const legacyResponse = whiteboardToLegacy(solutionData);
 
     // ── Increment usage for authenticated users ───────────────────────
     if (user) {
@@ -417,30 +455,47 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({
-      whiteboard: solutionData,
-      response: legacyResponse,
-      category,
-      validationWarnings: result.errors || [],
+    // ══════════════════════════════════════════════════════════════════
+    //  STREAM VERIFICATION RESULT TO CLIENT
+    // ══════════════════════════════════════════════════════════════════
+
+    send("verification_done", {
       verification: {
         confidence: verification.confidence,
         casVerified: solutionData.casVerified ?? false,
         criticVerified: verification.criticVerified,
         toolChecksPassed: verification.toolChecksPassed,
       },
+      whiteboard: solutionData,
     });
+
+    controller.close();
+
   } catch (error) {
     console.error("Chat API error:", error);
-    return NextResponse.json(
-      { error: "Failed to get response from tutor" },
-      { status: 500 }
-    );
+    try {
+      send("error", { error: "Failed to get response from tutor" });
+      controller.close();
+    } catch {
+      // Stream may already be closed
+    }
   }
+    }, // end start()
+  }); // end ReadableStream
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 // ── Fallback helper ───────────────────────────────────────────────────────────
 
-function returnFallback(
+function sendFallback(
+  send: (event: string, data: unknown) => void,
   rawContent: string,
   category: string,
   errors?: string[]
@@ -459,7 +514,7 @@ function returnFallback(
     conclusion: "",
   };
 
-  return NextResponse.json({
+  send("solver_done", {
     whiteboard: fallback,
     response: {
       type: "explanation",
@@ -472,12 +527,16 @@ function returnFallback(
     },
     category,
     validationWarnings: errors || ["Fell back to text-only response"],
+  });
+
+  send("verification_done", {
     verification: {
       confidence: "low",
       casVerified: false,
       criticVerified: false,
       toolChecksPassed: false,
     },
+    whiteboard: fallback,
   });
 }
 

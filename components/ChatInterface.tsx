@@ -245,48 +245,89 @@ export default function ChatInterface() {
         body: JSON.stringify({ messages: history, level, examBoard, subject: selectedSubject }),
       });
 
-      const data = await res.json();
+      if (!res.body) throw new Error("No response body");
 
-      if (res.status === 403 && data.error === "limit_reached") {
-        setShowPaywall(true);
-        // Remove optimistic user message
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-        return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let msgId: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+
+        for (const part of parts) {
+          let eventName = "message";
+          let eventData = "";
+          for (const line of part.split("\n")) {
+            if (line.startsWith("event: ")) eventName = line.slice(7);
+            else if (line.startsWith("data: ")) eventData = line.slice(6);
+          }
+          if (!eventData) continue;
+
+          const parsed = JSON.parse(eventData);
+
+          if (eventName === "error") {
+            if (parsed.error === "limit_reached") {
+              setShowPaywall(true);
+              setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+              return;
+            }
+            if (parsed.error === "auth_required") {
+              setShowAuthModal(true);
+              setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+              return;
+            }
+            throw new Error(parsed.error || "Request failed");
+          }
+
+          if (eventName === "solver_done") {
+            // Track usage
+            if (!user) {
+              incrementAnonPromptCount();
+            } else {
+              setPromptsUsed((prev) => prev + 1);
+            }
+
+            msgId = crypto.randomUUID();
+
+            if (parsed.whiteboard) {
+              setWhiteboardResponses((prev) => {
+                const next = new Map(prev);
+                next.set(msgId!, parsed.whiteboard as WhiteboardResponse);
+                return next;
+              });
+            }
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: msgId!,
+                role: "assistant",
+                content: JSON.stringify(parsed.response),
+                parsed: parsed.response as TutorResponse,
+                timestamp: new Date(),
+              },
+            ]);
+          }
+
+          if (eventName === "verification_done" && msgId) {
+            // Update whiteboard with verified/corrected data
+            if (parsed.whiteboard) {
+              setWhiteboardResponses((prev) => {
+                const next = new Map(prev);
+                next.set(msgId!, parsed.whiteboard as WhiteboardResponse);
+                return next;
+              });
+            }
+          }
+        }
       }
-      if (res.status === 401 && data.error === "auth_required") {
-        setShowAuthModal(true);
-        setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-        return;
-      }
-      if (!res.ok) throw new Error(data.error || "Request failed");
-
-      // Track anonymous usage
-      if (!user) {
-        incrementAnonPromptCount();
-      } else {
-        setPromptsUsed((prev) => prev + 1);
-      }
-
-      const msgId = crypto.randomUUID();
-
-      if (data.whiteboard) {
-        setWhiteboardResponses((prev) => {
-          const next = new Map(prev);
-          next.set(msgId, data.whiteboard as WhiteboardResponse);
-          return next;
-        });
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: msgId,
-          role: "assistant",
-          content: JSON.stringify(data.response),
-          parsed: data.response as TutorResponse,
-          timestamp: new Date(),
-        },
-      ]);
     } catch {
       setMessages((prev) => [
         ...prev,

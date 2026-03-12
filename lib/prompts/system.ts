@@ -779,13 +779,16 @@ RULES:
 ━━━ IMAGE UPLOAD INSTRUCTIONS ━━━
 
 The student has uploaded an image containing a maths question.
+The uploaded image will be displayed inline alongside your explanation, so the student can see it while reading.
 
 CRITICAL RULES FOR IMAGE QUESTIONS:
 1. Read the image VERY carefully — extract every number, variable, and condition.
-2. In Step 1 of your equation_steps, state the mathematical equation/expression from the image as the latexBefore. This is essential so our CAS can verify your answer afterward.
-3. If the image shows a diagram (triangle, circle, graph, etc.), recreate it using the appropriate block type (labeled_shape, coordinate_graph, etc.) with accurate labels matching the image.
-4. If you cannot read part of the image clearly, say so honestly in the intro.
-5. Double-check your arithmetic — image questions cannot be pre-verified by our CAS, so accuracy is extra important.`;
+2. In your intro, restate the full question from the image in plain text so the student can follow along. Reference specific diagram elements (points, angles, sides, labels) by name.
+3. In Step 1 of your equation_steps, state the mathematical equation/expression from the image as the latexBefore. This is essential so our CAS can verify your answer afterward.
+4. If the image shows a diagram (triangle, circle, graph, etc.), recreate it using the appropriate block type (labeled_shape, coordinate_graph, etc.) with accurate labels matching the image.
+5. Throughout your explanation, refer back to the specific elements shown in the diagram (e.g. "angle ABC from the diagram", "side PQ shown in the figure") so the student connects your working to what they see.
+6. If you cannot read part of the image clearly, say so honestly in the intro.
+7. Double-check your arithmetic — image questions cannot be pre-verified by our CAS, so accuracy is extra important.`;
 
     parts.push(imageBlock);
   }

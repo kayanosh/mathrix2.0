@@ -35,6 +35,26 @@ export default function WhiteboardRenderer({ data }: Props) {
           </motion.p>
         )}
 
+        {/* Uploaded question image — shown inline below the intro */}
+        {data.questionImageUrl && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.1 }}
+            className="mb-6 rounded-xl overflow-hidden border border-gray-200 bg-white inline-block max-w-xs sm:max-w-sm"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.questionImageUrl}
+              alt="Uploaded question diagram"
+              className="w-full h-auto"
+            />
+            <p className="text-[11px] text-gray-400 px-3 py-1.5 text-center">
+              📎 Uploaded question
+            </p>
+          </motion.div>
+        )}
+
         {/* Topic label — small underline like a teacher writes the title */}
         {data.topic && (
           <motion.div
