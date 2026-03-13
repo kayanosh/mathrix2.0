@@ -24,11 +24,11 @@ const FREE_DAILY_LIMIT = 5;
 const INTRO_SLIDES = [
   {
     title: "Welcome to the System",
-    sub: "GCSE Maths. Step by step. Higher Tier.",
+    sub: "GCSE Maths. Step by step. Higher/Foundation Tier.",
   },
   {
     title: "Choose Your Topic",
-    sub: "Number, Algebra, Geometry, Ratio & Proportion, Statistics.\nAll mapped to GCSE Higher Tier.",
+    sub: "Number, Algebra, Geometry, Ratio & Proportion, Statistics.\nAll mapped to GCSE Higher/Foundation Tier.",
   },
 ];
 
@@ -419,24 +419,29 @@ export default function ChatInterface() {
       </AnimatePresence>
 
       {/* ── Top bar ───────────────────────────────────────── */}
-      <header className="flex items-center justify-end px-5 py-3 flex-shrink-0 z-10">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3 flex-shrink-0 z-10">
+        {/* Logo */}
+        <div className="flex items-center flex-shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Mathrix" className="h-7 sm:h-9" />
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-3">
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
               className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              <RotateCcw size={13} /> New chat
+              <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
           )}
           <button
             onClick={() => setShowPricing(true)}
-            className="text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium"
+            className="text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium"
           >
             Pricing
           </button>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <Settings size={18} />
+          <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <Settings size={16} />
           </button>
           {user ? (
             <div className="flex items-center gap-2">
@@ -569,7 +574,7 @@ function HeroLanding(props: InputProps) {
   } = props;
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 relative">
+    <div className="flex-1 flex flex-col items-center justify-center px-3 sm:px-4 relative">
       {/* Subtle top gradient */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -585,11 +590,15 @@ function HeroLanding(props: InputProps) {
         className="flex flex-col items-center text-center z-10 w-full max-w-2xl"
       >
         {/* Heading */}
-        <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-3 tracking-tight leading-tight whitespace-nowrap">
+        {/* Logo in hero */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="Mathrix" className="h-10 sm:h-14 mb-5" />
+
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
           GCSE Maths. Step by step.
         </h1>
-        <p className="text-gray-400 text-base sm:text-lg mb-10">
-          Higher Tier · Grades 4–9
+        <p className="text-gray-400 text-sm sm:text-base md:text-lg mb-8 sm:mb-10">
+          Higher/Foundation Tier · Grades 1–9
         </p>
 
         {/* ── Input bar ──────────────────────────────────── */}
@@ -623,8 +632,8 @@ function HeroLanding(props: InputProps) {
             onKeyDown={handleKeyDown}
             placeholder="Ask a GCSE maths question..."
             rows={1}
-            className="flex-1 bg-transparent text-gray-900 pl-5 pr-2 py-4 text-base resize-none focus:outline-none placeholder-gray-400"
-            style={{ minHeight: 52, maxHeight: 120, fieldSizing: "content" } as React.CSSProperties}
+            className="flex-1 bg-transparent text-gray-900 pl-4 sm:pl-5 pr-2 py-3 sm:py-4 text-sm sm:text-base resize-none focus:outline-none placeholder-gray-400"
+            style={{ minHeight: 46, maxHeight: 120, fieldSizing: "content" } as React.CSSProperties}
           />
           <div className="flex items-center gap-1.5 mr-2">
             <button
@@ -694,9 +703,9 @@ function HeroLanding(props: InputProps) {
       </motion.div>
 
       {/* Bottom section */}
-      <div className="absolute bottom-8 flex flex-col items-center gap-4">
+      <div className="absolute bottom-4 sm:bottom-8 flex flex-col items-center gap-3 sm:gap-4 px-4">
         <span className="text-[11px] font-medium text-gray-400">
-          Mapped to GCSE Higher Tier (Grades 4–9)
+          Mapped to GCSE Higher/Foundation Tier (Grades 1–9)
         </span>
         <button
           onClick={() => fileInputRef.current?.click()}

@@ -142,7 +142,7 @@ export default function PricingModal({ onClose, onUpgrade, isLoggedIn, currentPl
             </div>
 
             <p className="text-[11px] text-gray-400 text-center mt-4">
-              All plans include GCSE Higher Tier content. Pro is billed monthly. Cancel anytime.
+              All plans include GCSE Higher/Foundation Tier content. Pro is billed monthly. Cancel anytime.
             </p>
           </div>
         </motion.div>
