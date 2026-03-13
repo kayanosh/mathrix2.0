@@ -423,7 +423,7 @@ export default function ChatInterface() {
         {/* Logo */}
         <div className="flex items-center flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Mathrix" className="h-7 sm:h-9" />
+          <img src="/logo.png" alt="Mathrix" className="w-auto h-6 sm:h-9" />
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3">
           {messages.length > 0 && (
@@ -592,7 +592,7 @@ function HeroLanding(props: InputProps) {
         {/* Heading */}
         {/* Logo in hero */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Mathrix" className="h-10 sm:h-14 mb-5" />
+        <img src="/logo.png" alt="Mathrix" className="w-auto h-8 sm:h-14 mb-5" />
 
         <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
           GCSE Maths. Step by step.
