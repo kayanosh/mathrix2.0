@@ -506,7 +506,25 @@ export default function ChatInterface() {
                     key={msg.id}
                     message={msg}
                     whiteboardResponse={wbr}
-                    onWatchWhiteboard={wbr ? () => setWhiteboardData(wbr) : undefined}
+                    onWatchWhiteboard={
+                      wbr
+                        ? () => {
+                            try {
+                              if (typeof window !== "undefined" && window.speechSynthesis) {
+                                // Prime/resume speech on user gesture to satisfy mobile autoplay policies
+                                window.speechSynthesis.cancel();
+                                const _u = new SpeechSynthesisUtterance("");
+                                // speak then cancel to warm up voices
+                                window.speechSynthesis.speak(_u);
+                                window.speechSynthesis.cancel();
+                              }
+                            } catch (e) {
+                              /* ignore */
+                            }
+                            setWhiteboardData(wbr);
+                          }
+                        : undefined
+                    }
                   />
                 );
               })}
