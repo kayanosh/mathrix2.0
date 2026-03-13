@@ -23,12 +23,10 @@ const FREE_DAILY_LIMIT = 5;
 /* ─────────────────────────────────────────────────────── */
 const INTRO_SLIDES = [
   {
-    emoji: "🧮",
     title: "Welcome to the System",
     sub: "GCSE Maths. Step by step. Higher Tier.",
   },
   {
-    emoji: "📊",
     title: "Choose Your Topic",
     sub: "Number, Algebra, Geometry, Ratio & Proportion, Statistics.\nAll mapped to GCSE Higher Tier.",
   },
@@ -68,7 +66,6 @@ function IntroOverlay({ onDone }: { onDone: () => void }) {
           transition={{ duration: 0.45 }}
           className="flex flex-col items-center text-center z-10 px-6"
         >
-          <span className="text-5xl mb-6">{current.emoji}</span>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">{current.title}</h1>
           <p className="text-gray-500 text-base sm:text-lg max-w-md whitespace-pre-line leading-relaxed">
             {current.sub}
@@ -103,7 +100,10 @@ function IntroOverlay({ onDone }: { onDone: () => void }) {
 /*  Main ChatInterface                                     */
 /* ─────────────────────────────────────────────────────── */
 export default function ChatInterface() {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("mathrix_intro_seen");
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -377,7 +377,7 @@ export default function ChatInterface() {
     <div className="flex flex-col h-screen bg-white relative">
       {/* ── Intro overlay ─────────────────────────────────── */}
       <AnimatePresence>
-        {showIntro && <IntroOverlay onDone={() => setShowIntro(false)} />}
+        {showIntro && <IntroOverlay onDone={() => { localStorage.setItem("mathrix_intro_seen", "1"); setShowIntro(false); }} />}
       </AnimatePresence>
 
       {/* ── Auth Modal ────────────────────────────────────── */}
