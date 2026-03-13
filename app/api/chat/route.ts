@@ -22,10 +22,10 @@ const client = new OpenAI({
 
 /* ── Model configuration ─────────────────────────────────────────────────── */
 
-/** Main solver model — best balance of reasoning + structured JSON output */
-const SOLVER_MODEL = "o3";
-/** Critic model — used for independent verification (Pass 2) */
-const CRITIC_MODEL = "o3";
+/** Main solver model — gpt-4o: fast + accurate for GCSE maths */
+const SOLVER_MODEL = "gpt-4o";
+/** Critic model — gpt-4o: independent verification */
+const CRITIC_MODEL = "gpt-4o";
 /** Max tokens for solver responses */
 const SOLVER_MAX_TOKENS = 8192;
 /** Max tokens for critic responses (much smaller — just JSON verdict) */
@@ -189,7 +189,8 @@ export async function POST(req: NextRequest) {
 
     const solverResponse = await client.chat.completions.create({
       model: SOLVER_MODEL,
-      max_completion_tokens: SOLVER_MAX_TOKENS,
+      max_tokens: SOLVER_MAX_TOKENS,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system" as const, content: systemPrompt },
         ...formattedMessages,
@@ -216,7 +217,8 @@ export async function POST(req: NextRequest) {
 
       const retryResponse = await client.chat.completions.create({
         model: SOLVER_MODEL,
-        max_completion_tokens: SOLVER_MAX_TOKENS,
+        max_tokens: SOLVER_MAX_TOKENS,
+        response_format: { type: "json_object" },
         messages: [
           { role: "system" as const, content: systemPrompt },
           ...retryMessages,
@@ -315,7 +317,8 @@ export async function POST(req: NextRequest) {
 
     const criticResponse = await client.chat.completions.create({
       model: CRITIC_MODEL,
-      max_completion_tokens: CRITIC_MAX_TOKENS,
+      max_tokens: CRITIC_MAX_TOKENS,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system" as const, content: criticSystemPrompt },
         { role: "user" as const, content: criticUserMessage },
@@ -354,7 +357,8 @@ export async function POST(req: NextRequest) {
 
         const correctionResponse = await client.chat.completions.create({
           model: SOLVER_MODEL,
-          max_completion_tokens: SOLVER_MAX_TOKENS,
+          max_tokens: SOLVER_MAX_TOKENS,
+          response_format: { type: "json_object" },
           messages: [
             { role: "system" as const, content: systemPrompt },
             ...correctionMessages,
