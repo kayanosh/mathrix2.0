@@ -71,18 +71,40 @@ export default function TermTransferArrow({
         y2: tRect.top + tRect.height / 2 - cRect.top,
       });
     } else {
-      // Fallback: arrow from right-third of "before" row to right-third of "after" row
-      // The "before" equation is roughly the top 45% and "after" the bottom 45%
-      const beforeY = cRect.height * 0.25;
-      const afterY = cRect.height * 0.75;
-      const x = cRect.width * 0.65;
+      // Fallback: find the "before" and "after" equation rows and anchor
+      // the arrow at the right edge of each equation's KaTeX content
+      const beforeRow = container.querySelector(".wb-step-before") as HTMLElement | null;
+      const afterRow = container.querySelector(".wb-step-after") as HTMLElement | null;
 
-      setPts({
-        x1: x,
-        y1: beforeY,
-        x2: x,
-        y2: afterY,
-      });
+      if (beforeRow && afterRow) {
+        const bRect = beforeRow.getBoundingClientRect();
+        const aRect = afterRow.getBoundingClientRect();
+        // Find the KaTeX content to get the right edge of the equation
+        const bKatex = beforeRow.querySelector(".katex") as HTMLElement | null;
+        const aKatex = afterRow.querySelector(".katex") as HTMLElement | null;
+        const bRight = bKatex
+          ? bKatex.getBoundingClientRect().right - cRect.left + 10
+          : cRect.width * 0.65;
+        const aRight = aKatex
+          ? aKatex.getBoundingClientRect().right - cRect.left + 10
+          : cRect.width * 0.65;
+        const x = Math.max(bRight, aRight);
+
+        setPts({
+          x1: x,
+          y1: bRect.top + bRect.height / 2 - cRect.top,
+          x2: x,
+          y2: aRect.top + aRect.height / 2 - cRect.top,
+        });
+      } else {
+        // Last resort: generic center-right position
+        setPts({
+          x1: cRect.width * 0.65,
+          y1: cRect.height * 0.25,
+          x2: cRect.width * 0.65,
+          y2: cRect.height * 0.75,
+        });
+      }
     }
   }, [containerRef, fromId, toId]);
 

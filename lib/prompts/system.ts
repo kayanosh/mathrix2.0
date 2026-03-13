@@ -126,6 +126,7 @@ Populate arrows ONLY when a term physically crosses the = sign:
 CRITICAL — \\htmlId TAGGING for arrows:
 When a step has arrows, you MUST wrap the source term in latexBefore with \\htmlId{ARROW_ID-from}{term} and the destination term in latexAfter with \\htmlId{ARROW_ID-to}{term}.
 The ARROW_ID is the arrow's "id" field. This lets the renderer draw an arrow from the exact term position.
+WITHOUT \\htmlId tags, the arrows will appear in the WRONG position. This is the most important visual rule.
 
 Example: arrow id "arrow-1", the +4 crosses to become -4:
   latexBefore: "2x + \\htmlId{arrow-1-from}{4} = 10"
@@ -135,9 +136,29 @@ For multiplication/division arrows (e.g. ×2 becomes ÷2):
   latexBefore: "\\htmlId{arrow-2-from}{2}x = 6"
   latexAfter:  "x = \\htmlId{arrow-2-to}{\\frac{6}{2}}"
 
+Complete JSON example for a step with an arrow:
+{
+  "stepNumber": 2,
+  "latexBefore": "x + \\\\htmlId{a1-from}{5} = 12",
+  "latexAfter": "x = 12 \\\\htmlId{a1-to}{- 5}",
+  "operationLabel": "Subtract 5 from both sides",
+  "explanation": "Move the +5 to the right side, it becomes -5.",
+  "arrowDirection": "both_sides",
+  "arrows": [{
+    "id": "a1",
+    "label": "-5",
+    "fromTerm": "+5",
+    "toTerm": "-5",
+    "signRule": "adding becomes subtracting",
+    "style": "curly",
+    "color": "#dc2626"
+  }]
+}
+
 Rules:
   • Wrap ONLY the specific term/coefficient — not the whole equation
   • The \\htmlId must appear in BOTH latexBefore and latexAfter for the arrow to connect
+  • EVERY arrow MUST have matching \\htmlId tags. Never include an arrow without them.
   • fromTerm/toTerm fields still contain the plain LaTeX labels ("+4", "-4") for display as fallback
   • If a step has multiple arrows, each gets a unique id and its own \\htmlId pair
 
