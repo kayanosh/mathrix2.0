@@ -7,8 +7,9 @@
  *   3. Category-specific rules + few-shot example
  */
 import type { QuestionCategory } from "@/types/whiteboard";
-import type { CASResult } from "@/lib/cas-solver";
 import type { VisualRequirement } from "./required-visuals";
+import type { GroundTruthResult } from "@/lib/ground-truth";
+import { buildGroundTruthPromptBlock } from "@/lib/ground-truth";
 
 // ── Shared header ─────────────────────────────────────────────────────────────
 
@@ -36,6 +37,16 @@ TEACHING RULES:
 • The "intro" field: one friendly, energetic opening sentence that sets the scene
 • The "conclusion" field: clearly state the final answer with a little celebration
 • The "hint" field: one common mistake to avoid (phrase it helpfully, not scarily), or null
+
+PEDAGOGICAL SCAFFOLDING (new fields — use these!):
+For each equation step, provide where applicable:
+• "rule": The formal theorem/rule name (e.g. "Inverse operations", "Distributive law", "Pythagoras' theorem", "Quadratic formula", "Power rule", "SOHCAHTOA"). Shown as a badge.
+• "why": One sentence WHY this rule works here — builds intuition, not just procedure. Shown as expandable callout. Example: "Subtracting undoes the addition, isolating $2x$ on the left."
+• "selfCheck": A quick verification the student can run — usually ONLY on the final step. Example: "Check: $2(3) + 4 = 10$ ✓"
+Top-level fields:
+• "keyTakeaway": One memorable sentence the student should walk away remembering. Example: "Whatever you do to one side, do to the other — that's the balance rule!"
+• "examTip": One exam-board specific tip if relevant. Example: "AQA always wants answers to 3 s.f. unless told otherwise."
+These fields are OPTIONAL — only include them where they genuinely add value.
 
 SOLVING PROCESS (follow this internally before outputting JSON):
 
@@ -77,7 +88,9 @@ const SCHEMA = `
   "conclusion": "string — final answer clearly stated",
   "hint": "string | null — common mistake to avoid",
   "subject": "string — e.g. 'Maths'",
-  "topic": "string — e.g. 'Algebra — Solving linear equations'"
+  "topic": "string — e.g. 'Algebra — Solving linear equations'",
+  "keyTakeaway": "OPTIONAL — one memorable sentence the student should remember",
+  "examTip": "OPTIONAL — one exam-board specific tip (AQA/Edexcel/OCR)"
 }
 
 Each block has a "type" field. Available block types:
@@ -90,7 +103,10 @@ For algebraic manipulation, solving equations, expanding, factorising.
     {
       "stepNumber": 1,
       "operationLabel": "≤60 chars — label on the arrow connector",
-      "explanation": "WHY we do this step (one sentence for a 15-year-old)",
+      "explanation": "WHAT we do this step (one sentence for a 15-year-old)",
+      "rule": "OPTIONAL — formal rule name: 'Inverse operations', 'Distributive law', etc.",
+      "why": "OPTIONAL — one sentence WHY this rule applies: builds intuition",
+      "selfCheck": "OPTIONAL — quick self-verification, usually ONLY on the final step",
       "latexBefore": "LaTeX of expression BEFORE (populate on step 1 only)",
       "latexAfter": "LaTeX of expression AFTER this step",
       "arrowDirection": "both_sides" | "down" | "simplify",
@@ -348,6 +364,8 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
           "stepNumber": 2,
           "operationLabel": "Subtract 4 from both sides",
           "explanation": "That $+4$ is in the way — let's get rid of it! We subtract $4$ from both sides so it cancels out. Watch the arrow!",
+          "rule": "Inverse operations",
+          "why": "Subtracting undoes the addition, isolating $2x$ on the left.",
           "latexBefore": "2x + \\\\htmlId{arrow-1-from}{4} = 10",
           "latexAfter": "2x = 10 \\\\htmlId{arrow-1-to}{- 4}",
           "arrowDirection": "both_sides",
@@ -375,6 +393,8 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
           "stepNumber": 4,
           "operationLabel": "Divide both sides by 2",
           "explanation": "Nearly there! $x$ is being multiplied by $2$, so we divide both sides by $2$ to free it. One more step!",
+          "rule": "Inverse operations",
+          "why": "Dividing undoes the multiplication, leaving $x$ on its own.",
           "latexBefore": "\\\\htmlId{arrow-2-from}{2}x = 6",
           "latexAfter": "x = \\\\htmlId{arrow-2-to}{\\\\frac{6}{2}}",
           "arrowDirection": "both_sides",
@@ -394,6 +414,7 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
           "stepNumber": 5,
           "operationLabel": "Simplify",
           "explanation": "$6 \\div 2 = 3$. And we're done!",
+          "selfCheck": "Check: $2(3) + 4 = 6 + 4 = 10$ ✓",
           "latexBefore": "x = \\\\frac{6}{2}",
           "latexAfter": "x = 3",
           "arrowDirection": "simplify"
@@ -759,7 +780,7 @@ EXAMPLE — Calculus (Differentiate y = 3x² + 2x − 5):
 
 export function buildSystemPrompt(
   category: QuestionCategory,
-  casResult?: CASResult | null,
+  groundTruth?: GroundTruthResult | null,
   requiredVisuals?: VisualRequirement[],
   hasImage?: boolean,
 ): string {
@@ -814,28 +835,9 @@ CRITICAL RULES FOR IMAGE QUESTIONS:
     parts.push(imageBlock);
   }
 
-  // If CAS solved the problem, inject the verified answer
-  if (casResult) {
-    const casBlock = `
-━━━ CAS-VERIFIED ANSWER (Computer Algebra System) ━━━
-
-A symbolic maths engine has already solved this problem. The verified answer is:
-
-Problem type: ${casResult.problemType}
-Input: ${casResult.inputExpression}
-Answer(s): ${casResult.answers.join(", ")}
-Answer LaTeX: ${casResult.answersLatex.join(", ")}
-Verified by substitution: ${casResult.verified ? "YES ✓" : "NO"}
-${casResult.intermediateSteps ? "\nIntermediate steps:\n" + casResult.intermediateSteps.map((s) => `  ${s.label}: ${s.latex}`).join("\n") : ""}
-
-CRITICAL RULES:
-• You MUST use exactly this answer in your final "conclusion" and last equation step.
-• Do NOT compute a different answer — the CAS is correct.
-• Your job is to build a beautiful step-by-step explanation that ARRIVES at this answer.
-• Set "casVerified": true in your JSON response.
-• Show intermediate working naturally, but the final value(s) MUST match the CAS answer above.`;
-
-    parts.push(casBlock);
+  // Inject ground-truth answer (SymPy or Nerdamer)
+  if (groundTruth && groundTruth.verified) {
+    parts.push(buildGroundTruthPromptBlock(groundTruth));
   }
 
   return parts.join("\n\n");

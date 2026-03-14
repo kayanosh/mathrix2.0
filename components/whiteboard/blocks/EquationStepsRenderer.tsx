@@ -6,6 +6,7 @@ import type { EquationStepBlock, EquationStep } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
 import InlineMath from "@/components/InlineMath";
 import TermTransferArrow from "../TermTransferArrow";
+import WhyExpander from "./WhyExpander";
 
 const MARKER = {
   blue: "#1d4ed8",
@@ -41,9 +42,20 @@ export default function EquationStepsRenderer({ block, baseDelay }: Props) {
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: stepDelay - 0.15, duration: 0.3 }}
-                className="wb-annotation font-[family-name:var(--font-caveat)] text-lg sm:text-xl ml-1 mb-1"
+                className="wb-annotation font-[family-name:var(--font-caveat)] text-lg sm:text-xl ml-1 mb-1 flex items-center flex-wrap gap-2"
               >
                 <InlineMath text={step.operationLabel} />
+                {/* Rule badge — formal theorem/rule name */}
+                {step.rule && (
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: stepDelay - 0.05, duration: 0.2 }}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 font-sans"
+                  >
+                    {step.rule}
+                  </motion.span>
+                )}
               </motion.div>
             )}
 
@@ -84,10 +96,32 @@ export default function EquationStepsRenderer({ block, baseDelay }: Props) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: stepDelay + 0.3, duration: 0.3 }}
-                className="wb-explanation font-[family-name:var(--font-caveat)] text-base sm:text-lg ml-6 mb-3"
+                className="wb-explanation font-[family-name:var(--font-caveat)] text-base sm:text-lg ml-6 mb-1"
               >
                 ↳ <InlineMath text={step.explanation} />
               </motion.div>
+            )}
+
+            {/* ── Why expander — builds mathematical intuition ── */}
+            {step.why && !isFirst && (
+              <WhyExpander text={step.why} delay={stepDelay + 0.35} />
+            )}
+
+            {/* ── Self-check — green verification callout ── */}
+            {step.selfCheck && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: stepDelay + 0.45, duration: 0.3 }}
+                className="ml-6 mt-1 mb-3 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 font-[family-name:var(--font-caveat)] text-base text-emerald-800"
+              >
+                <InlineMath text={step.selfCheck} />
+              </motion.div>
+            )}
+
+            {/* Spacer when no self-check */}
+            {!step.selfCheck && (isFirst || step.explanation || step.why) && (
+              <div className="mb-2" />
             )}
           </div>
         );

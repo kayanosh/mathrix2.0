@@ -108,7 +108,7 @@ export default function WhiteboardRenderer({ data }: Props) {
           </motion.div>
         )}
 
-        {/* CAS Verified badge */}
+        {/* Verification badge — shows source + agreement count */}
         {data.casVerified && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -117,7 +117,30 @@ export default function WhiteboardRenderer({ data }: Props) {
             className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200"
           >
             <ShieldCheck size={13} className="text-emerald-600" />
-            Verified by CAS
+            {data.groundTruthSource === "sympy"
+              ? "Verified by SymPy"
+              : data.groundTruthSource === "both"
+              ? "Verified by SymPy + Nerdamer"
+              : "Verified by CAS"}
+            {data.verification?.agreementCount !== undefined &&
+              data.verification.agreementCount > 0 && (
+                <span className="ml-0.5 opacity-70">
+                  ({data.verification.agreementCount}/4 checks)
+                </span>
+              )}
+          </motion.div>
+        )}
+
+        {/* Key takeaway — memorable sentence */}
+        {data.keyTakeaway && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: data.blocks.length * STEP_GAP + 0.48 }}
+            className="mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 font-[family-name:var(--font-caveat)] text-base text-amber-900"
+          >
+            <span className="font-semibold">Key idea:</span>{" "}
+            <InlineMath text={data.keyTakeaway} />
           </motion.div>
         )}
 
@@ -130,6 +153,19 @@ export default function WhiteboardRenderer({ data }: Props) {
             className="wb-hint mt-4 font-[family-name:var(--font-caveat)] text-lg"
           >
             💡 <InlineMath text={data.hint} />
+          </motion.div>
+        )}
+
+        {/* Exam tip */}
+        {data.examTip && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: data.blocks.length * STEP_GAP + 0.58 }}
+            className="mt-3 px-3 py-2 rounded-lg bg-sky-50 border border-sky-200 font-[family-name:var(--font-caveat)] text-base text-sky-900"
+          >
+            <span className="font-semibold">Exam tip:</span>{" "}
+            <InlineMath text={data.examTip} />
           </motion.div>
         )}
       </div>

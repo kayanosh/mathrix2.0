@@ -51,8 +51,10 @@ export interface CASResult {
  * Converts natural-language / LaTeX-ish expressions into a form nerdamer
  * can parse.  Handles implicit multiplication, unicode minus, common
  * patterns students type, etc.
+ *
+ * Exported so that sympy-solver.ts can reuse the same normalisation logic.
  */
-function normalise(expr: string): string {
+export function normalise(expr: string): string {
   let s = expr.trim();
 
   // Remove trailing question marks, periods

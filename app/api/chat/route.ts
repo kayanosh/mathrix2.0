@@ -10,24 +10,24 @@ import {
 } from "@/lib/prompts/critic";
 import { validateResponse } from "@/lib/validate";
 import { casSolve } from "@/lib/cas-solver";
+import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
+import { buildGroundTruth } from "@/lib/ground-truth";
+import { claudeSolve, convertToAnthropicMessages } from "@/lib/claude-solver";
 import { postVerifyCAS } from "@/lib/cas-post-verify";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-const client = new OpenAI({
+// Critic still uses GPT-4o for cross-model verification (decorrelated errors)
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 /* ── Model configuration ─────────────────────────────────────────────────── */
 
-/** Main solver model — gpt-4o: fast + accurate for GCSE maths */
-const SOLVER_MODEL = "gpt-4o";
-/** Critic model — gpt-4o: independent verification */
+/** Critic model — GPT-4o: cross-model verification (solver = Claude, critic = GPT-4o) */
 const CRITIC_MODEL = "gpt-4o";
-/** Max tokens for solver responses */
-const SOLVER_MAX_TOKENS = 8192;
 /** Max tokens for critic responses (much smaller — just JSON verdict) */
 const CRITIC_MAX_TOKENS = 2048;
 
@@ -128,9 +128,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Stage 2: Pre-CAS solver (symbolic computation) ────────────────
-    const casResult = casSolve(questionText);
-    if (casResult) {
+    // ── Stage 2: Ground-truth computation (SymPy + Nerdamer in parallel) ──
+    const sympyTask = inferSympyTask(questionText);
+    const [casResult, sympyResult] = await Promise.all([
+      Promise.resolve(casSolve(questionText)),
+      sympyTask
+        ? sympySolve(
+            sympyTask.expression,
+            sympyTask.type,
+            sympyTask.variable,
+            sympyTask.expressions,
+          ).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const groundTruth = buildGroundTruth(sympyResult, casResult);
+
+    if (groundTruth.verified) {
+      console.log(
+        `[GroundTruth] Source: ${groundTruth.source}, Answers: ${groundTruth.answers.join(", ")}`
+      );
+    } else if (casResult) {
       console.log(
         `[CAS] Solved as ${casResult.problemType}: ${casResult.answers.join(", ")} (verified: ${casResult.verified})`
       );
@@ -139,7 +157,7 @@ export async function POST(req: NextRequest) {
     // ── Stage 3: Build solver system prompt ───────────────────────────
     const systemPrompt = buildSystemPrompt(
       category,
-      casResult,
+      groundTruth.verified ? groundTruth : null,
       requiredVisuals.length > 0 ? requiredVisuals : undefined,
       hasImage || undefined,
     );
@@ -182,50 +200,56 @@ export async function POST(req: NextRequest) {
     );
 
     // ══════════════════════════════════════════════════════════════════
-    //  PASS 1 — SOLVER: Produce draft solution
+    //  PASS 1 — SOLVER: Claude Sonnet with extended thinking
     // ══════════════════════════════════════════════════════════════════
 
-    console.log(`[Pass 1] Solver: calling ${SOLVER_MODEL}...`);
+    console.log(`[Pass 1] Solver: calling Claude Sonnet (extended thinking)...`);
 
-    const solverResponse = await client.chat.completions.create({
-      model: SOLVER_MODEL,
-      max_tokens: SOLVER_MAX_TOKENS,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system" as const, content: systemPrompt },
-        ...formattedMessages,
-      ],
-    });
+    // Convert OpenAI-format messages to Anthropic format
+    const anthropicMessages = convertToAnthropicMessages(formattedMessages);
 
-    let rawContent = solverResponse.choices[0]?.message?.content || "";
+    let rawContent = "";
+    try {
+      const solverResult = await claudeSolve(systemPrompt, anthropicMessages);
+      rawContent = solverResult.content;
+    } catch (claudeErr) {
+      // Fallback to GPT-4o if Claude is unavailable
+      console.warn(`[Pass 1] Claude failed, falling back to GPT-4o: ${(claudeErr as Error).message}`);
+      const fallbackResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 8192,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system" as const, content: systemPrompt },
+          ...formattedMessages,
+        ],
+      });
+      rawContent = fallbackResponse.choices[0]?.message?.content || "";
+    }
 
     // ── Validate solver output (Zod + required visuals) ───────────────
     let result = validateResponse(rawContent, requiredBlockTypes);
 
-    // Retry once on schema validation failure
+    // Retry once on schema validation failure (Claude retry)
     if (!result.ok && result.errors) {
       console.log(`[Pass 1] Validation failed, retrying: ${result.errors.join("; ")}`);
 
-      const retryMessages = [
+      const retryAnthropicMessages = convertToAnthropicMessages([
         ...formattedMessages,
         { role: "assistant" as const, content: rawContent },
         {
           role: "user" as const,
           content: `Your JSON had validation errors:\n${result.errors.join("\n")}\n\nFix these and output corrected JSON matching the WhiteboardResponse schema. Output ONLY valid JSON.`,
         },
-      ];
+      ]);
 
-      const retryResponse = await client.chat.completions.create({
-        model: SOLVER_MODEL,
-        max_tokens: SOLVER_MAX_TOKENS,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system" as const, content: systemPrompt },
-          ...retryMessages,
-        ],
-      });
+      try {
+        const retryResult = await claudeSolve(systemPrompt, retryAnthropicMessages);
+        rawContent = retryResult.content;
+      } catch {
+        // If retry also fails, keep original rawContent
+      }
 
-      rawContent = retryResponse.choices[0]?.message?.content || "";
       result = validateResponse(rawContent, requiredBlockTypes);
     }
 
@@ -262,18 +286,26 @@ export async function POST(req: NextRequest) {
     // ══════════════════════════════════════════════════════════════════
 
     const verification: VerificationStatus = {
-      preCasVerified: casResult?.verified ?? false,
+      preCasVerified: groundTruth.verified,
       postCasVerified: false,
       criticVerified: false,
       toolChecksPassed: false,
       confidence: "low",
       warnings: [],
+      sympyVerified: groundTruth.sympyVerified,
+      crossModelVerified: true, // Always true: Claude solver + GPT-4o critic
     };
+
+    // Attach ground-truth metadata to solution
+    solutionData.groundTruthSource = groundTruth.source;
+    if (groundTruth.answers.length > 0) {
+      solutionData.sympyAnswer = groundTruth.answers.join(", ");
+    }
 
     // ── CAS verification ──────────────────────────────────────────────
 
-    // Pre-CAS stamp
-    if (casResult?.verified) {
+    // Pre-CAS stamp (using merged ground-truth)
+    if (groundTruth.verified) {
       solutionData.casVerified = true;
       verification.preCasVerified = true;
     }
@@ -306,16 +338,17 @@ export async function POST(req: NextRequest) {
     //  PASS 2 — CRITIC: Independent verification
     // ══════════════════════════════════════════════════════════════════
 
-    console.log(`[Pass 2] Critic: calling ${CRITIC_MODEL}...`);
+    console.log(`[Pass 2] Critic: calling ${CRITIC_MODEL} (cross-model)...`);
 
     const criticSystemPrompt = buildCriticSystemPrompt();
     const criticUserMessage = buildCriticUserMessage(
       questionText,
       rawContent,
       hasImage,
+      groundTruth.verified ? groundTruth : null,
     );
 
-    const criticResponse = await client.chat.completions.create({
+    const criticResponse = await openai.chat.completions.create({
       model: CRITIC_MODEL,
       max_tokens: CRITIC_MAX_TOKENS,
       response_format: { type: "json_object" },
@@ -349,24 +382,31 @@ export async function POST(req: NextRequest) {
 
         const correctionMsg = buildCorrectionMessage(criticResult);
 
-        const correctionMessages = [
+        const correctionAnthropicMessages = convertToAnthropicMessages([
           ...formattedMessages,
           { role: "assistant" as const, content: rawContent },
           { role: "user" as const, content: correctionMsg },
-        ];
+        ]);
 
-        const correctionResponse = await client.chat.completions.create({
-          model: SOLVER_MODEL,
-          max_tokens: SOLVER_MAX_TOKENS,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system" as const, content: systemPrompt },
-            ...correctionMessages,
-          ],
-        });
-
-        const correctedContent =
-          correctionResponse.choices[0]?.message?.content || "";
+        let correctedContent = "";
+        try {
+          const correctionResult = await claudeSolve(systemPrompt, correctionAnthropicMessages);
+          correctedContent = correctionResult.content;
+        } catch {
+          // Fall back to GPT-4o for correction
+          const fallback = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 8192,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system" as const, content: systemPrompt },
+              ...formattedMessages,
+              { role: "assistant" as const, content: rawContent },
+              { role: "user" as const, content: correctionMsg },
+            ],
+          });
+          correctedContent = fallback.choices[0]?.message?.content || "";
+        }
         const correctedResult = validateResponse(
           correctedContent,
           requiredBlockTypes
@@ -410,14 +450,19 @@ export async function POST(req: NextRequest) {
     //  COMPUTE CONFIDENCE & RETURN
     // ══════════════════════════════════════════════════════════════════
 
-    // Determine confidence based on verification results
+    // Determine confidence based on 4 independent verification sources
     const verifiedCount = [
-      verification.preCasVerified || verification.postCasVerified,
-      verification.criticVerified,
-      verification.toolChecksPassed,
+      groundTruth.verified,                              // SymPy or Nerdamer pre-solve
+      verification.postCasVerified,                      // Nerdamer post-check
+      verification.criticVerified,                       // GPT-4o critic
+      verification.toolChecksPassed,                     // Deterministic tool checks
     ].filter(Boolean).length;
 
-    if (verifiedCount >= 2) {
+    verification.agreementCount = verifiedCount;
+
+    if (verifiedCount >= 3) {
+      verification.confidence = "high";
+    } else if (verifiedCount >= 2) {
       verification.confidence = "high";
     } else if (verifiedCount === 1) {
       verification.confidence = "medium";

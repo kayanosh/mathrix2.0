@@ -54,6 +54,26 @@ export interface EquationStep {
   arrows?: CurlyArrow[];
   /** LaTeX for the | notation on both sides, e.g. "-4" or "\\div 2" */
   balanceNotation?: string;
+
+  // ── Pedagogical scaffolding (new) ──────────────────────────────────────────
+
+  /** The formal mathematical rule or theorem applied in this step.
+   *  Shown as a badge beside the operation label.
+   *  Examples: "Inverse operations", "Distributive law", "Pythagoras' theorem",
+   *  "Quadratic formula", "Chain rule", "SOHCAHTOA" */
+  rule?: string;
+
+  /** One sentence explaining WHY this rule works here — builds intuition.
+   *  Distinct from `explanation` which describes WHAT to do.
+   *  Shown as a collapsible "Why?" callout.
+   *  Example: "Subtracting undoes the addition, isolating 2x on the left." */
+  why?: string;
+
+  /** A quick self-check the student can verify manually.
+   *  Usually only on the final step.
+   *  Shown as a green verification callout.
+   *  Example: "Check: 2(3) + 4 = 6 + 4 = 10 ✓" */
+  selfCheck?: string;
 }
 
 export interface EquationStepBlock {
@@ -331,6 +351,15 @@ export interface VerificationStatus {
   confidence: "high" | "medium" | "low";
   /** Any warnings from the verification pipeline */
   warnings: string[];
+
+  // ── New verification fields ──────────────────────────────────────────────
+
+  /** SymPy independently verified the answer */
+  sympyVerified?: boolean;
+  /** Solver (Claude) and critic (GPT-4o) are different models — decorrelated errors */
+  crossModelVerified?: boolean;
+  /** Number of independent sources (0–4) that agree on the answer */
+  agreementCount?: number;
 }
 
 export interface WhiteboardResponse {
@@ -352,6 +381,17 @@ export interface WhiteboardResponse {
   verification?: VerificationStatus;
   /** Original uploaded image (base64 data URI) — shown inline with the explanation */
   questionImageUrl?: string;
+
+  // ── Pedagogical scaffolding fields (new) ──────────────────────────────────
+
+  /** Which computation engine independently verified the answer */
+  groundTruthSource?: "sympy" | "nerdamer" | "both" | "none";
+  /** SymPy's raw computed answer string (for display in verification badge) */
+  sympyAnswer?: string;
+  /** One memorable takeaway sentence the student should remember */
+  keyTakeaway?: string;
+  /** Exam-board specific tip (AQA/Edexcel/OCR) */
+  examTip?: string;
 }
 
 // ── Question Classification ───────────────────────────────────────────────────

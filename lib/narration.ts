@@ -102,9 +102,14 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
     cues.push({ blockIndex: -2, text: data.conclusion, kind: "conclusion" });
   }
 
+  // ── Key takeaway ────────────────────────────────────────
+  if (data.keyTakeaway) {
+    cues.push({ blockIndex: -3, text: `Key idea: ${data.keyTakeaway}`, kind: "hint" });
+  }
+
   // ── Hint ────────────────────────────────────────────────
   if (data.hint) {
-    cues.push({ blockIndex: -3, text: data.hint, kind: "hint" });
+    cues.push({ blockIndex: -4, text: data.hint, kind: "hint" });
   }
 
   // ── Sanitise all text for TTS ──────────────────────────
@@ -123,10 +128,22 @@ function cuesForEquationSteps(
   bi: number,
 ) {
   block.steps.forEach((step, si) => {
-    const text =
+    let text =
       si === 0
         ? step.explanation || `Start with: ${strip(step.latexBefore || step.latexAfter)}`
         : step.explanation || step.operationLabel || `Step ${step.stepNumber}`;
+
+    // Append rule name for TTS awareness (e.g. "This uses the inverse operations rule.")
+    if (step.rule && si > 0) {
+      text += ` This uses the ${step.rule} rule.`;
+    }
+
+    // Append self-check on the final step
+    const isFinalStep = si === block.steps.length - 1;
+    if (step.selfCheck && isFinalStep) {
+      text += ` ${step.selfCheck}`;
+    }
+
     cues.push({ blockIndex: bi, subIndex: si, text, kind: "equation_step" });
   });
 }

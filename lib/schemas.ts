@@ -38,6 +38,10 @@ export const EquationStepSchema = z.object({
   arrowDirection: z.enum(["down", "both_sides", "simplify"]).default("down"),
   arrows: z.array(CurlyArrowSchema).optional(),
   balanceNotation: z.string().optional(),
+  // Pedagogical scaffolding fields
+  rule: z.string().optional(),
+  why: z.string().optional(),
+  selfCheck: z.string().optional(),
 });
 
 export const EquationStepBlockSchema = z.object({
@@ -300,6 +304,11 @@ export const WhiteboardResponseSchema = z.object({
   subject: z.string().optional(),
   topic: z.string().optional(),
   casVerified: z.boolean().optional(),
+  // Pedagogical scaffolding fields
+  groundTruthSource: z.enum(["sympy", "nerdamer", "both", "none"]).optional(),
+  sympyAnswer: z.string().optional(),
+  keyTakeaway: z.string().optional(),
+  examTip: z.string().optional(),
 });
 
 // ── Question classification ───────────────────────────────────────────────────
