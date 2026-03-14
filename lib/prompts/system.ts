@@ -75,7 +75,29 @@ Examples:
   "conclusion": "So $x = 3$. You can check: $2(3) + 4 = 10$ ✓"
   "explanation": "We divide both sides by $2$ to isolate $x$."
   "intro": "Let's simplify $\\frac{1}{x+2}$ step by step!"
-NEVER put raw LaTeX commands (\\frac, \\sqrt, etc.) directly in text — always wrap them in $...$`;
+NEVER put raw LaTeX commands (\\frac, \\sqrt, etc.) directly in text — always wrap them in $...$
+
+⚠️ CRITICAL — DO NOT DOUBLE-WRITE EXPRESSIONS:
+WRONG: "angle $\\angle BCD = 40°$ BCD=40°" — you wrote it twice (LaTeX + plain text)
+RIGHT: "angle $\\angle BCD = 40°$" — write it ONCE, using $...$ form only
+This is the single most common mistake. Every expression must appear exactly ONCE.
+
+GEOMETRY LATEX NOTATION (use these in latexBefore/latexAfter AND in $...$ in text fields):
+• Angles: \\angle ABC (never "angle ABC" without \\angle)
+• Triangle: \\triangle ABC
+• Therefore: \\therefore
+• Congruent: \\cong
+• Parallel: \\parallel
+• Perpendicular: \\perp
+• Degrees: 40° or 40^{\\circ}
+• Right angle: 90^{\\circ}
+Example latexAfter for a geometry step: "\\angle ACD = 40^{\\circ}"
+
+arrowDirection FOR GEOMETRY STEPS:
+• "down" — applying a theorem/rule to derive the next statement (most geometry steps)
+• "simplify" — simplifying/substituting a value
+• "both_sides" — ONLY for algebraic steps applying the same operation to BOTH SIDES of an equation
+Never use "both_sides" for geometry reasoning steps — use "down" instead.`;
 
 // ── Schema definition ─────────────────────────────────────────────────────────
 
@@ -429,65 +451,67 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
 }`,
 
   geometry: `
-EXAMPLE — Geometry (Find hypotenuse of right triangle with sides 5cm and 12cm):
+EXAMPLE — Geometry (Circle theorem: tangent from external point, find angle ACD where BCD=35°):
 {
-  "intro": "Ooh, Pythagoras! This is one of my favourites — let's find that missing side 🔺",
+  "intro": "Circle theorems — love it! Let's use the alternate segment theorem to crack this one. $CD$ is a tangent and $\\angle BCD = 35°$.",
   "blocks": [
     {
       "type": "labeled_shape",
-      "shape": "triangle",
-      "vertices": [{"label": "A"}, {"label": "B"}, {"label": "C"}],
-      "sides": [
-        {"from": "A", "to": "B", "label": "5 cm"},
-        {"from": "B", "to": "C", "label": "12 cm"},
-        {"from": "A", "to": "C", "label": "c"}
-      ],
-      "angles": [{"vertex": "B", "degrees": 90, "label": "90°", "isRightAngle": true}]
+      "shape": "circle",
+      "circle": {
+        "center": "O",
+        "showRadius": false,
+        "tangentPoints": ["C"],
+        "chords": [{"from": "A", "to": "C"}, {"from": "B", "to": "C"}]
+      },
+      "vertices": [{"label": "A"}, {"label": "B"}, {"label": "C"}, {"label": "D"}],
+      "sides": [{"from": "C", "to": "D", "label": "Tangent"}],
+      "angles": [{"vertex": "C", "degrees": 35, "label": "35°"}]
     },
     {
       "type": "equation_steps",
       "steps": [
         {
           "stepNumber": 1,
-          "operationLabel": "Pythagoras' theorem",
-          "explanation": "Here's the big idea: in any right-angled triangle, the two shorter sides squared add up to the longest side squared. Let's plug in our numbers!",
-          "latexBefore": "a^2 + b^2 = c^2",
-          "latexAfter": "5^2 + 12^2 = c^2",
+          "operationLabel": "State what we know",
+          "explanation": "$CD$ is a tangent at $C$, and $\\angle BCD = 35°$.",
+          "latexBefore": "\\angle BCD = 35^{\\circ}",
+          "latexAfter": "\\angle BCD = 35^{\\circ}",
           "arrowDirection": "down"
         },
         {
           "stepNumber": 2,
-          "operationLabel": "Calculate the squares",
-          "explanation": "$5 \\times 5 = 25$ and $12 \\times 12 = 144$. Easy so far!",
-          "latexBefore": "",
-          "latexAfter": "25 + 144 = c^2",
-          "arrowDirection": "simplify"
+          "operationLabel": "Apply alternate segment theorem",
+          "explanation": "The alternate segment theorem says the angle between a tangent and a chord equals the angle in the alternate segment.",
+          "rule": "Alternate segment theorem",
+          "why": "The tangent-chord angle and the inscribed angle subtend the same arc from opposite sides.",
+          "latexBefore": "\\angle BCD = 35^{\\circ}",
+          "latexAfter": "\\angle BAC = 35^{\\circ}",
+          "arrowDirection": "down"
         },
         {
           "stepNumber": 3,
-          "operationLabel": "Add the squares",
-          "explanation": "$25 + 144 = 169$. Now we just need to undo the square!",
-          "latexBefore": "",
-          "latexAfter": "169 = c^2",
-          "arrowDirection": "simplify"
-        },
-        {
-          "stepNumber": 4,
-          "operationLabel": "Square root both sides",
-          "explanation": "Take the square root of $169$ and we get our answer — $\\sqrt{169} = 13$!",
-          "latexBefore": "",
-          "latexAfter": "c = 13",
-          "arrowDirection": "both_sides",
-          "balanceNotation": "\\sqrt{\\phantom{x}}"
+          "operationLabel": "Identify angle ACD",
+          "explanation": "Chord $CA$ divides $\\angle BCD$ into $\\angle BCA$ and $\\angle ACD$. Using the alternate segment theorem on chord $CA$:",
+          "latexBefore": "\\angle ACD = \\angle ABC",
+          "latexAfter": "\\angle ACD = 35^{\\circ}",
+          "arrowDirection": "simplify",
+          "selfCheck": "Check: $\\angle ACD + \\angle BCA = \\angle BCD = 35°$ ✓"
         }
       ]
     }
   ],
-  "conclusion": "The hypotenuse is $13$ cm — nice clean answer! ✓",
-  "hint": "Quick tip: the hypotenuse is always the LONGEST side and it's opposite the right angle. If your answer is smaller than the other sides, something's gone wrong!",
+  "conclusion": "$\\angle ACD = 35°$ — the alternate segment theorem does all the heavy lifting!",
+  "hint": "The alternate segment theorem: angle between tangent and chord = angle in the alternate segment. Draw the chord carefully to see which segment is 'alternate'.",
   "subject": "Maths",
-  "topic": "Geometry — Pythagoras' theorem"
-}`,
+  "topic": "Geometry — Circle theorems"
+}
+
+NOTE: For geometry equation steps —
+• latexBefore/latexAfter MUST use \\angle, \\triangle, \\therefore etc. (e.g. "\\angle ACD = 35^{\\circ}" not "ACD = 35")
+• arrowDirection should be "down" for theorem application, "simplify" for substitution — NEVER "both_sides" for geometry
+• In text fields (explanation, intro), write each expression ONCE using $...$ — never write it in LaTeX AND plain text
+`,
 
   probability: `
 EXAMPLE — Probability (Two coin flips, find P(at least one head)):
