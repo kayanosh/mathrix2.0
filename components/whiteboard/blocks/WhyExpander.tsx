@@ -10,8 +10,8 @@ interface Props {
 }
 
 /**
- * Collapsible "Why does this work?" callout.
- * Collapsed by default — students click to expand the mathematical intuition.
+ * Collapsible "Tap to understand the trick" callout.
+ * Collapsed by default — students tap to reveal the mathematical intuition.
  */
 export default function WhyExpander({ text, delay = 0 }: Props) {
   const [open, setOpen] = useState(false);
@@ -34,7 +34,7 @@ export default function WhyExpander({ text, delay = 0 }: Props) {
         >
           ▶
         </span>
-        Why does this work?
+        Tap to understand the trick
       </button>
 
       <AnimatePresence>
