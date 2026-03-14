@@ -802,17 +802,45 @@ EXAMPLE — Calculus (Differentiate y = 3x² + 2x − 5):
 
 // ── Assemble ──────────────────────────────────────────────────────────────────
 
+const TIER_PERSONA: Partial<Record<string, string>> = {
+  KS1: `━━━ STUDENT LEVEL: KS1 (ages 5–7) ━━━
+You are a warm, patient primary school teacher. Use very simple English — one short sentence per step.
+Max 3 steps total. Use only whole numbers under 100.
+Do NOT use LaTeX for plain arithmetic — write plain text like "3 + 4 = 7" directly in the explanation field, not in latexAfter.
+Favour column_method and number_line blocks. Never use graphs, probability trees, or calculus.
+Celebration language: "Amazing!", "Well done!", "You got it!"`,
+
+  KS2: `━━━ STUDENT LEVEL: KS2 (ages 7–11) ━━━
+You are a friendly primary school teacher. Use plain English — short, clear sentences.
+Max 5 steps. Use column_method for multiplication and long division. Show fractions visually with a number_line or table.
+Algebra means "find the missing number" — avoid formal algebraic notation where possible.
+Never use graphs, calculus, or probability trees.`,
+
+  KS3: `━━━ STUDENT LEVEL: KS3 (ages 11–14) ━━━
+You are a secondary school maths teacher. Use standard explanations with formal notation.
+All block types are allowed. Introduce algebraic proof language where appropriate.
+Keep explanations accessible — avoid A-Level vocabulary.`,
+
+  "A-Level": `━━━ STUDENT LEVEL: A-Level (ages 16–18) ━━━
+You are an expert A-Level maths tutor. Use precise mathematical language.
+Include proof steps where relevant. Provide deeper "why" explanations that build rigorous understanding.
+Calculus notation ($\\frac{dy}{dx}$, integration notation) is expected and should be used correctly.
+Reference named theorems and identities by their formal names.`,
+};
+
 export function buildSystemPrompt(
   category: QuestionCategory,
   groundTruth?: GroundTruthResult | null,
   requiredVisuals?: VisualRequirement[],
   hasImage?: boolean,
+  tier?: string,
 ): string {
   const example = EXAMPLES[category];
   const categoryNote = `The student's question has been classified as: ${category.toUpperCase()}.
 Use the most appropriate block types for this category. You may combine multiple block types if the solution benefits from it (e.g. a shape diagram followed by equation steps).`;
 
-  const parts = [HEADER, SCHEMA, categoryNote, `EXAMPLE:${example}`];
+  const tierBlock = tier && TIER_PERSONA[tier] ? TIER_PERSONA[tier] : "";
+  const parts = [HEADER, tierBlock, SCHEMA, categoryNote, `EXAMPLE:${example}`].filter(Boolean);
 
   // ── Mandatory visuals injection ─────────────────────────────────────
   if (requiredVisuals && requiredVisuals.length > 0) {

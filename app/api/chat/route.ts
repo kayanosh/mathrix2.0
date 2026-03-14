@@ -160,6 +160,7 @@ export async function POST(req: NextRequest) {
       groundTruth.verified ? groundTruth : null,
       requiredVisuals.length > 0 ? requiredVisuals : undefined,
       hasImage || undefined,
+      level || undefined,
     );
 
     // ── Stage 4: Prepare messages ─────────────────────────────────────

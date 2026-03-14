@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, Settings, ArrowRight, LogOut, CreditCard } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, LogOut, CreditCard } from "lucide-react";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import EquationChain from "./EquationChain";
@@ -14,6 +14,7 @@ import PaywallModal from "./PaywallModal";
 import PricingModal from "./PricingModal";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import TierSelector from "./TierSelector";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -107,7 +108,9 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [level] = useState<ExamLevel>("GCSE");
+  const [level, setLevel] = useState<ExamLevel>(() =>
+    (typeof window !== "undefined" && (localStorage.getItem("mathrix_tier") as ExamLevel)) || "GCSE"
+  );
   const [examBoard] = useState<ExamBoard>("AQA");
   const [selectedSubject] = useState("");
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
@@ -148,6 +151,26 @@ export default function ChatInterface() {
     return () => subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Listen for "Try a similar problem" events from WhiteboardRenderer
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { topic } = (e as CustomEvent<{ topic?: string }>).detail;
+      try {
+        const res = await fetch("/api/generate-practice", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: topic || "mixed maths", tier: level }),
+        });
+        if (!res.ok) return;
+        const { question } = await res.json() as { question: string };
+        setInput(question);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      } catch { /* ignore */ }
+    };
+    window.addEventListener("mathrix:practice", handler);
+    return () => window.removeEventListener("mathrix:practice", handler);
+  }, [level]);
 
   const fetchUsage = async () => {
     try {
@@ -440,9 +463,13 @@ export default function ChatInterface() {
           >
             Pricing
           </button>
-          <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-            <Settings size={16} />
-          </button>
+          <TierSelector
+            value={level}
+            onChange={(t) => {
+              setLevel(t);
+              localStorage.setItem("mathrix_tier", t);
+            }}
+          />
           {user ? (
             <div className="flex items-center gap-2">
               {subscriptionStatus === "pro" && (

@@ -45,7 +45,7 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-export type ExamLevel = "GCSE" | "A-Level";
+export type ExamLevel = "KS1" | "KS2" | "KS3" | "GCSE" | "A-Level";
 export type ExamBoard = "AQA" | "Edexcel" | "OCR" | "WJEC";
 
 export interface Subject {
