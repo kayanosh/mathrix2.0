@@ -15,6 +15,8 @@ import PricingModal from "./PricingModal";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import TierSelector from "./TierSelector";
+import SkillMap from "./SkillMap";
+import { recordSkillAttempt } from "@/lib/skills";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -116,6 +118,8 @@ export default function ChatInterface() {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [hintMode, setHintMode] = useState(false);
+  const [showSkillMap, setShowSkillMap] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -265,7 +269,7 @@ export default function ChatInterface() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, level, examBoard, subject: selectedSubject }),
+        body: JSON.stringify({ messages: history, level, examBoard, subject: selectedSubject, hintMode }),
       });
 
       if (!res.body) throw new Error("No response body");
@@ -315,6 +319,11 @@ export default function ChatInterface() {
               incrementAnonPromptCount();
             } else {
               setPromptsUsed((prev) => prev + 1);
+            }
+
+            // Track skill attempt
+            if (parsed.whiteboard?.topic) {
+              recordSkillAttempt(parsed.whiteboard.topic as string);
             }
 
             msgId = crypto.randomUUID();
@@ -520,6 +529,9 @@ export default function ChatInterface() {
           handleImageSelect={handleImageSelect}
           handleKeyDown={handleKeyDown}
           sendMessage={sendMessage}
+          hintMode={hintMode}
+          setHintMode={setHintMode}
+          onShowSkillMap={() => setShowSkillMap(true)}
         />
       ) : (
         <>
@@ -572,6 +584,8 @@ export default function ChatInterface() {
             handleImageSelect={handleImageSelect}
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
+            hintMode={hintMode}
+            setHintMode={setHintMode}
           />
         </>
       )}
@@ -592,6 +606,20 @@ export default function ChatInterface() {
           <WhiteboardTutor data={whiteboardData} onClose={() => setWhiteboardData(null)} />
         )}
       </AnimatePresence>
+
+      {/* ── Skill map overlay ──────────────────────────────── */}
+      <AnimatePresence>
+        {showSkillMap && (
+          <SkillMap
+            onClose={() => setShowSkillMap(false)}
+            onPractise={(topic) => {
+              setShowSkillMap(false);
+              setInput(`Give me a practice question on: ${topic}`);
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -610,12 +638,16 @@ interface InputProps {
   handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   sendMessage: (text?: string) => void;
+  hintMode: boolean;
+  setHintMode: (v: boolean) => void;
+  onShowSkillMap?: () => void;
 }
 
 function HeroLanding(props: InputProps) {
   const {
     input, setInput, loading, pendingImage, setPendingImage,
     fileInputRef, inputRef, handleKeyDown, sendMessage,
+    hintMode, setHintMode, onShowSkillMap,
   } = props;
 
   return (
@@ -745,6 +777,38 @@ function HeroLanding(props: InputProps) {
             <ArrowRight size={14} className="text-gray-400" />
           </span>
         </motion.button>
+
+        {/* Hint mode + My progress */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+          className="mt-4 flex items-center gap-3"
+        >
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
+            <button
+              onClick={() => setHintMode(false)}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
+            >
+              Solve it
+            </button>
+            <button
+              onClick={() => setHintMode(true)}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
+            >
+              Hint only
+            </button>
+          </div>
+          {onShowSkillMap && (
+            <button
+              onClick={onShowSkillMap}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 hover:text-indigo-600 transition-colors"
+            >
+              <Sparkles size={12} />
+              My progress
+            </button>
+          )}
+        </motion.div>
       </motion.div>
 
       {/* Bottom section */}
@@ -776,6 +840,7 @@ function ChatInputBar(props: InputProps) {
   const {
     input, setInput, loading, pendingImage, setPendingImage,
     fileInputRef, inputRef, handleKeyDown, sendMessage,
+    hintMode, setHintMode,
   } = props;
 
   return (
@@ -849,9 +914,23 @@ function ChatInputBar(props: InputProps) {
           </button>
         </div>
       </div>
-      <p className="text-center text-[11px] mt-2.5 text-gray-400">
-        Enter to send · Shift+Enter for new line · 📷 Upload a photo
-      </p>
+      <div className="flex items-center justify-center gap-3 mt-2">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
+          <button
+            onClick={() => setHintMode(false)}
+            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
+          >
+            Solve it
+          </button>
+          <button
+            onClick={() => setHintMode(true)}
+            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
+          >
+            Hint only
+          </button>
+        </div>
+        <span className="text-[11px] text-gray-400">Enter to send · 📷 photo</span>
+      </div>
     </div>
   );
 }

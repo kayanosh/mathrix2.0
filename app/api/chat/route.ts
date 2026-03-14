@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
-import { buildSystemPrompt } from "@/lib/prompts/system";
+import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
 import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
@@ -30,6 +30,17 @@ const openai = new OpenAI({
 const CRITIC_MODEL = "gpt-4o";
 /** Max tokens for critic responses (much smaller — just JSON verdict) */
 const CRITIC_MAX_TOKENS = 2048;
+
+/** Detect whether the latest message is a follow-up clarification vs a new problem */
+function detectFollowUp(msgs: Array<{ role: string; content: string }>): boolean {
+  if (msgs.length < 2) return false;
+  const last = msgs[msgs.length - 1].content.toLowerCase();
+  const followUpWords =
+    /\b(explain|why|don't understand|confused|what do you mean|how did you|step \d|i don't get|can you re|what is that|show me again|unclear|i'm lost|i'm stuck|not sure|can you clarify|what does)\b/;
+  const freshProblemSignals =
+    /[=+\-*\/^√∫]|\d{3,}|\bsolve\b|\bfind\b|\bcalculate\b|\bwork out\b|\bfactoris|\bexpand\b|\bsimplif|\bprove\b|\bsketch\b/i;
+  return followUpWords.test(last) && !freshProblemSignals.test(last);
+}
 
 /**
  * POST /api/chat
@@ -65,6 +76,7 @@ export async function POST(req: NextRequest) {
       level,
       examBoard,
       useWhiteboard = true,
+      hintMode = false,
     } = body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -126,6 +138,49 @@ export async function POST(req: NextRequest) {
       console.log(
         `[Visuals] Required: ${requiredVisuals.map((v) => v.matchedTopic).join(", ")} → blocks: ${requiredBlockTypes.join(", ")}`
       );
+    }
+
+    // ── Fast path: follow-up clarification question ──────────────────────
+    const isFollowUp = detectFollowUp(messages);
+
+    if (isFollowUp) {
+      console.log("[FastPath] Follow-up detected — skipping CAS/SymPy/critic");
+      const followUpSystemPrompt = buildFollowUpPrompt();
+      const followUpMessages = messages.map(
+        (msg: { role: string; content: string; imageUrl?: string }) => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+        })
+      );
+      const anthropicFollowUp = convertToAnthropicMessages(followUpMessages);
+      let followUpRaw = "";
+      try {
+        const r = await claudeSolve(followUpSystemPrompt, anthropicFollowUp);
+        followUpRaw = r.content;
+      } catch {
+        const fb = await openai.chat.completions.create({
+          model: "gpt-4o",
+          max_tokens: 1024,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system" as const, content: followUpSystemPrompt },
+            ...followUpMessages,
+          ],
+        });
+        followUpRaw = fb.choices[0]?.message?.content || "";
+      }
+      const followUpResult = validateResponse(followUpRaw, []);
+      const followUpData: WhiteboardResponse = followUpResult.ok && followUpResult.data
+        ? followUpResult.data
+        : {
+            intro: "Good question!",
+            blocks: [{ type: "text", content: followUpRaw.replace(/```json|```/g, "").trim() }],
+            conclusion: "Does that help clarify things?",
+          };
+      send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
+      send("verification_done", { verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
+      controller.close();
+      return;
     }
 
     // ── Stage 2: Ground-truth computation (SymPy + Nerdamer in parallel) ──
@@ -199,6 +254,18 @@ export async function POST(req: NextRequest) {
         };
       }
     );
+
+    // ── Hint mode: append directive to last user message ─────────────
+    if (hintMode) {
+      const lastIdx = formattedMessages.length - 1;
+      const last = formattedMessages[lastIdx];
+      if (last && last.role === "user" && typeof last.content === "string") {
+        formattedMessages[lastIdx] = {
+          ...last,
+          content: last.content + "\n\n[HINT MODE: Do NOT reveal the full solution. Give one guiding question or a small nudge toward the method. Maximum 1 text block — no worked answer.]",
+        };
+      }
+    }
 
     // ══════════════════════════════════════════════════════════════════
     //  PASS 1 — SOLVER: Claude Sonnet with extended thinking
