@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(find /Users/motaharmalik/mathrix2.0/lib -type f -name \"*.ts\" ! -path \"*/node_modules/*\" 2>/dev/null | head -30)",
+      "Bash(find /Users/motaharmalik/mathrix2.0 -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.next/*\" 2>/dev/null | wc -l)",
+      "Bash(find /Users/motaharmalik/mathrix2.0/components -type f -name \"*.tsx\" ! -path \"*/node_modules/*\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"OpenAI\\\\|anthropic\" /Users/motaharmalik/mathrix2.0 --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/.next/*\" 2>/dev/null | head -10)",
+      "Bash(npx tsc --noEmit 2>&1 | head -80)",
+      "Bash(npx tsc --noEmit 2>&1)",
+      "Bash(npm run build 2>&1 | tail -30)",
+      "Bash(git add lib/prompts/system.ts && git commit -m \"$\\(cat <<'EOF'\nfix: stop LLM doubling LaTeX+text, fix geometry angle notation and arrowDirection\n\nThree prompt fixes for the broken circle theorem output:\n\n1. Anti-doubling rule: explicitly forbid writing an expression in both\n   $LaTeX$ form AND plain text in the same field \\(was causing phantom\n   text like \"C\\\\nD\\\\nCD is a tangent\"\\)\n\n2. Geometry LaTeX guide: add \\\\angle, \\\\triangle, \\\\therefore etc. notation\n   rules so latexBefore/latexAfter use proper angle commands instead of\n   plain \"OAB = 3x\"\n\n3. arrowDirection rules: clarify \"both_sides\" is ONLY for algebraic\n   operations applied to both sides of an equation — geometry theorem\n   steps must use \"down\" or \"simplify\"\n\n4. Replace Pythagoras geometry example with a circle-theorem \\(tangent +\n   alternate segment theorem\\) example that demonstrates correct angle\n   notation and arrowDirections throughout\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git add lib/skills.ts lib/prompts/system.ts app/api/chat/route.ts components/ChatInterface.tsx components/SkillMap.tsx && git commit -m \"$\\(cat <<'EOF'\nfeat: follow-up questions, hint mode, and skill tracking\n\nFollow-up questions:\n- detectFollowUp\\(\\) in route.ts: detects clarification questions by keyword pattern\n- Fast path skips CAS/SymPy/critic for follow-ups — 3x faster response\n- buildFollowUpPrompt\\(\\) returns lightweight system prompt for conversational replies \\(1-2 text blocks\\)\n\nHint mode:\n- \"Solve it / Hint only\" toggle in both HeroLanding and ChatInputBar\n- Appends HINT MODE directive to the user message — LLM guides instead of reveals\n- State lives in ChatInterface, passed via props\n\nSkill tracking:\n- /lib/skills.ts: pure localStorage utility \\(recordSkillAttempt, getSkillData, getMastery\\)\n- Automatically records topic after every solver_done event\n- Mastery levels: unseen → learning \\(1-2\\) → practiced \\(3-4\\) → mastered \\(5+\\)\n- SkillMap.tsx: modal overlay showing all maths topics colored by mastery\n- Tapping a topic pre-fills the chat with a practice request\n- \"My progress\" button in HeroLanding opens the skill map\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

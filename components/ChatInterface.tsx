@@ -219,8 +219,20 @@ export default function ChatInterface() {
     e.target.value = "";
   }, []);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevMsgCountRef = useRef(0);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only auto-scroll when a new message is added or loading starts
+    if (messages.length > prevMsgCountRef.current || loading) {
+      const el = scrollContainerRef.current;
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+    }
+    prevMsgCountRef.current = messages.length;
   }, [messages, loading]);
 
   const sendMessage = async (text?: string) => {
@@ -406,7 +418,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-white relative">
+    <div className="flex flex-col h-screen overflow-hidden bg-white relative">
       {/* ── Intro overlay ─────────────────────────────────── */}
       <AnimatePresence>
         {showIntro && <IntroOverlay onDone={() => { localStorage.setItem("mathrix_intro_seen", "1"); setShowIntro(false); }} />}
@@ -536,7 +548,7 @@ export default function ChatInterface() {
       ) : (
         <>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
             <AnimatePresence>
               {messages.map((msg) => {
                 const wbr = whiteboardResponses.get(msg.id);
@@ -732,9 +744,9 @@ function HeroLanding(props: InputProps) {
               disabled={(!input.trim() && !pendingImage) || loading}
               className="w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
               style={{
-                background: input.trim() ? "#22c55e" : "#d1d5db",
-                boxShadow: input.trim()
-                  ? "0 0 12px rgba(34,197,94,0.6), 0 0 24px rgba(34,197,94,0.3)"
+                background: (input.trim() || pendingImage) ? "#22c55e" : "#d1d5db",
+                boxShadow: (input.trim() || pendingImage)
+                  ? "0 0 14px rgba(34,197,94,0.7), 0 0 28px rgba(34,197,94,0.4)"
                   : "none",
                 transition: "background 0.3s ease, box-shadow 0.3s ease",
               }}
@@ -899,9 +911,9 @@ function ChatInputBar(props: InputProps) {
             disabled={(!input.trim() && !pendingImage) || loading}
             className="flex-shrink-0 mb-2 mr-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
             style={{
-              background: input.trim() ? "#22c55e" : "#10b981",
-              boxShadow: input.trim()
-                ? "0 0 12px rgba(34,197,94,0.6), 0 0 24px rgba(34,197,94,0.3)"
+              background: (input.trim() || pendingImage) ? "#22c55e" : "#10b981",
+              boxShadow: (input.trim() || pendingImage)
+                ? "0 0 14px rgba(34,197,94,0.7), 0 0 28px rgba(34,197,94,0.4)"
                 : "0 2px 8px rgba(16,185,129,0.3)",
               transition: "background 0.3s ease, box-shadow 0.3s ease",
             }}
@@ -1021,14 +1033,14 @@ function MessageBubble({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
                 onClick={onWatchWhiteboard}
-                className="mt-3 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="mt-4 w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                 style={{
-                  background: "rgba(16,185,129,0.08)",
-                  border: "1px solid rgba(16,185,129,0.2)",
-                  color: "#059669",
+                  background: "linear-gradient(135deg, #10b981, #059669)",
+                  color: "#ffffff",
+                  boxShadow: "0 0 16px rgba(16,185,129,0.5), 0 4px 12px rgba(5,150,105,0.3)",
                 }}
               >
-                <MonitorPlay size={13} />
+                <MonitorPlay size={16} />
                 Watch on Whiteboard
               </motion.button>
             )}
@@ -1042,14 +1054,14 @@ function MessageBubble({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
                 onClick={onWatchWhiteboard}
-                className="mt-3 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="mt-4 w-full flex items-center justify-center gap-2 text-sm font-semibold px-4 py-3 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                 style={{
-                  background: "rgba(16,185,129,0.08)",
-                  border: "1px solid rgba(16,185,129,0.2)",
-                  color: "#059669",
+                  background: "linear-gradient(135deg, #10b981, #059669)",
+                  color: "#ffffff",
+                  boxShadow: "0 0 16px rgba(16,185,129,0.5), 0 4px 12px rgba(5,150,105,0.3)",
                 }}
               >
-                <MonitorPlay size={13} />
+                <MonitorPlay size={16} />
                 Watch on Whiteboard
               </motion.button>
             )}

@@ -617,19 +617,53 @@ function sendFallback(
   category: string,
   errors?: string[]
 ) {
-  const fallback: WhiteboardResponse = {
-    intro: "Let me explain this for you.",
-    blocks: [
-      {
-        type: "text",
-        content: rawContent
-          .replace(/```json\s*/g, "")
-          .replace(/```/g, "")
-          .trim(),
-      },
-    ],
-    conclusion: "",
-  };
+  // Try to extract readable content from raw JSON instead of dumping it verbatim
+  let fallback: WhiteboardResponse;
+  const stripped = rawContent
+    .replace(/```json\s*/g, "")
+    .replace(/```/g, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(stripped);
+    // If it looks like a WhiteboardResponse, salvage what we can
+    if (parsed && typeof parsed === "object" && (parsed.intro || parsed.blocks || parsed.conclusion)) {
+      const textParts: string[] = [];
+      if (parsed.intro) textParts.push(String(parsed.intro));
+      if (Array.isArray(parsed.blocks)) {
+        for (const block of parsed.blocks) {
+          if (block.type === "text" && block.content) {
+            textParts.push(String(block.content));
+          } else if (block.type === "equation_steps" && Array.isArray(block.steps)) {
+            for (const step of block.steps) {
+              if (step.explanation) textParts.push(String(step.explanation));
+            }
+          }
+        }
+      }
+      if (parsed.conclusion) textParts.push(String(parsed.conclusion));
+
+      fallback = {
+        intro: parsed.intro ? String(parsed.intro) : "Let me explain this for you.",
+        blocks: [{ type: "text", content: textParts.join("\n\n") || stripped }],
+        conclusion: parsed.conclusion ? String(parsed.conclusion) : "",
+      };
+    } else {
+      // JSON but not a recognisable response shape — dump as text
+      fallback = {
+        intro: "Let me explain this for you.",
+        blocks: [{ type: "text", content: stripped }],
+        conclusion: "",
+      };
+    }
+  } catch {
+    // Not JSON — use the raw text as-is
+    fallback = {
+      intro: "Let me explain this for you.",
+      blocks: [{ type: "text", content: stripped }],
+      conclusion: "",
+    };
+  }
 
   send("solver_done", {
     whiteboard: fallback,
