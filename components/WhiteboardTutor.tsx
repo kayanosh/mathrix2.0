@@ -46,50 +46,19 @@ const MARKER = {
 // ── Speech hook (cloud TTS with browser fallback) ─────────────────────────────
 
 function useSpeech() {
+  // One persistent Audio element — iOS Safari only grants autoplay to elements
+  // that were first played during a user gesture. Reusing the same element
+  // (swapping src) keeps that privilege for every subsequent cue.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
-  const speakCloud = useCallback(
-    async (text: string, rate: number, onEnd: () => void) => {
-      try {
-        abortRef.current?.abort();
-        abortRef.current = new AbortController();
-
-        const res = await fetch("/api/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, speed: rate * 0.92 }),
-          signal: abortRef.current.signal,
-        });
-
-        if (!res.ok) throw new Error("TTS API error");
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.removeAttribute("src");
-        }
-        const audio = new Audio(url);
-        audioRef.current = audio;
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          onEnd();
-        };
-        audio.onerror = () => {
-          URL.revokeObjectURL(url);
-          onEnd();
-        };
-        await audio.play();
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // Fall back to browser TTS
-        speakBrowser(text, rate, onEnd);
-      }
-    },
-    [],
-  );
+  const getAudio = useCallback((): HTMLAudioElement => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    return audioRef.current;
+  }, []);
 
   const speakBrowser = useCallback(
     (text: string, rate: number, onEnd: () => void) => {
@@ -129,6 +98,47 @@ function useSpeech() {
     [],
   );
 
+  const speakCloud = useCallback(
+    async (text: string, rate: number, onEnd: () => void) => {
+      try {
+        abortRef.current?.abort();
+        abortRef.current = new AbortController();
+
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, speed: rate * 1.1 }),
+          signal: abortRef.current.signal,
+        });
+
+        if (!res.ok) throw new Error("TTS API error");
+
+        const blob = await res.blob();
+
+        // Revoke previous blob URL before creating a new one
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+        }
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+
+        // Reuse the same Audio element so iOS autoplay keeps working
+        const audio = getAudio();
+        audio.onended = null;
+        audio.onerror = null;
+        audio.src = url;
+        audio.onended = () => onEnd();
+        audio.onerror = () => onEnd();
+        await audio.play();
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Fall back to browser TTS
+        speakBrowser(text, rate, onEnd);
+      }
+    },
+    [getAudio, speakBrowser],
+  );
+
   const speak = useCallback(
     (text: string, rate: number, onEnd: () => void) => {
       speakCloud(text, rate, onEnd);
@@ -140,8 +150,8 @@ function useSpeech() {
     abortRef.current?.abort();
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.removeAttribute("src");
-      audioRef.current = null;
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
     }
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
