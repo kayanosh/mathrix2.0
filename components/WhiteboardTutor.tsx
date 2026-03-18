@@ -43,10 +43,55 @@ const MARKER = {
   gray: "#6b7280",
 };
 
-// ── Speech hook ───────────────────────────────────────────────────────────────
+// ── Speech hook (cloud TTS with browser fallback) ─────────────────────────────
 
 function useSpeech() {
-  const speak = useCallback(
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const speakCloud = useCallback(
+    async (text: string, rate: number, onEnd: () => void) => {
+      try {
+        abortRef.current?.abort();
+        abortRef.current = new AbortController();
+
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, speed: rate * 0.92 }),
+          signal: abortRef.current.signal,
+        });
+
+        if (!res.ok) throw new Error("TTS API error");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.removeAttribute("src");
+        }
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          onEnd();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          onEnd();
+        };
+        await audio.play();
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Fall back to browser TTS
+        speakBrowser(text, rate, onEnd);
+      }
+    },
+    [],
+  );
+
+  const speakBrowser = useCallback(
     (text: string, rate: number, onEnd: () => void) => {
       if (typeof window === "undefined" || !window.speechSynthesis) {
         setTimeout(onEnd, 1200);
@@ -54,34 +99,22 @@ function useSpeech() {
       }
       window.speechSynthesis.cancel();
       const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = rate * 0.88;   // measured pace — Jarvis never rushes
-      utt.pitch = 0.85;         // deeper, refined British tone
+      utt.rate = rate * 0.88;
+      utt.pitch = 0.85;
       utt.volume = 1;
       utt.onend = onEnd;
-      utt.onerror = onEnd;
+      utt.onerror = () => onEnd();
 
       const trySpeak = () => {
         const voices = window.speechSynthesis.getVoices();
-
-        // Posh British male voice — aim for a refined Jarvis-like delivery.
-        // Strongly prefer en-GB voices; fall back to other English only as last resort.
         const voice =
-          // macOS premium British male voices (best quality)
           voices.find((v) => v.name === "Daniel (Premium)") ||
           voices.find((v) => v.name === "Daniel (Enhanced)") ||
-          // Standard Daniel (British English) — still solid
           voices.find((v) => v.name === "Daniel") ||
-          // Chrome British male
           voices.find((v) => v.name.includes("Google UK English Male")) ||
-          // Windows British male voices
           voices.find((v) => v.name.includes("Microsoft Ryan")) ||
-          // Any en-GB voice (male preferred, avoid female names)
           voices.find((v) => v.lang === "en-GB" && !/Samantha|Kate|Serena|Fiona|Moira/i.test(v.name)) ||
           voices.find((v) => v.lang === "en-GB") ||
-          // macOS fallback male voices
-          voices.find((v) => v.name === "Aaron (Premium)" || v.name === "Aaron (Enhanced)") ||
-          voices.find((v) => v.name === "Alex") ||
-          // Last resort: any English voice
           voices.find((v) => v.lang.startsWith("en"));
         if (voice) utt.voice = voice;
         window.speechSynthesis.speak(utt);
@@ -96,7 +129,20 @@ function useSpeech() {
     [],
   );
 
+  const speak = useCallback(
+    (text: string, rate: number, onEnd: () => void) => {
+      speakCloud(text, rate, onEnd);
+    },
+    [speakCloud],
+  );
+
   const cancel = useCallback(() => {
+    abortRef.current?.abort();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.removeAttribute("src");
+      audioRef.current = null;
+    }
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
