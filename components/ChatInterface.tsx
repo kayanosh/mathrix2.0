@@ -607,7 +607,6 @@ export default function ChatInterface() {
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleImageSelect}
         className="hidden"
       />
@@ -824,7 +823,7 @@ function HeroLanding(props: InputProps) {
       </motion.div>
 
       {/* Bottom section */}
-      <div className="absolute bottom-4 sm:bottom-8 flex flex-col items-center gap-3 sm:gap-4 px-4">
+      <div className="absolute bottom-4 sm:bottom-8 pb-[env(safe-area-inset-bottom)] flex flex-col items-center gap-3 sm:gap-4 px-4">
         <span className="text-[11px] font-medium text-gray-400">
           Mapped to GCSE Higher/Foundation Tier (Grades 1–9)
         </span>

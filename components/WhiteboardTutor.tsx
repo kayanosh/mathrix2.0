@@ -54,8 +54,8 @@ function useSpeech() {
       }
       window.speechSynthesis.cancel();
       const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = rate * 0.92;   // slightly slower for clarity
-      utt.pitch = 0.95;         // natural male pitch
+      utt.rate = rate * 0.88;   // measured pace — Jarvis never rushes
+      utt.pitch = 0.85;         // deeper, refined British tone
       utt.volume = 1;
       utt.onend = onEnd;
       utt.onerror = onEnd;
@@ -63,22 +63,25 @@ function useSpeech() {
       const trySpeak = () => {
         const voices = window.speechSynthesis.getVoices();
 
-        // Prefer the most natural-sounding male English voices available.
-        // On macOS the "Premium" / "Enhanced" variants sound far less robotic.
+        // Posh British male voice — aim for a refined Jarvis-like delivery.
+        // Strongly prefer en-GB voices; fall back to other English only as last resort.
         const voice =
-          // macOS premium male voices (British → American → Australian)
-          voices.find((v) => v.name === "Daniel (Enhanced)" || v.name === "Daniel (Premium)") ||
+          // macOS premium British male voices (best quality)
+          voices.find((v) => v.name === "Daniel (Premium)") ||
+          voices.find((v) => v.name === "Daniel (Enhanced)") ||
+          // Standard Daniel (British English) — still solid
+          voices.find((v) => v.name === "Daniel") ||
+          // Chrome British male
+          voices.find((v) => v.name.includes("Google UK English Male")) ||
+          // Windows British male voices
+          voices.find((v) => v.name.includes("Microsoft Ryan")) ||
+          // Any en-GB voice (male preferred, avoid female names)
+          voices.find((v) => v.lang === "en-GB" && !/Samantha|Kate|Serena|Fiona|Moira/i.test(v.name)) ||
+          voices.find((v) => v.lang === "en-GB") ||
+          // macOS fallback male voices
           voices.find((v) => v.name === "Aaron (Premium)" || v.name === "Aaron (Enhanced)") ||
           voices.find((v) => v.name === "Alex") ||
-          voices.find((v) => v.name === "Tom" || v.name === "Tom (Enhanced)") ||
-          // Standard Daniel (British English) — still decent
-          voices.find((v) => v.name === "Daniel") ||
-          // Chrome / Windows natural male voices
-          voices.find((v) => v.name.includes("Google UK English Male")) ||
-          voices.find((v) => v.name.includes("Microsoft Ryan")) ||
-          voices.find((v) => v.name.includes("Microsoft Guy")) ||
-          // Broader fallback: any en-GB male, then any English voice
-          voices.find((v) => v.lang === "en-GB" && v.name !== "Samantha") ||
+          // Last resort: any English voice
           voices.find((v) => v.lang.startsWith("en"));
         if (voice) utt.voice = voice;
         window.speechSynthesis.speak(utt);
