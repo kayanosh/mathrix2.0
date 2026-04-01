@@ -92,7 +92,15 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (profile) {
-          console.log(`[Stripe] Payment failed for user ${profile.id}`);
+          await supabaseAdmin
+            .from("profiles")
+            .update({
+              subscription_status: "free",
+            })
+            .eq("id", profile.id);
+          console.log(
+            `[Stripe] Payment failed for user ${profile.id} — downgraded to free`
+          );
         }
         break;
       }

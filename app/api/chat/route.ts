@@ -18,6 +18,8 @@ import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { normalizeQuestion, hashQuestion, isCacheable, lookupCache, writeCache } from "@/lib/question-cache";
+import { retrieveContentChunks, buildContentChunkBlock } from "@/lib/rag";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
 const openai = new OpenAI({
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
       messages,
       level,
       examBoard,
+      tier,
       useWhiteboard = true,
       hintMode = false,
     } = body;
@@ -130,6 +133,44 @@ export async function POST(req: NextRequest) {
 
     // ── Stage 1: Classify the question ────────────────────────────────
     const category = classifyQuestion(questionText);
+
+    // ── Stage 1a: Check question cache ────────────────────────────────
+    if (isCacheable(messages)) {
+      const normalized = normalizeQuestion(questionText);
+      const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
+      const cached = await lookupCache(qHash);
+
+      if (cached) {
+        console.log(`[Cache] HIT for hash ${qHash.slice(0, 12)}...`);
+        send("solver_done", {
+          whiteboard: cached.response_json,
+          response: whiteboardToLegacy(cached.response_json),
+          category: cached.category,
+          validationWarnings: [],
+        });
+        send("verification_done", {
+          verification: cached.verification_json || {
+            confidence: "high",
+            casVerified: true,
+            criticVerified: true,
+            toolChecksPassed: true,
+          },
+          whiteboard: cached.response_json,
+        });
+
+        // Still increment usage
+        if (user) {
+          const today = new Date().toISOString().split("T")[0];
+          try {
+            await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+          } catch { /* ignore */ }
+        }
+
+        controller.close();
+        return;
+      }
+      console.log(`[Cache] MISS for hash ${qHash.slice(0, 12)}...`);
+    }
 
     // ── Stage 1b: Detect required visual diagrams ─────────────────────
     const requiredVisuals = detectRequiredVisuals(questionText, category);
@@ -209,6 +250,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Stage 2b: Retrieve relevant content chunks (RAG) ─────────────
+    let contentChunkBlock = "";
+    try {
+      const chunks = await retrieveContentChunks(questionText, category, tier);
+      contentChunkBlock = buildContentChunkBlock(chunks);
+      if (chunks.length > 0) {
+        console.log(`[RAG] Retrieved ${chunks.length} content chunks for topic: ${category}`);
+      }
+    } catch (ragErr) {
+      console.warn(`[RAG] Content retrieval skipped: ${(ragErr as Error).message}`);
+    }
+
     // ── Stage 3: Build solver system prompt ───────────────────────────
     const systemPrompt = buildSystemPrompt(
       category,
@@ -216,6 +269,7 @@ export async function POST(req: NextRequest) {
       requiredVisuals.length > 0 ? requiredVisuals : undefined,
       hasImage || undefined,
       level || undefined,
+      contentChunkBlock || undefined,
     );
 
     // ── Stage 4: Prepare messages ─────────────────────────────────────
@@ -585,6 +639,25 @@ export async function POST(req: NextRequest) {
       },
       whiteboard: solutionData,
     });
+
+    // ── Write to question cache (async, non-blocking) ─────────────────
+    if (isCacheable(messages)) {
+      const normalized = normalizeQuestion(questionText);
+      const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
+      writeCache({
+        questionHash: qHash,
+        questionText: questionText,
+        level: level || "GCSE",
+        tier: tier || null,
+        examBoard: examBoard || null,
+        category,
+        responseJson: solutionData,
+        verificationJson: verification,
+        groundTruth: groundTruth.answers?.join(", ") || null,
+      }).catch((err) => {
+        console.warn("[Cache] Write failed:", (err as Error).message);
+      });
+    }
 
     controller.close();
 

@@ -22,6 +22,11 @@ export const SUBJECTS: Subject[] = [
           "Completing the square",
           "The quadratic formula",
         ],
+        higherOnly: [
+          "Algebraic fractions",
+          "Completing the square",
+          "The quadratic formula",
+        ],
       },
       {
         id: "number",
@@ -35,6 +40,7 @@ export const SUBJECTS: Subject[] = [
           "HCF and LCM",
           "Prime factorisation",
         ],
+        higherOnly: ["Indices and surds"],
       },
       {
         id: "geometry",
@@ -49,6 +55,7 @@ export const SUBJECTS: Subject[] = [
           "Transformations",
           "Angles in polygons",
         ],
+        higherOnly: ["Circle theorems", "Vectors"],
       },
       {
         id: "statistics",
@@ -62,6 +69,7 @@ export const SUBJECTS: Subject[] = [
           "Cumulative frequency",
           "Box plots",
         ],
+        higherOnly: ["Histograms"],
       },
       {
         id: "calculus",

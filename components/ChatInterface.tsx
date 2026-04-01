@@ -113,7 +113,11 @@ export default function ChatInterface() {
   const [level, setLevel] = useState<ExamLevel>(() =>
     (typeof window !== "undefined" && (localStorage.getItem("mathrix_tier") as ExamLevel)) || "GCSE"
   );
-  const [examBoard] = useState<ExamBoard>("AQA");
+  const [examBoard, setExamBoard] = useState<ExamBoard>(() => {
+    if (typeof window === "undefined") return "AQA";
+    const params = new URLSearchParams(window.location.search);
+    return (params.get("examBoard") as ExamBoard) || "AQA";
+  });
   const [selectedSubject] = useState("");
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
@@ -136,6 +140,20 @@ export default function ChatInterface() {
   const supabase = createClient();
 
   const isHero = messages.length === 0 && !loading;
+
+  // Read tier and examBoard from URL params (set by syllabus page links)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const urlTier = params.get("tier");
+    if (urlTier && (urlTier === "foundation" || urlTier === "higher")) {
+      localStorage.setItem("mathrix_gcse_tier", urlTier);
+    }
+    const urlBoard = params.get("examBoard");
+    if (urlBoard && ["AQA", "Edexcel", "OCR"].includes(urlBoard)) {
+      setExamBoard(urlBoard as ExamBoard);
+    }
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -281,7 +299,7 @@ export default function ChatInterface() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, level, examBoard, subject: selectedSubject, hintMode }),
+        body: JSON.stringify({ messages: history, level, examBoard, tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined, subject: selectedSubject, hintMode }),
       });
 
       if (!res.body) throw new Error("No response body");

@@ -19,6 +19,24 @@ export default function SubjectsPage() {
           <span className="font-bold text-white">Mathrix</span>
         </Link>
         <Link
+          href="/syllabus"
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          GCSE Syllabus
+        </Link>
+        <Link
+          href="/revision"
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Revision
+        </Link>
+        <Link
+          href="/exam-papers"
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Exam Papers
+        </Link>
+        <Link
           href="/chat"
           className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-1"
         >

@@ -47,6 +47,7 @@ export interface ChatMessage {
 
 export type ExamLevel = "KS1" | "KS2" | "KS3" | "GCSE" | "A-Level";
 export type ExamBoard = "AQA" | "Edexcel" | "OCR" | "WJEC";
+export type GCSETier = "foundation" | "higher";
 
 export interface Subject {
   id: string;
@@ -62,4 +63,56 @@ export interface Topic {
   subject_id: string;
   name: string;
   subtopics: string[];
+  /** Subtopics that only appear on Higher tier */
+  higherOnly?: string[];
+}
+
+/** A topic entry within the GCSE syllabus (board-specific) */
+export interface SyllabusTopic {
+  id: string;
+  name: string;
+  subtopics: string[];
+  /** Subtopics exclusive to Higher tier */
+  higherOnly: string[];
+}
+
+/** Exam paper metadata stored in Supabase */
+export interface ExamPaper {
+  id: string;
+  exam_board: ExamBoard;
+  tier: GCSETier;
+  year: number;
+  paper_number: string;
+  title: string;
+  storage_path: string;
+  is_mark_scheme: boolean;
+  created_at: string;
+}
+
+/** Cached question/answer entry */
+export interface QuestionCacheEntry {
+  id: string;
+  question_hash: string;
+  question_text: string;
+  level: string;
+  tier: string | null;
+  exam_board: string | null;
+  category: string;
+  response_json: import("./whiteboard").WhiteboardResponse;
+  verification_json: import("./whiteboard").VerificationStatus;
+  ground_truth: string | null;
+  created_at: string;
+  hit_count: number;
+}
+
+/** A chunk of extracted content from GCSE PDF */
+export interface ContentChunk {
+  id: string;
+  source_file: string;
+  topic: string;
+  subtopic: string | null;
+  tier: "foundation" | "higher" | "both";
+  chunk_text: string;
+  page_number: number;
+  created_at: string;
 }

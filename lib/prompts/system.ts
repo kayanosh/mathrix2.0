@@ -862,6 +862,7 @@ export function buildSystemPrompt(
   requiredVisuals?: VisualRequirement[],
   hasImage?: boolean,
   tier?: string,
+  contentChunkBlock?: string,
 ): string {
   const example = EXAMPLES[category];
   const categoryNote = `The student's question has been classified as: ${category.toUpperCase()}.
@@ -913,6 +914,11 @@ CRITICAL RULES FOR IMAGE QUESTIONS:
 7. Double-check your arithmetic — image questions cannot be pre-verified by our CAS, so accuracy is extra important.`;
 
     parts.push(imageBlock);
+  }
+
+  // Inject GCSE content reference chunks (RAG)
+  if (contentChunkBlock) {
+    parts.push(contentChunkBlock);
   }
 
   // Inject ground-truth answer (SymPy or Nerdamer)
