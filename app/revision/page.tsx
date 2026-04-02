@@ -12,17 +12,17 @@ import {
   HelpCircle,
   ChevronLeft,
 } from "lucide-react";
-import { REVISION_TOPICS, PDF_PATH } from "@/lib/revision-data";
+import { REVISION_TOPICS } from "@/lib/revision-data";
 import type { RevisionTopic, RevisionSubtopic } from "@/lib/revision-data";
-import PdfPageRenderer from "@/components/PdfPageRenderer";
+import { REVISION_CONTENT } from "@/lib/revision-content";
+import RevisionContentRenderer from "@/components/RevisionContentRenderer";
 
 export default function RevisionPage() {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<{
+    topicId: string;
     topic: string;
     subtopic?: string;
-    startPage: number;
-    endPage: number;
   } | null>(null);
 
   function toggleTopic(id: string) {
@@ -35,16 +35,14 @@ export default function RevisionPage() {
   }
 
   function openViewer(
+    topicId: string,
     topicName: string,
-    startPage: number,
-    endPage: number,
     subtopicName?: string,
   ) {
     setViewing({
+      topicId,
       topic: topicName,
       subtopic: subtopicName,
-      startPage,
-      endPage,
     });
   }
 
@@ -53,8 +51,13 @@ export default function RevisionPage() {
     const title = viewing.subtopic
       ? `${viewing.topic} — ${viewing.subtopic}`
       : viewing.topic;
-    const pageCount = viewing.endPage - viewing.startPage + 1;
-    const pages = Array.from({ length: pageCount }, (_, i) => viewing.startPage + i);
+
+    // If a specific subtopic is selected, show just that note; otherwise show all notes for the topic
+    const notes = viewing.subtopic
+      ? REVISION_CONTENT.filter(
+          (n) => n.topicId === viewing.topicId && n.subtopic === viewing.subtopic,
+        )
+      : REVISION_CONTENT.filter((n) => n.topicId === viewing.topicId);
 
     return (
       <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
@@ -69,7 +72,7 @@ export default function RevisionPage() {
           <div className="text-center flex-1 min-w-0 mx-4">
             <h2 className="text-sm font-semibold text-white truncate">{title}</h2>
             <p className="text-[11px] text-gray-500">
-              {pageCount} {pageCount === 1 ? "page" : "pages"}
+              {notes.length} {notes.length === 1 ? "section" : "sections"}
             </p>
           </div>
           <Link
@@ -81,37 +84,25 @@ export default function RevisionPage() {
         </div>
 
         {/* Content */}
-        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-          {/* Topic intro card */}
-          <div className="rounded-2xl border border-gray-800 bg-[#111118] p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <BookOpen size={18} className="text-indigo-400" />
-              <h1 className="text-xl font-bold text-white">{title}</h1>
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
+          {notes.length === 0 ? (
+            <div className="rounded-2xl border border-gray-800 bg-[#111118] p-6 text-center">
+              <p className="text-gray-400">Notes coming soon for this topic.</p>
             </div>
-            {viewing.subtopic && (
-              <p className="text-sm text-gray-400">
-                Part of the <span className="text-gray-300 font-medium">{viewing.topic}</span> section.
-                Scroll through the notes below, or ask the AI tutor if you need something explained.
-              </p>
-            )}
-          </div>
-
-          {/* Rendered pages */}
-          {pages.map((pageNum) => (
-            <div key={pageNum} className="rounded-2xl border border-gray-800 bg-white overflow-hidden shadow-lg">
-              <PdfPageRenderer
-                pdfUrl={PDF_PATH}
-                pageNumber={pageNum}
-                scale={2}
-              />
-              <div className="bg-[#111118] px-4 py-2 flex items-center justify-between border-t border-gray-800">
-                <span className="text-[11px] text-gray-500">Page {pageNum}</span>
-                <span className="text-[11px] text-gray-600">
-                  {pageNum - viewing.startPage + 1} of {pageCount}
-                </span>
+          ) : (
+            notes.map((note) => (
+              <div key={note.subtopic}>
+                {/* Section heading (when showing all subtopics for a topic) */}
+                {!viewing.subtopic && (
+                  <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <BookOpen size={16} className="text-indigo-400" />
+                    {note.subtopic}
+                  </h2>
+                )}
+                <RevisionContentRenderer note={note} />
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
           {/* Bottom actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-8">
@@ -230,14 +221,11 @@ function TopicCard({
   expanded: boolean;
   onToggle: () => void;
   onOpen: (
+    topicId: string,
     topicName: string,
-    startPage: number,
-    endPage: number,
     subtopicName?: string,
   ) => void;
 }) {
-  const pageCount = topic.endPage - topic.startPage + 1;
-
   return (
     <div className="rounded-xl border border-gray-800 bg-[#111118] overflow-hidden">
       {/* Topic header */}
@@ -251,13 +239,13 @@ function TopicCard({
         <div className="flex-1 text-left">
           <h3 className="text-base font-semibold text-white">{topic.name}</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            {topic.subtopics.length} subtopics · {pageCount} pages
+            {topic.subtopics.length} subtopics
           </p>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onOpen(topic.name, topic.startPage, topic.endPage);
+            onOpen(topic.id, topic.name);
           }}
           className="text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:border-indigo-500/60 transition-colors hidden sm:block"
         >
@@ -277,6 +265,7 @@ function TopicCard({
             <SubtopicRow
               key={sub.name}
               sub={sub}
+              topicId={topic.id}
               topicName={topic.name}
               onOpen={onOpen}
             />
@@ -291,23 +280,22 @@ function TopicCard({
 
 function SubtopicRow({
   sub,
+  topicId,
   topicName,
   onOpen,
 }: {
   sub: RevisionSubtopic;
+  topicId: string;
   topicName: string;
   onOpen: (
+    topicId: string,
     topicName: string,
-    startPage: number,
-    endPage: number,
     subtopicName?: string,
   ) => void;
 }) {
-  const pages = sub.endPage - sub.startPage + 1;
-
   return (
     <button
-      onClick={() => onOpen(topicName, sub.startPage, sub.endPage, sub.name)}
+      onClick={() => onOpen(topicId, topicName, sub.name)}
       className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#15151f] transition-colors text-left border-b border-gray-800/30 last:border-b-0"
     >
       <BookOpen size={14} className="text-gray-600 shrink-0" />
@@ -317,9 +305,6 @@ function SubtopicRow({
           H
         </span>
       )}
-      <span className="text-xs text-gray-600">
-        {pages} {pages === 1 ? "page" : "pages"}
-      </span>
       <ChevronRight size={14} className="text-gray-700" />
     </button>
   );
