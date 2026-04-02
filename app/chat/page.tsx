@@ -1,5 +1,10 @@
-import { redirect } from 'next/navigation';
+import ChatInterface from "@/components/ChatInterface";
+
+export const metadata = {
+  title: "Mathrix — AI Maths Tutor",
+  description: "GCSE Maths. Step by step. Higher/Foundation Tier.",
+};
 
 export default function ChatPage() {
-  redirect('/');
+  return <ChatInterface />;
 }

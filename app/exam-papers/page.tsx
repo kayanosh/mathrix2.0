@@ -84,7 +84,7 @@ export default function ExamPapersPage() {
             href="/subjects"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
-            Subjects
+            Practice
           </Link>
           <Link
             href="/syllabus"

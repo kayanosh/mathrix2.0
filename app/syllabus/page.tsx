@@ -46,7 +46,7 @@ export default function SyllabusPage() {
             href="/subjects"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
-            Subjects
+            Practice
           </Link>
           <Link
             href="/revision"

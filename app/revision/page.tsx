@@ -108,7 +108,7 @@ export default function RevisionPage() {
             href="/subjects"
             className="text-sm text-gray-400 hover:text-white transition-colors"
           >
-            Subjects
+            Practice
           </Link>
           <Link
             href="/syllabus"

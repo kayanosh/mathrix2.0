@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { SUBJECTS } from "@/lib/subjects";
-import { getSkillData, getMastery, type MasteryLevel } from "@/lib/skills";
+import { getSkillData, getMastery, getAccuracy, type MasteryLevel } from "@/lib/skills";
 
 interface Props {
   onClose: () => void;
@@ -15,6 +15,7 @@ const MASTERY_STYLE: Record<MasteryLevel, { bg: string; text: string; border: st
   unseen:    { bg: "bg-gray-50",     text: "text-gray-400",   border: "border-gray-200",   label: "Not started" },
   learning:  { bg: "bg-yellow-50",   text: "text-yellow-700", border: "border-yellow-200", label: "Learning" },
   practiced: { bg: "bg-blue-50",     text: "text-blue-700",   border: "border-blue-200",   label: "Practiced" },
+  confident: { bg: "bg-violet-50",   text: "text-violet-700", border: "border-violet-200", label: "Confident" },
   mastered:  { bg: "bg-emerald-50",  text: "text-emerald-700",border: "border-emerald-200",label: "Mastered" },
 };
 
@@ -37,7 +38,7 @@ export default function SkillMap({ onClose, onPractise }: Props) {
 
   // Count mastered/practiced/learning
   const totalAttempted = Object.keys(skillData).length;
-  const masteredCount = Object.values(skillData).filter((r) => getMastery(r.attempts) === "mastered").length;
+  const masteredCount = Object.values(skillData).filter((r) => getMastery(r) === "mastered").length;
 
   return (
     <motion.div
@@ -74,7 +75,7 @@ export default function SkillMap({ onClose, onPractise }: Props) {
 
         {/* Legend */}
         <div className="flex items-center gap-3 px-6 py-3 border-b border-gray-100 flex-shrink-0 overflow-x-auto">
-          {(["unseen", "learning", "practiced", "mastered"] as MasteryLevel[]).map((m) => (
+          {(["unseen", "learning", "practiced", "confident", "mastered"] as MasteryLevel[]).map((m) => (
             <div key={m} className="flex items-center gap-1.5 whitespace-nowrap">
               <div className={`w-2.5 h-2.5 rounded-full ${MASTERY_STYLE[m].bg} border ${MASTERY_STYLE[m].border}`} />
               <span className="text-[11px] text-gray-500">{MASTERY_STYLE[m].label}</span>
@@ -99,7 +100,8 @@ export default function SkillMap({ onClose, onPractise }: Props) {
                     {topic.subtopics.map((sub) => {
                       const key = `${topic.name} — ${sub}`;
                       const record = skillData[key];
-                      const mastery = getMastery(record?.attempts ?? 0);
+                      const mastery = getMastery(record);
+                      const accuracy = getAccuracy(record);
                       const style = MASTERY_STYLE[mastery];
                       return (
                         <button
@@ -110,7 +112,7 @@ export default function SkillMap({ onClose, onPractise }: Props) {
                           <span className="line-clamp-2">{sub}</span>
                           {record && (
                             <span className="block text-[10px] opacity-60 mt-0.5">
-                              {record.attempts} attempt{record.attempts !== 1 ? "s" : ""}
+                              {record.attempts} attempt{record.attempts !== 1 ? "s" : ""}{record.attempts > 0 ? ` · ${accuracy}%` : ""}
                             </span>
                           )}
                         </button>

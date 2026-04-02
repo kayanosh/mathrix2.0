@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, LogOut, CreditCard, BookOpen } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -137,12 +137,14 @@ export default function ChatInterface() {
   const [promptsUsed, setPromptsUsed] = useState(0);
   const [pendingSendText, setPendingSendText] = useState<string | undefined>();
   const [showPricing, setShowPricing] = useState(false);
+  const [fromPractice, setFromPractice] = useState(false);
+  const autoSendFired = useRef(false);
 
   const supabase = createClient();
 
   const isHero = messages.length === 0 && !loading;
 
-  // Read tier and examBoard from URL params (set by syllabus page links)
+  // Read URL params: tier, examBoard, q, autoSend, fromPractice
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -154,6 +156,26 @@ export default function ChatInterface() {
     if (urlBoard && ["AQA", "Edexcel", "OCR"].includes(urlBoard)) {
       setExamBoard(urlBoard as ExamBoard);
     }
+    if (params.get("fromPractice") === "true") {
+      setFromPractice(true);
+    }
+    // Pre-fill input from ?q= param
+    const urlQ = params.get("q");
+    if (urlQ) {
+      setInput(urlQ);
+    }
+  }, []);
+
+  // Auto-send when ?autoSend=true and ?q= are present (e.g. from Practice Hub "Need Help")
+  useEffect(() => {
+    if (typeof window === "undefined" || autoSendFired.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("autoSend") === "true" && params.get("q")) {
+      autoSendFired.current = true;
+      // Small delay to let state settle after mount
+      setTimeout(() => sendMessage(params.get("q")!), 400);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Listen for auth state changes
@@ -484,7 +506,15 @@ export default function ChatInterface() {
       {/* ── Top bar ───────────────────────────────────────── */}
       <header className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3 flex-shrink-0 z-10">
         {/* Logo */}
-        <div className="flex items-center flex-shrink-0">
+        <div className="flex items-center flex-shrink-0 gap-2">
+          {fromPractice && (
+            <Link
+              href="/subjects"
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+            >
+              <ArrowLeft size={14} /> <span className="hidden sm:inline">Back to Practice</span>
+            </Link>
+          )}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Mathrix" className="w-auto h-6 sm:h-9" />
         </div>
@@ -497,7 +527,7 @@ export default function ChatInterface() {
               <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
           )}
-          <Link href="/subjects" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Subjects</Link>
+          <Link href="/subjects" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Practice</Link>
           <Link href="/revision" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Revision</Link>
           <Link href="/syllabus" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Syllabus</Link>
           <Link href="/exam-papers" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Papers</Link>

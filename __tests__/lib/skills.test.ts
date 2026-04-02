@@ -2,30 +2,36 @@ import { getMastery } from "@/lib/skills";
 import type { MasteryLevel } from "@/lib/skills";
 
 describe("getMastery", () => {
-  it("returns 'unseen' for 0 attempts", () => {
-    expect(getMastery(0)).toBe("unseen");
+  const rec = (attempts: number, correct: number) => ({ attempts, correct, lastSeen: Date.now() });
+
+  it("returns 'unseen' for undefined or 0 attempts", () => {
+    expect(getMastery(undefined)).toBe("unseen");
+    expect(getMastery(rec(0, 0))).toBe("unseen");
   });
 
-  it("returns 'learning' for 1 attempt", () => {
-    expect(getMastery(1)).toBe("learning");
+  it("returns 'learning' for 1-2 attempts", () => {
+    expect(getMastery(rec(1, 1))).toBe("learning");
+    expect(getMastery(rec(2, 0))).toBe("learning");
   });
 
-  it("returns 'learning' for 2 attempts", () => {
-    expect(getMastery(2)).toBe("learning");
+  it("returns 'practiced' for 3-4 attempts with low accuracy", () => {
+    expect(getMastery(rec(3, 1))).toBe("practiced");
+    expect(getMastery(rec(4, 2))).toBe("practiced");
   });
 
-  it("returns 'practiced' for 3 attempts", () => {
-    expect(getMastery(3)).toBe("practiced");
+  it("returns 'confident' for 3-4 attempts with >=60% accuracy", () => {
+    expect(getMastery(rec(3, 2))).toBe("confident");
+    expect(getMastery(rec(4, 3))).toBe("confident");
   });
 
-  it("returns 'practiced' for 4 attempts", () => {
-    expect(getMastery(4)).toBe("practiced");
+  it("returns 'mastered' for 5+ attempts with >=70% accuracy", () => {
+    expect(getMastery(rec(5, 4))).toBe("mastered");
+    expect(getMastery(rec(10, 8))).toBe("mastered");
   });
 
-  it("returns 'mastered' for 5+ attempts", () => {
-    expect(getMastery(5)).toBe("mastered");
-    expect(getMastery(10)).toBe("mastered");
-    expect(getMastery(100)).toBe("mastered");
+  it("returns 'confident' for 5+ attempts with <70% accuracy", () => {
+    expect(getMastery(rec(5, 3))).toBe("confident");
+    expect(getMastery(rec(10, 5))).toBe("confident");
   });
 });
 
