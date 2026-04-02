@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
 import {
   Sparkles,
   ArrowRight,
@@ -29,6 +30,7 @@ import {
   type MasteryLevel,
 } from "@/lib/skills";
 import InlineMath from "@/components/InlineMath";
+import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
 
 const MASTERY_COLOR: Record<MasteryLevel, string> = {
   unseen: "bg-gray-600",
@@ -57,6 +59,7 @@ export default function PracticeHub() {
   const [aiQuestion, setAiQuestion] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [skillData, setSkillData] = useState(getSkillData());
+  const [helpQuestion, setHelpQuestion] = useState<string | null>(null);
 
   // Refresh skill data from localStorage
   const refreshSkills = useCallback(() => setSkillData(getSkillData()), []);
@@ -346,12 +349,12 @@ export default function PracticeHub() {
                           </button>
                         )}
 
-                        <Link
-                          href={`/chat?q=${encodeURIComponent(questionText || aiQuestion || "")}&autoSend=true&fromPractice=true`}
+                        <button
+                          onClick={() => setHelpQuestion(questionText || aiQuestion || "")}
                           className="px-4 py-2 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-sm text-violet-400 transition-colors flex items-center gap-1.5 ml-auto"
                         >
                           <HelpCircle size={14} /> Need Help
-                        </Link>
+                        </button>
                       </div>
                     )}
 
@@ -371,6 +374,16 @@ export default function PracticeHub() {
           })}
         </div>
       </div>
+
+      {/* Whiteboard help modal */}
+      <AnimatePresence>
+        {helpQuestion && (
+          <PracticeWhiteboardModal
+            question={helpQuestion}
+            onClose={() => setHelpQuestion(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
