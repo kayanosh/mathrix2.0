@@ -65,11 +65,13 @@ function buildCards(data: WhiteboardResponse): Card[] {
 
 interface Props {
   data: WhiteboardResponse;
+  /** When true, all cards are shown immediately — no step-through. */
+  revealAll?: boolean;
 }
 
-export default function WhiteboardRenderer({ data }: Props) {
+export default function WhiteboardRenderer({ data, revealAll = false }: Props) {
   const [sessionKey, setSessionKey] = useState(0);
-  const [revealed, setRevealed] = useState(1);
+  const [revealed, setRevealed] = useState(revealAll ? Infinity : 1);
   const [showCelebration, setShowCelebration] = useState(false);
 
   const cards = useMemo(() => buildCards(data), [data]);
@@ -78,10 +80,10 @@ export default function WhiteboardRenderer({ data }: Props) {
 
   // Reset when data changes
   useEffect(() => {
-    setRevealed(1);
+    setRevealed(revealAll ? Infinity : 1);
     setShowCelebration(false);
     setSessionKey((k) => k + 1);
-  }, [data]);
+  }, [data, revealAll]);
 
   const revealNext = useCallback(() => {
     setRevealed((r) => {

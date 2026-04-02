@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, MonitorPlay } from "lucide-react";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import WhiteboardRenderer from "./whiteboard/WhiteboardRenderer";
+import WhiteboardTutor from "./WhiteboardTutor";
 
 interface Props {
   question: string;
@@ -15,6 +16,7 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [watchMode, setWatchMode] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchSolution = useCallback(async () => {
@@ -103,6 +105,10 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
+      {/* WhiteboardTutor takes over the whole screen when in watch mode */}
+      {watchMode && whiteboardData ? (
+        <WhiteboardTutor data={whiteboardData} onClose={() => setWatchMode(false)} />
+      ) : (
       <motion.div
         initial={{ y: 40, opacity: 0, scale: 0.97 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -113,12 +119,32 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <h3 className="font-bold text-gray-900 text-sm">AI Tutor — Worked Solution</h3>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            {whiteboardData && (
+              <button
+                onClick={() => {
+                  try {
+                    if (typeof window !== "undefined" && window.speechSynthesis) {
+                      window.speechSynthesis.cancel();
+                      const _u = new SpeechSynthesisUtterance("");
+                      window.speechSynthesis.speak(_u);
+                      window.speechSynthesis.cancel();
+                    }
+                  } catch { /* ignore */ }
+                  setWatchMode(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
+              >
+                <MonitorPlay size={14} /> Watch on Whiteboard
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -144,11 +170,12 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
 
           {whiteboardData && (
             <div className="p-4">
-              <WhiteboardRenderer data={whiteboardData} />
+              <WhiteboardRenderer data={whiteboardData} revealAll />
             </div>
           )}
         </div>
       </motion.div>
+      )}
     </motion.div>
   );
 }
