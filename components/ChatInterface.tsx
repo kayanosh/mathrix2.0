@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, LogOut, CreditCard } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, LogOut, CreditCard, BookOpen } from "lucide-react";
+import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import EquationChain from "./EquationChain";
@@ -496,6 +497,10 @@ export default function ChatInterface() {
               <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
           )}
+          <Link href="/subjects" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Subjects</Link>
+          <Link href="/revision" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Revision</Link>
+          <Link href="/syllabus" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Syllabus</Link>
+          <Link href="/exam-papers" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Papers</Link>
           <button
             onClick={() => setShowPricing(true)}
             className="text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium"
