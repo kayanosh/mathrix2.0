@@ -1,69 +1,100 @@
 -- Supabase schema for Mathrix 2.0
 
--- USERS (managed by Supabase Auth)
-
--- PROFILES TABLE
-create table if not exists profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+-- 1. Profiles table — extends auth.users
+create table public.profiles (
+  id uuid references auth.users on delete cascade primary key,
+  email text,
   full_name text,
-  avatar_url text,
-  subscription_status text not null default 'free',
+  subscription_status text not null default 'free' check (subscription_status in ('free', 'pro', 'cancelled')),
   stripe_customer_id text,
   stripe_subscription_id text,
-  created_at timestamp with time zone default timezone('utc'::text, now())
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- DAILY USAGE TABLE
-create table if not exists daily_usage (
-  user_id uuid references auth.users(id) on delete cascade,
-  usage_date date not null,
+-- Enable RLS
+alter table public.profiles enable row level security;
+
+-- Users can read their own profile
+create policy "Users can view own profile"
+  on public.profiles for select
+  using (auth.uid() = id);
+
+-- Users can update their own profile (but not subscription_status — that's webhook-only via service role)
+create policy "Users can update own profile"
+  on public.profiles for update
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
+-- 2. Daily usage table — tracks prompts per user per day
+create table public.daily_usage (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  usage_date date not null default current_date,
   prompt_count integer not null default 0,
-  primary key (user_id, usage_date)
+  unique (user_id, usage_date)
 );
 
--- FUNCTION: increment_usage (called from server with service-role key)
-create or replace function increment_usage(p_user_id uuid, p_date date)
-returns void as $$
+-- Enable RLS
+alter table public.daily_usage enable row level security;
+
+-- Users can read their own usage
+create policy "Users can view own usage"
+  on public.daily_usage for select
+  using (auth.uid() = user_id);
+
+-- Service role handles insert/update (no user-facing insert policy needed)
+
+-- 3. Auto-create profile on sign-up (trigger)
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = ''
+as $$
 begin
-  insert into daily_usage (user_id, usage_date, prompt_count)
-    values (p_user_id, p_date, 1)
-    on conflict (user_id, usage_date) do update
-      set prompt_count = daily_usage.prompt_count + 1;
-end;
-$$ language plpgsql security definer;
-
--- RLS POLICIES
-alter table profiles enable row level security;
-alter table daily_usage enable row level security;
-
--- Only allow users to see/update their own profile
-create policy "Users can view own profile" on profiles
-  for select using (auth.uid() = id);
-create policy "Users can update own profile" on profiles
-  for update using (auth.uid() = id);
-
--- Only allow users to see their own usage
-create policy "Users can view own usage" on daily_usage
-  for select using (auth.uid() = user_id);
--- Only allow users to increment their own usage
-create policy "Users can update own usage" on daily_usage
-  for update using (auth.uid() = user_id);
-
--- AUTO-CREATE PROFILE ON SIGNUP
-create or replace function handle_new_user()
-returns trigger as $$
-begin
-  insert into profiles (id, full_name, avatar_url)
-    values (
-      new.id,
-      coalesce(new.raw_user_meta_data->>'full_name', ''),
-      coalesce(new.raw_user_meta_data->>'avatar_url', '')
-    );
+  insert into public.profiles (id, email, full_name)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', '')
+  );
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
--- Trigger: fire after a new user is created in auth.users
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- 4. Increment usage helper (called from API route via service role)
+create or replace function public.increment_usage(p_user_id uuid, p_date date)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  insert into public.daily_usage (user_id, usage_date, prompt_count)
+  values (p_user_id, p_date, 1)
+  on conflict (user_id, usage_date)
+  do update set prompt_count = daily_usage.prompt_count + 1;
+end;
+$$;
+
+-- 5. Updated_at auto-update for profiles
+create or replace function public.update_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger profiles_updated_at
+  before update on public.profiles
+  for each row execute function public.update_updated_at();
+
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
