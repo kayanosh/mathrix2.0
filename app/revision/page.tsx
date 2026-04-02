@@ -8,12 +8,13 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowLeft,
-  X,
-  Star,
   FileText,
+  HelpCircle,
+  ChevronLeft,
 } from "lucide-react";
 import { REVISION_TOPICS, PDF_PATH } from "@/lib/revision-data";
 import type { RevisionTopic, RevisionSubtopic } from "@/lib/revision-data";
+import PdfPageRenderer from "@/components/PdfPageRenderer";
 
 export default function RevisionPage() {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
@@ -47,47 +48,87 @@ export default function RevisionPage() {
     });
   }
 
-  // ── PDF Viewer ──────────────────────────────────────────────────────────
+  // ── Styled Topic Viewer ─────────────────────────────────────────────────
   if (viewing) {
-    const pdfUrl = `${PDF_PATH}#page=${viewing.startPage}`;
     const title = viewing.subtopic
       ? `${viewing.topic} — ${viewing.subtopic}`
       : viewing.topic;
     const pageCount = viewing.endPage - viewing.startPage + 1;
+    const pages = Array.from({ length: pageCount }, (_, i) => viewing.startPage + i);
 
     return (
-      <div className="h-screen flex flex-col bg-[#0a0a0f] text-gray-100">
-        {/* Viewer header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-[#111118] shrink-0">
+      <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+        {/* Top bar */}
+        <div className="sticky top-0 z-30 flex items-center justify-between px-5 py-3 border-b border-gray-800 bg-[#0a0a0f]/95 backdrop-blur-sm">
           <button
             onClick={() => setViewing(null)}
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
           >
-            <ArrowLeft size={16} /> Back to Topics
+            <ArrowLeft size={16} /> Topics
           </button>
-          <div className="text-center">
-            <h2 className="text-sm font-semibold text-white truncate max-w-[300px] sm:max-w-none">
-              {title}
-            </h2>
-            <p className="text-xs text-gray-500">
-              Pages {viewing.startPage}–{viewing.endPage} ({pageCount}{" "}
-              {pageCount === 1 ? "page" : "pages"})
+          <div className="text-center flex-1 min-w-0 mx-4">
+            <h2 className="text-sm font-semibold text-white truncate">{title}</h2>
+            <p className="text-[11px] text-gray-500">
+              {pageCount} {pageCount === 1 ? "page" : "pages"}
             </p>
           </div>
-          <button
-            onClick={() => setViewing(null)}
-            className="text-gray-400 hover:text-white transition-colors"
+          <Link
+            href={`/chat?q=${encodeURIComponent(`Explain: ${viewing.subtopic || viewing.topic}`)}&autoSend=true&fromPractice=true`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-xs font-medium transition-colors"
           >
-            <X size={18} />
-          </button>
+            <HelpCircle size={13} /> Ask AI Tutor
+          </Link>
         </div>
 
-        {/* Embedded PDF */}
-        <iframe
-          src={pdfUrl}
-          className="flex-1 w-full border-0"
-          title={title}
-        />
+        {/* Content */}
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+          {/* Topic intro card */}
+          <div className="rounded-2xl border border-gray-800 bg-[#111118] p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <BookOpen size={18} className="text-indigo-400" />
+              <h1 className="text-xl font-bold text-white">{title}</h1>
+            </div>
+            {viewing.subtopic && (
+              <p className="text-sm text-gray-400">
+                Part of the <span className="text-gray-300 font-medium">{viewing.topic}</span> section.
+                Scroll through the notes below, or ask the AI tutor if you need something explained.
+              </p>
+            )}
+          </div>
+
+          {/* Rendered pages */}
+          {pages.map((pageNum) => (
+            <div key={pageNum} className="rounded-2xl border border-gray-800 bg-white overflow-hidden shadow-lg">
+              <PdfPageRenderer
+                pdfUrl={PDF_PATH}
+                pageNumber={pageNum}
+                scale={2}
+              />
+              <div className="bg-[#111118] px-4 py-2 flex items-center justify-between border-t border-gray-800">
+                <span className="text-[11px] text-gray-500">Page {pageNum}</span>
+                <span className="text-[11px] text-gray-600">
+                  {pageNum - viewing.startPage + 1} of {pageCount}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {/* Bottom actions */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-8">
+            <button
+              onClick={() => setViewing(null)}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-gray-800 bg-[#111118] hover:bg-[#15151f] text-sm text-gray-300 transition-colors"
+            >
+              <ChevronLeft size={16} /> Back to Topics
+            </button>
+            <Link
+              href={`/subjects`}
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm text-white transition-colors"
+            >
+              <Sparkles size={14} /> Practice This Topic
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -139,18 +180,23 @@ export default function RevisionPage() {
         </p>
       </div>
 
-      {/* Quick‑open full PDF */}
+      {/* Quick-open: expand all topics */}
       <div className="max-w-4xl mx-auto px-6 mb-6">
         <button
-          onClick={() => openViewer("Full Revision Guide", 1, 374)}
+          onClick={() => {
+            const allIds = REVISION_TOPICS.map((t) => t.id);
+            setExpandedTopics((prev) =>
+              prev.size === allIds.length ? new Set() : new Set(allIds)
+            );
+          }}
           className="w-full flex items-center gap-3 px-5 py-4 rounded-xl border border-gray-800 bg-[#111118] hover:border-indigo-500/50 hover:bg-[#15151f] transition-all group"
         >
           <FileText size={20} className="text-indigo-400 group-hover:text-indigo-300" />
           <div className="text-left flex-1">
             <p className="text-sm font-medium text-white">
-              Open Full Revision Guide
+              {expandedTopics.size === REVISION_TOPICS.length ? "Collapse All Topics" : "Expand All Topics"}
             </p>
-            <p className="text-xs text-gray-500">374 pages — all topics</p>
+            <p className="text-xs text-gray-500">{REVISION_TOPICS.reduce((sum, t) => sum + t.subtopics.length, 0)} subtopics across {REVISION_TOPICS.length} topics</p>
           </div>
           <ChevronRight size={16} className="text-gray-600 group-hover:text-indigo-400 transition-colors" />
         </button>
