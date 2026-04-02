@@ -32,31 +32,31 @@ export default function SyllabusPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+    <div className="min-h-screen bg-white text-gray-900">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
             <Sparkles size={14} className="text-white" />
           </div>
-          <span className="font-bold text-white">Mathrix</span>
+          <span className="font-bold text-gray-900">Mathrix</span>
         </Link>
         <div className="flex items-center gap-3">
           <Link
             href="/subjects"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             Practice
           </Link>
           <Link
             href="/revision"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             Revision
           </Link>
           <Link
             href="/exam-papers"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             Exam Papers
           </Link>
@@ -76,18 +76,18 @@ export default function SyllabusPage() {
             <GraduationCap size={16} />
             GCSE Mathematics
           </div>
-          <h1 className="text-4xl font-extrabold text-white mb-3">
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-3">
             GCSE Maths Syllabus
           </h1>
-          <p className="text-gray-400 max-w-xl">
+          <p className="text-gray-500 max-w-xl">
             Browse the full GCSE Maths syllabus for AQA, Edexcel and OCR.
             Filter by exam board and tier. Click any subtopic to start learning with the AI tutor.
           </p>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4 mb-8 p-4 rounded-xl border border-gray-800 bg-gray-900/40">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex flex-wrap items-center gap-4 mb-8 p-4 rounded-xl border border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
             <Filter size={14} />
             Filters
           </div>
@@ -101,7 +101,7 @@ export default function SyllabusPage() {
                 className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                   board === b
                     ? "bg-indigo-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
+                    : "bg-white text-gray-500 hover:text-gray-900 border border-gray-200"
                 }`}
               >
                 {BOARD_LABELS[b]}
@@ -120,7 +120,7 @@ export default function SyllabusPage() {
                     ? t === "higher"
                       ? "bg-purple-600 text-white"
                       : "bg-emerald-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
+                    : "bg-white text-gray-500 hover:text-gray-900 border border-gray-200"
                 }`}
               >
                 {t}
@@ -134,13 +134,13 @@ export default function SyllabusPage() {
           <span
             className={`text-xs px-2.5 py-1 rounded-full font-medium ${
               tier === "higher"
-                ? "bg-purple-500/20 text-purple-300"
-                : "bg-emerald-500/20 text-emerald-300"
+                ? "bg-purple-100 text-purple-700"
+                : "bg-emerald-100 text-emerald-700"
             }`}
           >
             {tier === "higher" ? "Higher Tier" : "Foundation Tier"}
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-gray-400">
             {tier === "higher"
               ? "All topics including Higher-only content"
               : "Foundation topics only (Higher-only content hidden)"}
@@ -156,29 +156,29 @@ export default function SyllabusPage() {
             return (
               <div
                 key={topic.id}
-                className="rounded-xl border border-gray-800 overflow-hidden bg-gray-900/30"
+                className="rounded-xl border border-gray-200 overflow-hidden bg-white"
               >
                 {/* Topic header — clickable to expand */}
                 <button
                   onClick={() => toggleTopic(topic.id)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-gray-800/30 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600/20 flex items-center justify-center">
-                      <BookOpen size={14} className="text-indigo-400" />
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                      <BookOpen size={14} className="text-indigo-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white text-sm">
+                      <h3 className="font-semibold text-gray-900 text-sm">
                         {topic.name}
                       </h3>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-400">
                         {subtopics.length} subtopics
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     {tier === "higher" && topic.higherOnly.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                         {topic.higherOnly.length} Higher-only
                       </span>
                     )}
@@ -202,7 +202,7 @@ export default function SyllabusPage() {
 
                 {/* Subtopics list (expanded) */}
                 {isExpanded && (
-                  <div className="border-t border-gray-800 p-4">
+                  <div className="border-t border-gray-100 p-4">
                     <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {subtopics.map((sub) => {
                         const higher = isHigherOnly(topic, sub);
@@ -212,20 +212,20 @@ export default function SyllabusPage() {
                               href={`/chat?q=${encodeURIComponent(
                                 `Explain: ${sub}`
                               )}&subject=maths&tier=${tier}&examBoard=${board}`}
-                              className="flex items-center gap-2 text-xs py-1.5 px-2 rounded-lg hover:bg-gray-800/50 transition-colors group"
+                              className="flex items-center gap-2 text-xs py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors group"
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
-                              <span className="text-gray-300 group-hover:text-indigo-300 transition-colors">
+                              <span className="text-gray-600 group-hover:text-indigo-600 transition-colors">
                                 {sub}
                               </span>
                               {higher && (
-                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-medium">
+                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
                                   H
                                 </span>
                               )}
                               <ArrowRight
                                 size={10}
-                                className="text-gray-600 group-hover:text-indigo-400 transition-colors flex-shrink-0"
+                                className="text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0"
                               />
                             </Link>
                           </li>
@@ -240,9 +240,9 @@ export default function SyllabusPage() {
         </div>
 
         {/* Summary stats */}
-        <div className="mt-8 p-4 rounded-xl border border-gray-800 bg-gray-900/40 flex items-center justify-between">
-          <div className="text-sm text-gray-400">
-            <span className="text-white font-medium">{board}</span> ·{" "}
+        <div className="mt-8 p-4 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            <span className="text-gray-900 font-medium">{board}</span> ·{" "}
             <span className="capitalize">{tier}</span> tier ·{" "}
             {topics.length} topics ·{" "}
             {topics.reduce(

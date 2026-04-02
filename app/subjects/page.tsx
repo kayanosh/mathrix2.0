@@ -33,7 +33,7 @@ import InlineMath from "@/components/InlineMath";
 import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
 
 const MASTERY_COLOR: Record<MasteryLevel, string> = {
-  unseen: "bg-gray-600",
+  unseen: "bg-gray-300",
   learning: "bg-yellow-500",
   practiced: "bg-blue-500",
   confident: "bg-violet-500",
@@ -41,9 +41,9 @@ const MASTERY_COLOR: Record<MasteryLevel, string> = {
 };
 
 const DIFFICULTY_STYLE: Record<Difficulty, { label: string; bg: string; ring: string }> = {
-  easy: { label: "Easy", bg: "bg-emerald-500/10 text-emerald-400", ring: "ring-emerald-500/30" },
-  medium: { label: "Medium", bg: "bg-amber-500/10 text-amber-400", ring: "ring-amber-500/30" },
-  hard: { label: "Hard", bg: "bg-red-500/10 text-red-400", ring: "ring-red-500/30" },
+  easy: { label: "Easy", bg: "bg-emerald-50 text-emerald-700", ring: "ring-emerald-300" },
+  medium: { label: "Medium", bg: "bg-amber-50 text-amber-700", ring: "ring-amber-300" },
+  hard: { label: "Hard", bg: "bg-red-50 text-red-700", ring: "ring-red-300" },
 };
 
 const mathsSubject = SUBJECTS.find((s) => s.id === "maths")!;
@@ -134,19 +134,19 @@ export default function PracticeHub() {
   const answerText = currentQ?.answer;
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+    <div className="min-h-screen bg-white text-gray-900">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
             <Sparkles size={14} className="text-white" />
           </div>
-          <span className="font-bold text-white">Mathrix</span>
+          <span className="font-bold text-gray-900">Mathrix</span>
         </Link>
         <div className="flex items-center gap-4">
-          <Link href="/syllabus" className="text-sm text-gray-400 hover:text-white transition-colors">Syllabus</Link>
-          <Link href="/revision" className="text-sm text-gray-400 hover:text-white transition-colors">Revision</Link>
-          <Link href="/exam-papers" className="text-sm text-gray-400 hover:text-white transition-colors">Exam Papers</Link>
+          <Link href="/syllabus" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">Syllabus</Link>
+          <Link href="/revision" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">Revision</Link>
+          <Link href="/exam-papers" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">Exam Papers</Link>
           <Link
             href="/chat"
             className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-1"
@@ -163,8 +163,8 @@ export default function PracticeHub() {
             <BookOpen size={16} />
             Practice Hub
           </div>
-          <h1 className="text-3xl font-extrabold text-white mb-2">Question Bank</h1>
-          <p className="text-gray-400 text-sm">
+          <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Question Bank</h1>
+          <p className="text-gray-500 text-sm">
             Choose a topic, pick your difficulty, and start practising. Stuck? Hit &quot;Need Help&quot; to open the AI tutor.
           </p>
         </div>
@@ -174,7 +174,7 @@ export default function PracticeHub() {
           {(["unseen", "learning", "practiced", "confident", "mastered"] as MasteryLevel[]).map((m) => (
             <div key={m} className="flex items-center gap-1.5">
               <div className={`w-2.5 h-2.5 rounded-full ${MASTERY_COLOR[m]}`} />
-              <span className="text-[11px] text-gray-500 capitalize">{m}</span>
+              <span className="text-[11px] text-gray-400 capitalize">{m}</span>
             </div>
           ))}
         </div>
@@ -204,23 +204,23 @@ export default function PracticeHub() {
                   );
 
             return (
-              <div key={topic.id} className="rounded-2xl border border-gray-800 overflow-hidden">
+              <div key={topic.id} className="rounded-2xl border border-gray-200 overflow-hidden">
                 {/* Topic header */}
                 <button
                   onClick={() => setExpandedTopic(isExpanded ? null : topic.id)}
-                  className="w-full flex items-center justify-between px-5 py-4 bg-gray-900/50 hover:bg-gray-900/70 transition-colors text-left"
+                  className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${MASTERY_COLOR[avgMastery]}`} />
-                    <span className="font-semibold text-white">{topic.name}</span>
-                    <span className="text-xs text-gray-500">{totalQs} questions</span>
+                    <span className="font-semibold text-gray-900">{topic.name}</span>
+                    <span className="text-xs text-gray-400">{totalQs} questions</span>
                   </div>
                   {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                 </button>
 
                 {/* Expanded content */}
                 {isExpanded && (
-                  <div className="px-5 py-5 bg-gray-900/30 border-t border-gray-800 space-y-5">
+                  <div className="px-5 py-5 bg-white border-t border-gray-200 space-y-5">
                     {/* Difficulty tabs */}
                     <div className="flex gap-2">
                       {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
@@ -233,7 +233,7 @@ export default function PracticeHub() {
                             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
                               isActive
                                 ? `${style.bg} ring-2 ${style.ring}`
-                                : "text-gray-500 hover:text-gray-300"
+                                : "text-gray-400 hover:text-gray-700"
                             }`}
                           >
                             {style.label}
@@ -255,12 +255,12 @@ export default function PracticeHub() {
                         return (
                           <span
                             key={sub}
-                            className="text-[11px] text-gray-400 bg-gray-800 rounded-lg px-2.5 py-1 flex items-center gap-1.5"
+                            className="text-[11px] text-gray-600 bg-gray-100 rounded-lg px-2.5 py-1 flex items-center gap-1.5"
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${MASTERY_COLOR[m]}`} />
                             {sub}
                             {rec && rec.attempts > 0 && (
-                              <span className="text-gray-500">{acc}%</span>
+                              <span className="text-gray-400">{acc}%</span>
                             )}
                           </span>
                         );
@@ -268,15 +268,15 @@ export default function PracticeHub() {
                     </div>
 
                     {/* Question card */}
-                    <div className="rounded-xl border border-gray-700 bg-gray-900/60 p-5 min-h-[120px]">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 min-h-[120px]">
                       {aiLoading ? (
                         <div className="flex items-center justify-center h-20">
                           <div className="animate-spin w-5 h-5 border-2 border-indigo-400 border-t-transparent rounded-full" />
-                          <span className="ml-3 text-sm text-gray-400">Generating question…</span>
+                          <span className="ml-3 text-sm text-gray-500">Generating question…</span>
                         </div>
                       ) : questionText ? (
                         <div>
-                          <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                             <InlineMath text={questionText} />
                           </div>
                           {currentQ?.hintText && !showAnswer && (
@@ -293,9 +293,9 @@ export default function PracticeHub() {
 
                       {/* Answer reveal */}
                       {showAnswer && answerText && (
-                        <div className="mt-4 pt-4 border-t border-gray-700">
+                        <div className="mt-4 pt-4 border-t border-gray-200">
                           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Answer</p>
-                          <div className="text-sm text-white">
+                          <div className="text-sm text-gray-900">
                             <InlineMath text={answerText} />
                           </div>
                         </div>
@@ -303,8 +303,8 @@ export default function PracticeHub() {
 
                       {/* AI-generated question answer note */}
                       {showAnswer && aiQuestion && !answerText && (
-                        <div className="mt-4 pt-4 border-t border-gray-700">
-                          <p className="text-xs text-gray-500">
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-xs text-gray-400">
                             AI-generated question — use &quot;Need Help&quot; for a full worked solution.
                           </p>
                         </div>
@@ -317,7 +317,7 @@ export default function PracticeHub() {
                         {!showAnswer && (questionText || aiQuestion) && (
                           <button
                             onClick={() => setShowAnswer(true)}
-                            className="px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-sm text-gray-200 transition-colors"
+                            className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm text-gray-700 transition-colors"
                           >
                             Show Answer
                           </button>
@@ -327,13 +327,13 @@ export default function PracticeHub() {
                           <>
                             <button
                               onClick={() => handleSelfReport(true)}
-                              className="px-4 py-2 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-sm text-emerald-400 transition-colors flex items-center gap-1.5"
+                              className="px-4 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-sm text-emerald-700 transition-colors flex items-center gap-1.5"
                             >
                               <CheckCircle2 size={14} /> I got it right
                             </button>
                             <button
                               onClick={() => handleSelfReport(false)}
-                              className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-sm text-red-400 transition-colors flex items-center gap-1.5"
+                              className="px-4 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-sm text-red-700 transition-colors flex items-center gap-1.5"
                             >
                               <XCircle size={14} /> I got it wrong
                             </button>
@@ -351,7 +351,7 @@ export default function PracticeHub() {
 
                         <button
                           onClick={() => setHelpQuestion(questionText || aiQuestion || "")}
-                          className="px-4 py-2 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-sm text-violet-400 transition-colors flex items-center gap-1.5 ml-auto"
+                          className="px-4 py-2 rounded-lg bg-violet-50 hover:bg-violet-100 text-sm text-violet-700 transition-colors flex items-center gap-1.5 ml-auto"
                         >
                           <HelpCircle size={14} /> Need Help
                         </button>

@@ -60,24 +60,24 @@ export default function RevisionPage() {
       : REVISION_CONTENT.filter((n) => n.topicId === viewing.topicId);
 
     return (
-      <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+      <div className="min-h-screen bg-white text-gray-900">
         {/* Top bar */}
-        <div className="sticky top-0 z-30 flex items-center justify-between px-5 py-3 border-b border-gray-800 bg-[#0a0a0f]/95 backdrop-blur-sm">
+        <div className="sticky top-0 z-30 flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
           <button
             onClick={() => setViewing(null)}
-            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft size={16} /> Topics
           </button>
           <div className="text-center flex-1 min-w-0 mx-4">
-            <h2 className="text-sm font-semibold text-white truncate">{title}</h2>
-            <p className="text-[11px] text-gray-500">
+            <h2 className="text-sm font-semibold text-gray-900 truncate">{title}</h2>
+            <p className="text-[11px] text-gray-400">
               {notes.length} {notes.length === 1 ? "section" : "sections"}
             </p>
           </div>
           <Link
             href={`/chat?q=${encodeURIComponent(`Explain: ${viewing.subtopic || viewing.topic}`)}&autoSend=true&fromPractice=true`}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
           >
             <HelpCircle size={13} /> Ask AI Tutor
           </Link>
@@ -86,16 +86,16 @@ export default function RevisionPage() {
         {/* Content */}
         <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
           {notes.length === 0 ? (
-            <div className="rounded-2xl border border-gray-800 bg-[#111118] p-6 text-center">
-              <p className="text-gray-400">Notes coming soon for this topic.</p>
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center">
+              <p className="text-gray-500">Notes coming soon for this topic.</p>
             </div>
           ) : (
             notes.map((note) => (
               <div key={note.subtopic}>
                 {/* Section heading (when showing all subtopics for a topic) */}
                 {!viewing.subtopic && (
-                  <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <BookOpen size={16} className="text-indigo-400" />
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <BookOpen size={16} className="text-indigo-600" />
                     {note.subtopic}
                   </h2>
                 )}
@@ -108,7 +108,7 @@ export default function RevisionPage() {
           <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-8">
             <button
               onClick={() => setViewing(null)}
-              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-gray-800 bg-[#111118] hover:bg-[#15151f] text-sm text-gray-300 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm text-gray-600 transition-colors"
             >
               <ChevronLeft size={16} /> Back to Topics
             </button>
@@ -126,25 +126,25 @@ export default function RevisionPage() {
 
   // ── Topic Browser ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-gray-100">
+    <div className="min-h-screen bg-white text-gray-900">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
             <Sparkles size={14} className="text-white" />
           </div>
-          <span className="font-bold text-white">Mathrix</span>
+          <span className="font-bold text-gray-900">Mathrix</span>
         </Link>
         <div className="flex items-center gap-3">
           <Link
             href="/subjects"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             Practice
           </Link>
           <Link
             href="/syllabus"
-            className="text-sm text-gray-400 hover:text-white transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
           >
             Syllabus
           </Link>
@@ -160,12 +160,12 @@ export default function RevisionPage() {
       {/* Header */}
       <div className="max-w-4xl mx-auto px-6 pt-10 pb-6">
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center">
-            <BookOpen size={20} className="text-indigo-400" />
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+            <BookOpen size={20} className="text-indigo-600" />
           </div>
-          <h1 className="text-2xl font-bold text-white">GCSE Maths Revision</h1>
+          <h1 className="text-2xl font-bold text-gray-900">GCSE Maths Revision</h1>
         </div>
-        <p className="text-gray-400 text-sm ml-[52px]">
+        <p className="text-gray-500 text-sm ml-[52px]">
           Browse notes and worked examples for every GCSE Maths topic.
           Click a topic to expand, then choose a subtopic to start revising.
         </p>
@@ -180,16 +180,16 @@ export default function RevisionPage() {
               prev.size === allIds.length ? new Set() : new Set(allIds)
             );
           }}
-          className="w-full flex items-center gap-3 px-5 py-4 rounded-xl border border-gray-800 bg-[#111118] hover:border-indigo-500/50 hover:bg-[#15151f] transition-all group"
+          className="w-full flex items-center gap-3 px-5 py-4 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:bg-gray-50 transition-all group"
         >
-          <FileText size={20} className="text-indigo-400 group-hover:text-indigo-300" />
+          <FileText size={20} className="text-indigo-600 group-hover:text-indigo-500" />
           <div className="text-left flex-1">
-            <p className="text-sm font-medium text-white">
+            <p className="text-sm font-medium text-gray-900">
               {expandedTopics.size === REVISION_TOPICS.length ? "Collapse All Topics" : "Expand All Topics"}
             </p>
-            <p className="text-xs text-gray-500">{REVISION_TOPICS.reduce((sum, t) => sum + t.subtopics.length, 0)} subtopics across {REVISION_TOPICS.length} topics</p>
+            <p className="text-xs text-gray-400">{REVISION_TOPICS.reduce((sum, t) => sum + t.subtopics.length, 0)} subtopics across {REVISION_TOPICS.length} topics</p>
           </div>
-          <ChevronRight size={16} className="text-gray-600 group-hover:text-indigo-400 transition-colors" />
+          <ChevronRight size={16} className="text-gray-400 group-hover:text-indigo-500 transition-colors" />
         </button>
       </div>
 
@@ -227,18 +227,18 @@ function TopicCard({
   ) => void;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-[#111118] overflow-hidden">
+    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
       {/* Topic header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-[#15151f] transition-colors"
+        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors"
       >
         <span className="text-2xl" role="img" aria-label={topic.name}>
           {topic.icon}
         </span>
         <div className="flex-1 text-left">
-          <h3 className="text-base font-semibold text-white">{topic.name}</h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h3 className="text-base font-semibold text-gray-900">{topic.name}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
             {topic.subtopics.length} subtopics
           </p>
         </div>
@@ -247,7 +247,7 @@ function TopicCard({
             e.stopPropagation();
             onOpen(topic.id, topic.name);
           }}
-          className="text-xs text-indigo-400 hover:text-indigo-300 font-medium px-3 py-1.5 rounded-lg border border-indigo-500/30 hover:border-indigo-500/60 transition-colors hidden sm:block"
+          className="text-xs text-indigo-600 hover:text-indigo-500 font-medium px-3 py-1.5 rounded-lg border border-indigo-200 hover:border-indigo-400 transition-colors hidden sm:block"
         >
           View all
         </button>
@@ -260,7 +260,7 @@ function TopicCard({
 
       {/* Subtopics list */}
       {expanded && (
-        <div className="border-t border-gray-800/50">
+        <div className="border-t border-gray-100">
           {topic.subtopics.map((sub) => (
             <SubtopicRow
               key={sub.name}
@@ -296,16 +296,16 @@ function SubtopicRow({
   return (
     <button
       onClick={() => onOpen(topicId, topicName, sub.name)}
-      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-[#15151f] transition-colors text-left border-b border-gray-800/30 last:border-b-0"
+      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left border-b border-gray-100 last:border-b-0"
     >
-      <BookOpen size={14} className="text-gray-600 shrink-0" />
-      <span className="flex-1 text-sm text-gray-300">{sub.name}</span>
+      <BookOpen size={14} className="text-gray-400 shrink-0" />
+      <span className="flex-1 text-sm text-gray-700">{sub.name}</span>
       {sub.higherOnly && (
-        <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded">
           H
         </span>
       )}
-      <ChevronRight size={14} className="text-gray-700" />
+      <ChevronRight size={14} className="text-gray-300" />
     </button>
   );
 }
