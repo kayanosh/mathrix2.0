@@ -144,7 +144,9 @@ export default function ChatInterface() {
 
   const isHero = messages.length === 0 && !loading;
 
-  // Read URL params: tier, examBoard, q, autoSend, fromPractice
+  const [activatingPro, setActivatingPro] = useState(false);
+
+  // Read URL params: tier, examBoard, q, autoSend, fromPractice, upgraded
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -163,6 +165,40 @@ export default function ChatInterface() {
     const urlQ = params.get("q");
     if (urlQ) {
       setInput(urlQ);
+    }
+    // Handle ?upgraded=true after Stripe checkout — poll until webhook processes
+    if (params.get("upgraded") === "true") {
+      // Clean the URL param immediately
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("upgraded");
+      window.history.replaceState({}, "", clean.pathname + clean.search);
+
+      setActivatingPro(true);
+      let attempts = 0;
+      const maxAttempts = 10;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await fetch("/api/usage");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.subscriptionStatus === "pro") {
+              setSubscriptionStatus("pro");
+              setPromptsUsed(data.promptsUsed);
+              setShowPaywall(false);
+              setActivatingPro(false);
+              clearInterval(poll);
+              return;
+            }
+          }
+        } catch { /* ignore */ }
+        if (attempts >= maxAttempts) {
+          // Webhook may have already processed — do a final fetch
+          setActivatingPro(false);
+          clearInterval(poll);
+          fetchUsage();
+        }
+      }, 2000);
     }
   }, []);
 
@@ -491,6 +527,24 @@ export default function ChatInterface() {
         )}
       </AnimatePresence>
 
+      {/* ── Activating Pro overlay ──────────────────────────── */}
+      <AnimatePresence>
+        {activatingPro && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          >
+            <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-4 shadow-xl">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-gray-800 font-semibold text-lg">Activating your Pro subscription...</p>
+              <p className="text-gray-500 text-sm">This may take a few seconds</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Pricing Modal ──────────────────────────────────── */}
       <AnimatePresence>
         {showPricing && (
@@ -565,9 +619,13 @@ export default function ChatInterface() {
               >
                 <LogOut size={16} />
               </button>
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold">
+              <Link
+                href="/account"
+                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold"
+                title="Account"
+              >
                 {(user.user_metadata?.full_name?.[0] || user.email?.[0] || "U").toUpperCase()}
-              </div>
+              </Link>
             </div>
           ) : (
             <button
