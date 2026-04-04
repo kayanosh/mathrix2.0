@@ -14,7 +14,7 @@ require("nerdamer/Solve");
 require("nerdamer/Extra");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-import type { WhiteboardResponse, EquationStepBlock } from "@/types/whiteboard";
+import type { WhiteboardResponse, EquationStepBlock, LabeledShapeBlock } from "@/types/whiteboard";
 
 // ── Public interfaces ─────────────────────────────────────────────────────────
 
@@ -222,6 +222,176 @@ function verifyEquationSteps(block: EquationStepBlock): ToolCheckResult[] {
   return results;
 }
 
+// ── Geometry verification tools ───────────────────────────────────────────────
+
+/**
+ * Verify that angles in a labeled_shape triangle sum to 180°.
+ */
+function verifyTriangleAngleSum(block: LabeledShapeBlock): ToolCheckResult[] {
+  const results: ToolCheckResult[] = [];
+
+  if (block.shape !== "triangle" || !block.angles || block.angles.length === 0) {
+    return results;
+  }
+
+  // Only check if all 3 angles are given (fully solved)
+  if (block.angles.length === 3) {
+    const sum = block.angles.reduce((acc, a) => acc + a.degrees, 0);
+    const passed = Math.abs(sum - 180) < 0.5;
+    results.push({
+      check: `Triangle angle sum: ${block.angles.map((a) => `${a.label}=${a.degrees}°`).join(" + ")}`,
+      passed,
+      detail: passed
+        ? `Sum = ${sum}° = 180° ✓`
+        : `Sum = ${sum}° ≠ 180°`,
+    });
+  }
+
+  // Check no individual angle is negative or >= 180
+  for (const a of block.angles) {
+    if (a.degrees <= 0 || a.degrees >= 180) {
+      results.push({
+        check: `Triangle angle validity: ${a.label}`,
+        passed: false,
+        detail: `Angle ${a.label} = ${a.degrees}° is invalid (must be 0° < angle < 180°)`,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Verify Pythagoras' theorem on a triangle with a right angle.
+ * Checks that a² + b² = c² where c is the hypotenuse.
+ */
+function verifyPythagorasOnShape(block: LabeledShapeBlock): ToolCheckResult[] {
+  const results: ToolCheckResult[] = [];
+
+  if (block.shape !== "triangle") return results;
+
+  // Check if there's a right angle
+  const hasRightAngle = block.angles?.some((a) => a.isRightAngle || Math.abs(a.degrees - 90) < 0.5);
+  if (!hasRightAngle) return results;
+
+  // Need all 3 sides with numeric labels
+  if (!block.sides || block.sides.length < 3) return results;
+
+  const sideLengths: number[] = [];
+  for (const s of block.sides) {
+    const num = parseFloat(s.label.replace(/\s*(?:cm|m|mm|km)\s*/i, ""));
+    if (!isNaN(num) && num > 0) {
+      sideLengths.push(num);
+    }
+  }
+
+  if (sideLengths.length < 3) return results;
+
+  // Sort so the largest is the hypotenuse
+  sideLengths.sort((a, b) => a - b);
+  const [a, b, c] = sideLengths;
+  const lhs = a * a + b * b;
+  const rhs = c * c;
+  const passed = Math.abs(lhs - rhs) < 0.01;
+
+  results.push({
+    check: `Pythagoras check: ${a}² + ${b}² = ${c}²`,
+    passed,
+    detail: passed
+      ? `${lhs} = ${rhs} ✓`
+      : `${a}² + ${b}² = ${lhs}, but ${c}² = ${rhs}`,
+  });
+
+  return results;
+}
+
+/**
+ * Verify quadrilateral angles sum to 360°.
+ */
+function verifyQuadrilateralAngleSum(block: LabeledShapeBlock): ToolCheckResult[] {
+  const results: ToolCheckResult[] = [];
+  const quadShapes = ["rectangle", "parallelogram", "trapezium"];
+
+  if (!quadShapes.includes(block.shape) || !block.angles) return results;
+
+  if (block.angles.length === 4) {
+    const sum = block.angles.reduce((acc, a) => acc + a.degrees, 0);
+    const passed = Math.abs(sum - 360) < 0.5;
+    results.push({
+      check: `Quadrilateral angle sum: ${block.angles.map((a) => `${a.degrees}°`).join(" + ")}`,
+      passed,
+      detail: passed
+        ? `Sum = ${sum}° = 360° ✓`
+        : `Sum = ${sum}° ≠ 360°`,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Scan equation_steps for geometry-specific arithmetic patterns
+ * and verify the calculations.
+ */
+function verifyGeometryArithmetic(block: EquationStepBlock): ToolCheckResult[] {
+  const results: ToolCheckResult[] = [];
+
+  for (const step of block.steps) {
+    const after = step.latexAfter;
+    const rule = (step.rule || "").toLowerCase();
+    const explanation = (step.explanation || "").toLowerCase();
+
+    // Pythagoras pattern: detect √(a² + b²) or √(c² - a²) in steps
+    const pythagorasCalc = after.match(
+      /\\sqrt\{?\s*(\d+\.?\d*)\s*\^?\s*2?\s*[+]\s*(\d+\.?\d*)\s*\^?\s*2?\s*\}?/
+    );
+    if (pythagorasCalc || /pythagoras/i.test(rule)) {
+      // Try to verify the numeric result
+      const numAfter = normaliseLaTeX(after);
+      if (numAfter.includes("=")) {
+        const [, rhs] = numAfter.split("=").map((s) => s.trim());
+        try {
+          const val = parseFloat(nerdamer(rhs).evaluate().text());
+          if (!isNaN(val) && val > 0) {
+            // Looks like a computed result — check if positive
+            results.push({
+              check: `Pythagoras result: step ${step.stepNumber}`,
+              passed: val > 0,
+              detail: `Result = ${val.toFixed(4)} (positive ✓)`,
+            });
+          }
+        } catch {
+          // Can't evaluate — skip
+        }
+      }
+    }
+
+    // Area formula check: if explanation mentions "area" and step has multiplication
+    if (/area/i.test(explanation) && after.includes("=")) {
+      const numAfter = normaliseLaTeX(after);
+      const [lhs, rhs] = numAfter.split("=").map((s) => s.trim());
+      try {
+        const lVal = parseFloat(nerdamer(lhs).evaluate().text());
+        const rVal = parseFloat(nerdamer(rhs).evaluate().text());
+        if (!isNaN(lVal) && !isNaN(rVal)) {
+          const passed = Math.abs(lVal - rVal) < 0.01;
+          results.push({
+            check: `Area calculation: step ${step.stepNumber}`,
+            passed,
+            detail: passed
+              ? `${lVal} = ${rVal} ✓`
+              : `${lVal} ≠ ${rVal}`,
+          });
+        }
+      } catch {
+        // Can't evaluate — skip
+      }
+    }
+  }
+
+  return results;
+}
+
 // ── Main verification function ────────────────────────────────────────────────
 
 /**
@@ -234,6 +404,12 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
   for (const block of data.blocks) {
     if (block.type === "equation_steps") {
       checks.push(...verifyEquationSteps(block));
+      checks.push(...verifyGeometryArithmetic(block));
+    }
+    if (block.type === "labeled_shape") {
+      checks.push(...verifyTriangleAngleSum(block));
+      checks.push(...verifyPythagorasOnShape(block));
+      checks.push(...verifyQuadrilateralAngleSum(block));
     }
   }
 

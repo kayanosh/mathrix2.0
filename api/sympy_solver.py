@@ -183,6 +183,247 @@ def dispatch(body: dict) -> dict:
                 "answersLatex": answer_latex,
             }
 
+        # ── Geometry tasks ─────────────────────────────────────────────────
+
+        elif task == "pythagoras":
+            # expression: "a=3,b=4" or "a=3,c=5" — solve for the missing side
+            parts = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                parts[k.strip()] = safe_parse(val.strip())
+
+            a = parts.get("a")
+            b = parts.get("b")
+            c = parts.get("c")  # hypotenuse
+
+            if a is not None and b is not None:
+                result = sp.sqrt(a**2 + b**2)
+                label = "c (hypotenuse)"
+            elif a is not None and c is not None:
+                result = sp.sqrt(c**2 - a**2)
+                label = "b"
+            elif b is not None and c is not None:
+                result = sp.sqrt(c**2 - b**2)
+                label = "a"
+            else:
+                return {"success": False, "error": "Need exactly 2 of a, b, c for Pythagoras"}
+
+            simplified = sp.simplify(result)
+            decimal_val = sp.N(simplified, 6)
+            return {
+                "success": True,
+                "answers": [str(simplified), str(decimal_val)],
+                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
+                "label": label,
+            }
+
+        elif task == "triangle_angles":
+            # expression: "A=40,B=60" — solve for missing angle(s)
+            # OR "A=40,B=60,C=?" — explicit unknown
+            parts = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                k = k.strip().upper()
+                val = val.strip()
+                if val != "?":
+                    parts[k] = safe_parse(val)
+
+            known_sum = sum(parts.values())
+            unknown_count = 3 - len(parts)
+
+            if unknown_count == 1:
+                missing = sp.Integer(180) - known_sum
+                # Determine which angle is missing
+                all_labels = {"A", "B", "C"}
+                missing_label = (all_labels - set(parts.keys())).pop()
+                return {
+                    "success": True,
+                    "answers": [str(missing)],
+                    "answersLatex": [sp.latex(missing)],
+                    "label": missing_label,
+                }
+            elif unknown_count == 2:
+                # Can only solve if one unknown is expressed in terms of another
+                return {"success": False, "error": "Need at least 2 known angles"}
+            else:
+                return {"success": False, "error": "Need at least 1 known angle"}
+
+        elif task == "area":
+            # expression: "shape=triangle,base=5,height=3"
+            # OR "shape=circle,radius=7"
+            # OR "shape=rectangle,length=4,width=6"
+            # OR "shape=trapezium,a=4,b=6,height=3"
+            params = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                params[k.strip().lower()] = val.strip()
+
+            shape = params.get("shape", "rectangle")
+
+            if shape == "triangle":
+                base = safe_parse(params["base"])
+                height = safe_parse(params["height"])
+                result = sp.Rational(1, 2) * base * height
+            elif shape == "rectangle":
+                length = safe_parse(params.get("length", params.get("l", "0")))
+                width = safe_parse(params.get("width", params.get("w", "0")))
+                result = length * width
+            elif shape == "circle":
+                r = safe_parse(params.get("radius", params.get("r", "0")))
+                result = sp.pi * r**2
+            elif shape == "trapezium":
+                a = safe_parse(params["a"])
+                b = safe_parse(params["b"])
+                h = safe_parse(params["height"])
+                result = sp.Rational(1, 2) * (a + b) * h
+            elif shape == "parallelogram":
+                base = safe_parse(params["base"])
+                height = safe_parse(params["height"])
+                result = base * height
+            elif shape == "sector":
+                r = safe_parse(params.get("radius", params.get("r", "0")))
+                theta = safe_parse(params.get("angle", params.get("theta", "0")))
+                result = (theta / sp.Integer(360)) * sp.pi * r**2
+            else:
+                return {"success": False, "error": f"Unknown shape: {shape}"}
+
+            simplified = sp.simplify(result)
+            decimal_val = sp.N(simplified, 6)
+            return {
+                "success": True,
+                "answers": [str(simplified), str(decimal_val)],
+                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
+            }
+
+        elif task == "volume":
+            # expression: "shape=cuboid,length=4,width=3,height=5"
+            # OR "shape=cylinder,radius=3,height=10"
+            # OR "shape=sphere,radius=5"
+            # OR "shape=cone,radius=3,height=8"
+            # OR "shape=prism,area=12,length=6"
+            params = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                params[k.strip().lower()] = val.strip()
+
+            shape = params.get("shape", "cuboid")
+
+            if shape == "cuboid":
+                l = safe_parse(params.get("length", params.get("l", "0")))
+                w = safe_parse(params.get("width", params.get("w", "0")))
+                h = safe_parse(params.get("height", params.get("h", "0")))
+                result = l * w * h
+            elif shape == "cylinder":
+                r = safe_parse(params.get("radius", params.get("r", "0")))
+                h = safe_parse(params.get("height", params.get("h", "0")))
+                result = sp.pi * r**2 * h
+            elif shape == "sphere":
+                r = safe_parse(params.get("radius", params.get("r", "0")))
+                result = sp.Rational(4, 3) * sp.pi * r**3
+            elif shape == "cone":
+                r = safe_parse(params.get("radius", params.get("r", "0")))
+                h = safe_parse(params.get("height", params.get("h", "0")))
+                result = sp.Rational(1, 3) * sp.pi * r**2 * h
+            elif shape == "prism":
+                area = safe_parse(params.get("area", params.get("a", "0")))
+                length = safe_parse(params.get("length", params.get("l", "0")))
+                result = area * length
+            elif shape == "pyramid":
+                area = safe_parse(params.get("area", params.get("a", "0")))
+                h = safe_parse(params.get("height", params.get("h", "0")))
+                result = sp.Rational(1, 3) * area * h
+            else:
+                return {"success": False, "error": f"Unknown shape: {shape}"}
+
+            simplified = sp.simplify(result)
+            decimal_val = sp.N(simplified, 6)
+            return {
+                "success": True,
+                "answers": [str(simplified), str(decimal_val)],
+                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
+            }
+
+        elif task == "trig_solve":
+            # expression: "func=sin,angle=30" → evaluate sin(30°)
+            # OR "func=sin,opposite=3,hypotenuse=5" → find angle
+            # OR "func=cos,adjacent=4,hypotenuse=5" → find angle
+            params = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                params[k.strip().lower()] = val.strip()
+
+            func = params.get("func", "sin")
+
+            if "angle" in params:
+                # Evaluate trig function at given angle (degrees)
+                angle_deg = safe_parse(params["angle"])
+                angle_rad = sp.rad(angle_deg)
+                if func == "sin":
+                    result = sp.sin(angle_rad)
+                elif func == "cos":
+                    result = sp.cos(angle_rad)
+                elif func == "tan":
+                    result = sp.tan(angle_rad)
+                else:
+                    return {"success": False, "error": f"Unknown trig function: {func}"}
+            elif "opposite" in params and "hypotenuse" in params:
+                opp = safe_parse(params["opposite"])
+                hyp = safe_parse(params["hypotenuse"])
+                result = sp.deg(sp.asin(opp / hyp))
+            elif "adjacent" in params and "hypotenuse" in params:
+                adj = safe_parse(params["adjacent"])
+                hyp = safe_parse(params["hypotenuse"])
+                result = sp.deg(sp.acos(adj / hyp))
+            elif "opposite" in params and "adjacent" in params:
+                opp = safe_parse(params["opposite"])
+                adj = safe_parse(params["adjacent"])
+                result = sp.deg(sp.atan(opp / adj))
+            else:
+                return {"success": False, "error": "Need angle or two side lengths"}
+
+            simplified = sp.simplify(result)
+            decimal_val = sp.N(simplified, 6)
+            return {
+                "success": True,
+                "answers": [str(simplified), str(decimal_val)],
+                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
+            }
+
+        elif task == "circle_property":
+            # expression: "property=circumference,radius=7"
+            # OR "property=arc_length,radius=5,angle=72"
+            # OR "property=sector_area,radius=5,angle=72"
+            params = {}
+            for pair in expr_str.split(","):
+                k, val = pair.strip().split("=")
+                params[k.strip().lower()] = val.strip()
+
+            prop = params.get("property", "circumference")
+            r = safe_parse(params.get("radius", params.get("r", "0")))
+
+            if prop == "circumference":
+                result = 2 * sp.pi * r
+            elif prop == "diameter":
+                result = 2 * r
+            elif prop == "area":
+                result = sp.pi * r**2
+            elif prop == "arc_length":
+                theta = safe_parse(params.get("angle", params.get("theta", "0")))
+                result = (theta / sp.Integer(360)) * 2 * sp.pi * r
+            elif prop == "sector_area":
+                theta = safe_parse(params.get("angle", params.get("theta", "0")))
+                result = (theta / sp.Integer(360)) * sp.pi * r**2
+            else:
+                return {"success": False, "error": f"Unknown property: {prop}"}
+
+            simplified = sp.simplify(result)
+            decimal_val = sp.N(simplified, 6)
+            return {
+                "success": True,
+                "answers": [str(simplified), str(decimal_val)],
+                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
+            }
+
         else:
             return {"success": False, "error": f"Unknown task type: {task}"}
 

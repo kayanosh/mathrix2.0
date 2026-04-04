@@ -390,6 +390,24 @@ export async function POST(req: NextRequest) {
       solutionData.questionImageUrl = lastUserMsg.imageUrl;
     }
 
+    // ── Post-classification for image questions ─────────────────────────
+    // When a student uploads an image with generic text ("Solve this"),
+    // classification is unreliable. Re-classify using Claude's restated
+    // question from the intro + conclusion to get accurate category.
+    let effectiveCategory = category;
+    if (hasImage) {
+      const solverText = [
+        solutionData.intro || "",
+        solutionData.conclusion || "",
+        solutionData.topic || "",
+      ].join(" ");
+      const reclassified = classifyQuestion(solverText);
+      if (reclassified !== category) {
+        console.log(`[PostClassify] Image question reclassified: ${category} → ${reclassified}`);
+        effectiveCategory = reclassified;
+      }
+    }
+
     const legacyResponse = whiteboardToLegacy(solutionData);
 
     // ══════════════════════════════════════════════════════════════════
@@ -399,7 +417,7 @@ export async function POST(req: NextRequest) {
     send("solver_done", {
       whiteboard: solutionData,
       response: legacyResponse,
-      category,
+      category: effectiveCategory,
       validationWarnings: result.errors || [],
     });
 
@@ -650,7 +668,7 @@ export async function POST(req: NextRequest) {
         level: level || "GCSE",
         tier: tier || null,
         examBoard: examBoard || null,
-        category,
+        category: effectiveCategory,
         responseJson: solutionData,
         verificationJson: verification,
         groundTruth: groundTruth.answers?.join(", ") || null,
