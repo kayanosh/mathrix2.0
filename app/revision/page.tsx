@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -11,11 +11,44 @@ import {
   FileText,
   HelpCircle,
   ChevronLeft,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { REVISION_TOPICS } from "@/lib/revision-data";
 import type { RevisionTopic, RevisionSubtopic } from "@/lib/revision-data";
 import { REVISION_CONTENT } from "@/lib/revision-content";
 import RevisionContentRenderer from "@/components/RevisionContentRenderer";
+
+const CHECKLIST_KEY = "mathrix-revision-checklist";
+
+function useChecklist() {
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CHECKLIST_KEY);
+      if (raw) setChecked(new Set(JSON.parse(raw)));
+    } catch { /* ignore */ }
+    setLoaded(true);
+  }, []);
+
+  const toggle = useCallback((key: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      localStorage.setItem(CHECKLIST_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const total = REVISION_TOPICS.reduce((s, t) => s + t.subtopics.length, 0);
+  const done = checked.size;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  return { checked, toggle, total, done, pct, loaded };
+}
 
 export default function RevisionPage() {
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
@@ -24,6 +57,8 @@ export default function RevisionPage() {
     topic: string;
     subtopic?: string;
   } | null>(null);
+  const [showChecklist, setShowChecklist] = useState(false);
+  const checklist = useChecklist();
 
   function toggleTopic(id: string) {
     setExpandedTopics((prev) => {
@@ -192,6 +227,68 @@ export default function RevisionPage() {
           <ChevronRight size={16} className="text-gray-400 group-hover:text-indigo-500 transition-colors" />
         </button>
       </div>
+
+      {/* Progress bar + Checklist toggle */}
+      {checklist.loaded && (
+        <div className="max-w-4xl mx-auto px-6 mb-6">
+          <button
+            onClick={() => setShowChecklist((p) => !p)}
+            className="w-full rounded-xl border border-gray-200 bg-white px-5 py-4 hover:bg-gray-50 transition-all"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-green-600" />
+                <span className="text-sm font-medium text-gray-900">Revision Checklist</span>
+              </div>
+              <span className="text-xs font-semibold text-indigo-600">{checklist.pct}%</span>
+            </div>
+            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-500"
+                style={{ width: `${checklist.pct}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5 text-left">
+              {checklist.done} of {checklist.total} subtopics revised &middot; {showChecklist ? "Hide" : "Show"} checklist
+            </p>
+          </button>
+
+          {showChecklist && (
+            <div className="mt-3 rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 overflow-hidden">
+              {REVISION_TOPICS.map((topic) => (
+                <div key={topic.id} className="px-5 py-3">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{topic.icon} {topic.name}</p>
+                  <div className="space-y-1">
+                    {topic.subtopics.map((sub) => {
+                      const key = `${topic.id}::${sub.name}`;
+                      const done = checklist.checked.has(key);
+                      return (
+                        <button
+                          key={key}
+                          onClick={(e) => { e.stopPropagation(); checklist.toggle(key); }}
+                          className="w-full flex items-center gap-2 py-1 text-left group"
+                        >
+                          {done ? (
+                            <CheckCircle2 size={16} className="text-green-500 shrink-0" />
+                          ) : (
+                            <Circle size={16} className="text-gray-300 group-hover:text-indigo-400 shrink-0" />
+                          )}
+                          <span className={`text-sm ${done ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                            {sub.name}
+                          </span>
+                          {sub.higherOnly && (
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-1 py-0.5 rounded">H</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Topic Cards */}
       <div className="max-w-4xl mx-auto px-6 pb-16 space-y-4">

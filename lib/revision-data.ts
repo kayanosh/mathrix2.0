@@ -46,6 +46,9 @@ export const REVISION_TOPICS: RevisionTopic[] = [
       { name: "Standard Form", startPage: 66, endPage: 71 },
       { name: "Ratio", startPage: 72, endPage: 79 },
       { name: "Proportion", startPage: 80, endPage: 87 },
+      { name: "Upper and Lower Bounds", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Recurring Decimals to Fractions", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Growth and Decay", startPage: 0, endPage: 0, higherOnly: true },
     ],
   },
   {
@@ -70,6 +73,12 @@ export const REVISION_TOPICS: RevisionTopic[] = [
       { name: "Quadratic and Cubic Graphs", startPage: 171, endPage: 178, higherOnly: true },
       { name: "Shapes of Graphs", startPage: 179, endPage: 184, higherOnly: true },
       { name: "Travel Graphs and Story Graphs", startPage: 185, endPage: 193 },
+      { name: "Functions — Composite and Inverse", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Iteration", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Algebraic Proof", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Completing the Square", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Algebraic Fractions", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Equation of a Circle", startPage: 0, endPage: 0, higherOnly: true },
     ],
   },
   {
@@ -95,6 +104,10 @@ export const REVISION_TOPICS: RevisionTopic[] = [
       { name: "Sin, Cos, Tan", startPage: 297, endPage: 304 },
       { name: "3D Trigonometry", startPage: 305, endPage: 307, higherOnly: true },
       { name: "Sine and Cosine Rules", startPage: 308, endPage: 310, higherOnly: true },
+      { name: "Geometric Proof", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Bearings", startPage: 0, endPage: 0 },
+      { name: "Arc Length and Sector Area", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Surface Area — Cones, Spheres and Frustums", startPage: 0, endPage: 0, higherOnly: true },
     ],
   },
   {
@@ -113,6 +126,8 @@ export const REVISION_TOPICS: RevisionTopic[] = [
       { name: "Stem and Leaf Diagrams", startPage: 354, endPage: 359 },
       { name: "Bar Charts and Histograms", startPage: 360, endPage: 367, higherOnly: true },
       { name: "Scattergraphs", startPage: 368, endPage: 374 },
+      { name: "Venn Diagrams and Set Notation", startPage: 0, endPage: 0, higherOnly: true },
+      { name: "Sampling Methods", startPage: 0, endPage: 0 },
     ],
   },
 ];
