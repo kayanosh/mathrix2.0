@@ -59,6 +59,144 @@ function computeVertices(
   }
 }
 
+// ── Helpers: scale raw pts into the SVG viewport ───────────────────────────
+
+function scaleAndCenter(
+  pts: { x: number; y: number }[],
+  cx: number,
+  cy: number,
+  r: number,
+): { x: number; y: number }[] {
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = maxX - minX || 1;
+  const h = maxY - minY || 1;
+  const scale = Math.min((r * 2) / w, (r * 1.6) / h);
+  const midX = (minX + maxX) / 2;
+  const midY = (minY + maxY) / 2;
+  return pts.map((p) => ({
+    x: cx + (p.x - midX) * scale,
+    y: cy + (p.y - midY) * scale,
+  }));
+}
+
+function parseSideLength(label: string): number | null {
+  const m = label.match(/([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+/** Build a triangle from 3 known angles (degrees) using the sine rule. */
+function buildTriangleFromAngles(
+  labels: string[],
+  angleMap: Record<string, number>,
+  cx: number, cy: number, r: number,
+): { x: number; y: number }[] {
+  const [A, B] = labels;
+  const bRad = (angleMap[B] * Math.PI) / 180;
+  const aRad = (angleMap[A] * Math.PI) / 180;
+  const cRad = (angleMap[labels[2]] * Math.PI) / 180;
+  const sideBC = 1; // normalised base
+  const sideAB = Math.sin(cRad) > 0.001 ? (sideBC * Math.sin(cRad)) / Math.sin(aRad) : 1;
+  const bPos = { x: 0, y: 0 };
+  const cPos = { x: sideBC, y: 0 };
+  const aPos = { x: sideAB * Math.cos(bRad), y: -sideAB * Math.sin(bRad) };
+  return scaleAndCenter([aPos, bPos, cPos], cx, cy, r);
+}
+
+/** Build a right-angled triangle: right angle vertex gets the 90° corner. */
+function buildRightTriangle(
+  labels: string[],
+  rightVertex: string,
+  others: string[],
+  len0: number,
+  len1: number,
+  cx: number, cy: number, r: number,
+): { x: number; y: number }[] {
+  const rvPos = { x: 0, y: 0 };
+  const v0Pos = { x: len0, y: 0 };       // horizontal leg
+  const v1Pos = { x: 0, y: -len1 };      // vertical leg
+  const posMap: Record<string, { x: number; y: number }> = {};
+  posMap[rightVertex] = rvPos;
+  posMap[others[0]] = v0Pos;
+  posMap[others[1]] = v1Pos;
+  return scaleAndCenter(labels.map((l) => posMap[l]), cx, cy, r);
+}
+
+/**
+ * Compute geometrically accurate triangle vertices from angle / side data.
+ * Returns null when there's not enough info (caller falls back to equilateral).
+ */
+function computeTriangleFromData(
+  angleDefs: LabeledShapeBlock["angles"],
+  sideDefs: LabeledShapeBlock["sides"],
+  vertexLabels: string[],
+  cx: number, cy: number, r: number,
+): { x: number; y: number }[] | null {
+  if (vertexLabels.length !== 3) return null;
+  const labels = vertexLabels;
+
+  // Collect known angles
+  const angleMap: Record<string, number> = {};
+  if (angleDefs) {
+    for (const a of angleDefs) {
+      if (a.degrees > 0 && labels.includes(a.vertex)) angleMap[a.vertex] = a.degrees;
+    }
+  }
+
+  // Parse numeric side lengths
+  const sideMap: Record<string, number> = {};
+  if (sideDefs) {
+    for (const s of sideDefs) {
+      const val = parseSideLength(s.label);
+      if (val !== null) {
+        sideMap[`${s.from}-${s.to}`] = val;
+        sideMap[`${s.to}-${s.from}`] = val;
+      }
+    }
+  }
+
+  // Infer third angle from two known
+  const knownVerts = labels.filter((l) => l in angleMap);
+  if (knownVerts.length === 2) {
+    const sum = knownVerts.reduce((s, l) => s + angleMap[l], 0);
+    const missing = labels.find((l) => !(l in angleMap));
+    if (missing && sum < 180) angleMap[missing] = 180 - sum;
+  }
+
+  // Strategy 1: all 3 angles known → sine-rule triangle
+  if (labels.every((l) => l in angleMap)) {
+    return buildTriangleFromAngles(labels, angleMap, cx, cy, r);
+  }
+
+  // Strategy 2: right-angle marker (even with only 1 angle given)
+  const rightDef = angleDefs?.find((a) => a.isRightAngle);
+  if (rightDef && labels.includes(rightDef.vertex)) {
+    const rv = rightDef.vertex;
+    const others = labels.filter((l) => l !== rv);
+    const l0 = sideMap[`${rv}-${others[0]}`] ?? sideMap[`${others[0]}-${rv}`] ?? 3;
+    const l1 = sideMap[`${rv}-${others[1]}`] ?? sideMap[`${others[1]}-${rv}`] ?? 4;
+    return buildRightTriangle(labels, rv, others, l0, l1, cx, cy, r);
+  }
+
+  // Strategy 3: 3 numeric sides → cosine rule to get angles
+  const [A, B, C] = labels;
+  const sAB = sideMap[`${A}-${B}`];
+  const sBC = sideMap[`${B}-${C}`];
+  const sAC = sideMap[`${A}-${C}`];
+  if (sAB && sBC && sAC) {
+    const cosB = (sAB * sAB + sBC * sBC - sAC * sAC) / (2 * sAB * sBC);
+    const cosA = (sAB * sAB + sAC * sAC - sBC * sBC) / (2 * sAB * sAC);
+    angleMap[B] = (Math.acos(Math.max(-1, Math.min(1, cosB))) * 180) / Math.PI;
+    angleMap[A] = (Math.acos(Math.max(-1, Math.min(1, cosA))) * 180) / Math.PI;
+    angleMap[C] = 180 - angleMap[A] - angleMap[B];
+    return buildTriangleFromAngles(labels, angleMap, cx, cy, r);
+  }
+
+  return null; // fall back to equilateral
+}
+
 const COLORS = {
   stroke: "#818cf8",
   fill: "rgba(129,140,248,0.06)",
@@ -90,10 +228,17 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
 
   // Compute vertices
   const numV = vertexDefs?.length || (shape === "triangle" ? 3 : shape === "rectangle" ? 4 : 5);
-  const defaultPositions = useMemo(
-    () => computeVertices(shape, numV, cx, cy, r),
-    [shape, numV, cx, cy, r]
-  );
+  const defaultPositions = useMemo(() => {
+    // For triangles, try angle/side-aware computation first
+    if (shape === "triangle") {
+      const labels = vertexDefs?.map((v) => v.label) ||
+        Array.from({ length: numV }, (_, i) => String.fromCharCode(65 + i));
+      const accurate = computeTriangleFromData(angles, sides, labels, cx, cy, r);
+      if (accurate) return accurate;
+    }
+    return computeVertices(shape, numV, cx, cy, r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shape, numV, cx, cy, r]);
 
   const points = vertexDefs
     ? vertexDefs.map((v, i) =>

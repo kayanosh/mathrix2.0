@@ -292,7 +292,7 @@ export default function PracticeHub() {
                       ) : questionText ? (
                         <div>
                           {currentQ?.diagram && (
-                            <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 bg-white p-2">
+                            <div className="mb-4 rounded-lg overflow-hidden border border-gray-700 bg-[#0d0d1a] p-2">
                               <BlockRenderer block={currentQ.diagram} index={0} baseDelay={0} />
                             </div>
                           )}
