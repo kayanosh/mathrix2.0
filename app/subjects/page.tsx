@@ -32,6 +32,7 @@ import {
 } from "@/lib/skills";
 import InlineMath from "@/components/InlineMath";
 import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
+import BlockRenderer from "@/components/whiteboard/BlockRenderer";
 
 const MASTERY_COLOR: Record<MasteryLevel, string> = {
   unseen: "bg-gray-300",
@@ -290,6 +291,11 @@ export default function PracticeHub() {
                         </div>
                       ) : questionText ? (
                         <div>
+                          {currentQ?.diagram && (
+                            <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 bg-white p-2">
+                              <BlockRenderer block={currentQ.diagram} index={0} baseDelay={0} />
+                            </div>
+                          )}
                           <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                             <InlineMath text={questionText} />
                           </div>

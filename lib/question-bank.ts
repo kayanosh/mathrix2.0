@@ -8,6 +8,8 @@
  * the Practice Hub falls back to AI-generated questions via /api/generate-practice.
  */
 
+import type { VisualBlock } from "@/types/whiteboard";
+
 export type Difficulty = "1-3" | "4-6" | "7-9" | "easy" | "medium" | "hard";
 
 export type GCSEDifficulty = "1-3" | "4-6" | "7-9";
@@ -20,6 +22,7 @@ export interface QuestionBankEntry {
   questionText: string;
   answer: string;
   hintText?: string;
+  diagram?: VisualBlock;
 }
 
 // ── NUMBER ─────────────────────────────────────────────────────────────────
@@ -144,6 +147,26 @@ const ALGEBRA_G1_3: QuestionBankEntry[] = [
   { id: "alg-13-11", topicId: "algebra", subtopic: "Quadratics", difficulty: "1-3", questionText: "Solve $x^2 - 9 = 0$", answer: "$x = 3$ or $x = -3$" },
   { id: "alg-13-12", topicId: "algebra", subtopic: "Simultaneous equations", difficulty: "1-3", questionText: "Solve: $x + y = 10$ and $x - y = 4$", answer: "$x = 7,\\ y = 3$" },
   { id: "alg-13-13", topicId: "algebra", subtopic: "Simultaneous equations", difficulty: "1-3", questionText: "Solve: $2x + y = 8$ and $x = 3$", answer: "$x = 3,\\ y = 2$" },
+  // Diagram question
+  {
+    id: "alg-d1", topicId: "algebra", subtopic: "Straight line graphs", difficulty: "1-3",
+    questionText: "The graph below shows a straight line. What is the gradient?",
+    answer: "Gradient $= 2$",
+    hintText: "Pick two points and use $\\frac{\\text{rise}}{\\text{run}}$.",
+    diagram: {
+      type: "coordinate_graph",
+      xRange: [-1, 5],
+      yRange: [-1, 9],
+      grid: true,
+      xLabel: "x",
+      yLabel: "y",
+      plots: [{ equation: "y = 2x + 1", fn: "2*x + 1", color: "#818cf8", label: "y = 2x + 1" }],
+      points: [
+        { point: { x: 0, y: 1 }, label: "(0, 1)" },
+        { point: { x: 2, y: 5 }, label: "(2, 5)" },
+      ],
+    },
+  },
 ];
 
 const ALGEBRA_G4_6: QuestionBankEntry[] = [
@@ -177,6 +200,26 @@ const ALGEBRA_G4_6: QuestionBankEntry[] = [
   { id: "alg-46-17", topicId: "algebra", subtopic: "Completing the square", difficulty: "4-6", questionText: "Write $x^2 - 10x + 20$ in the form $(x + a)^2 + b$.", answer: "$(x - 5)^2 - 5$" },
   { id: "alg-46-18", topicId: "algebra", subtopic: "The quadratic formula", difficulty: "4-6", questionText: "Solve $x^2 + 5x + 4 = 0$ using the quadratic formula.", answer: "$x = -1$ or $x = -4$" },
   { id: "alg-46-19", topicId: "algebra", subtopic: "The quadratic formula", difficulty: "4-6", questionText: "Solve $x^2 - 3x - 10 = 0$.", answer: "$x = 5$ or $x = -2$" },
+  // Diagram question
+  {
+    id: "alg-d2", topicId: "algebra", subtopic: "Quadratic and cubic graphs", difficulty: "4-6",
+    questionText: "From the graph of $y = x^2 - 4$ below, write down the roots and the y-intercept.",
+    answer: "Roots: $x = -2$ and $x = 2$. y-intercept: $(0, -4)$.",
+    diagram: {
+      type: "coordinate_graph",
+      xRange: [-4, 4],
+      yRange: [-5, 6],
+      grid: true,
+      xLabel: "x",
+      yLabel: "y",
+      plots: [{ equation: "y = x^2 - 4", fn: "x*x - 4", color: "#818cf8", label: "y = x² − 4" }],
+      points: [
+        { point: { x: -2, y: 0 }, label: "(−2, 0)" },
+        { point: { x: 2, y: 0 }, label: "(2, 0)" },
+        { point: { x: 0, y: -4 }, label: "(0, −4)" },
+      ],
+    },
+  },
 ];
 
 const ALGEBRA_G7_9: QuestionBankEntry[] = [
@@ -236,6 +279,53 @@ const GEOMETRY_G1_3: QuestionBankEntry[] = [
   { id: "geo-13-11", topicId: "geometry", subtopic: "Trigonometry (SOH CAH TOA)", difficulty: "1-3", questionText: "In a right-angled triangle, the opposite side is 3 cm and the adjacent side is 4 cm. Which ratio gives the angle?", answer: "$\\tan \\theta = \\frac{3}{4}$" },
   { id: "geo-13-12", topicId: "geometry", subtopic: "Trigonometry (SOH CAH TOA)", difficulty: "1-3", questionText: "In a right-angled triangle, the hypotenuse is 10 cm and the opposite side is 6 cm. Find the angle to the nearest degree.", answer: "$\\sin^{-1}(0.6) \\approx 37°$" },
   { id: "geo-13-13", topicId: "geometry", subtopic: "Transformations", difficulty: "1-3", questionText: "Reflect the point $(3, 2)$ in the x-axis.", answer: "$(3, -2)$" },
+  // Diagram questions
+  {
+    id: "geo-d1", topicId: "geometry", subtopic: "Polygons", difficulty: "1-3",
+    questionText: "Find the missing angle $x$ in the triangle below.",
+    answer: "$x = 60°$",
+    hintText: "Angles in a triangle add up to 180°.",
+    diagram: {
+      type: "labeled_shape",
+      shape: "triangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
+      angles: [
+        { vertex: "A", degrees: 50, label: "50°" },
+        { vertex: "B", degrees: 70, label: "70°" },
+        { vertex: "C", degrees: 60, label: "x" },
+      ],
+    },
+  },
+  {
+    id: "geo-d2", topicId: "geometry", subtopic: "Area and perimeter", difficulty: "1-3",
+    questionText: "Find the area of the rectangle below.",
+    answer: "$40\\text{ cm}^2$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "rectangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }],
+      sides: [
+        { from: "A", to: "B", label: "8 cm" },
+        { from: "B", to: "C", label: "5 cm" },
+      ],
+    },
+  },
+  {
+    id: "geo-d3", topicId: "geometry", subtopic: "Pythagoras' theorem", difficulty: "1-3",
+    questionText: "Find the length of the hypotenuse in the right-angled triangle below.",
+    answer: "$5\\text{ cm}$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "triangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
+      sides: [
+        { from: "A", to: "B", label: "3 cm" },
+        { from: "B", to: "C", label: "4 cm" },
+        { from: "A", to: "C", label: "?" },
+      ],
+      angles: [{ vertex: "B", degrees: 90, label: "90°", isRightAngle: true }],
+    },
+  },
 ];
 
 const GEOMETRY_G4_6: QuestionBankEntry[] = [
@@ -265,6 +355,65 @@ const GEOMETRY_G4_6: QuestionBankEntry[] = [
   { id: "geo-46-13", topicId: "geometry", subtopic: "Similarity and congruence", difficulty: "4-6", questionText: "State three conditions that prove two triangles are congruent.", answer: "SSS, SAS, ASA (or AAS, RHS)." },
   { id: "geo-46-14", topicId: "geometry", subtopic: "Volume", difficulty: "4-6", questionText: "Find the volume of a triangular prism with cross-section area 12 cm² and length 8 cm.", answer: "$96\\text{ cm}^3$" },
   { id: "geo-46-15", topicId: "geometry", subtopic: "Transformations", difficulty: "4-6", questionText: "Describe the single transformation: $(1,1),(3,1),(1,3)$ maps to $(-1,1),(-3,1),(-1,3)$.", answer: "Reflection in the y-axis." },
+  // Diagram questions
+  {
+    id: "geo-d4", topicId: "geometry", subtopic: "Area and perimeter", difficulty: "4-6",
+    questionText: "Find the area of the trapezium below.",
+    answer: "$32\\text{ cm}^2$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "trapezium",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }],
+      sides: [
+        { from: "A", to: "B", label: "6 cm" },
+        { from: "D", to: "C", label: "10 cm" },
+        { from: "B", to: "C", label: "4 cm" },
+      ],
+      angles: [{ vertex: "B", degrees: 90, label: "90°", isRightAngle: true }],
+    },
+  },
+  {
+    id: "geo-d5", topicId: "geometry", subtopic: "Trigonometry (SOH CAH TOA)", difficulty: "4-6",
+    questionText: "Find the angle $\\theta$ in the right-angled triangle below. Give your answer to 1 d.p.",
+    answer: "$\\theta \\approx 53.1°$",
+    hintText: "Use $\\sin \\theta = \\frac{\\text{opp}}{\\text{hyp}}$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "triangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
+      sides: [
+        { from: "A", to: "C", label: "10 cm" },
+        { from: "B", to: "C", label: "8 cm" },
+      ],
+      angles: [
+        { vertex: "A", degrees: 53.1, label: "θ" },
+        { vertex: "B", degrees: 90, label: "90°", isRightAngle: true },
+      ],
+    },
+  },
+  {
+    id: "geo-d6", topicId: "geometry", subtopic: "Polygons", difficulty: "4-6",
+    questionText: "Find the sum of interior angles of the regular pentagon below. Then find each interior angle.",
+    answer: "Sum $= 540°$. Each interior angle $= 108°$.",
+    diagram: {
+      type: "labeled_shape",
+      shape: "polygon",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }, { label: "E" }],
+    },
+  },
+  {
+    id: "geo-d7", topicId: "geometry", subtopic: "Circle theorems", difficulty: "4-6",
+    questionText: "O is the centre of the circle. The angle at the centre is 130°. Find the angle at the circumference.",
+    answer: "$65°$",
+    hintText: "The angle at the centre is twice the angle at the circumference.",
+    diagram: {
+      type: "labeled_shape",
+      shape: "circle",
+      vertices: [{ label: "O" }, { label: "A" }, { label: "B" }, { label: "C" }],
+      circle: { center: "O", showRadius: true },
+      angles: [{ vertex: "O", degrees: 130, label: "130°" }],
+    },
+  },
 ];
 
 const GEOMETRY_G7_9: QuestionBankEntry[] = [
@@ -293,6 +442,51 @@ const GEOMETRY_G7_9: QuestionBankEntry[] = [
   { id: "geo-79-12", topicId: "geometry", subtopic: "Similarity and congruence", difficulty: "7-9", questionText: "DE is parallel to BC in triangle ABC. Prove that triangles ADE and ABC are similar.", answer: "Angle A is common. Angle ADE = angle ABC (corresponding, DE ∥ BC). So AA similarity." },
   { id: "geo-79-13", topicId: "geometry", subtopic: "Polygons", difficulty: "7-9", questionText: "The sum of interior angles of a polygon is 3240°. How many sides?", answer: "$(n-2) \\times 180 = 3240$, so $n = 20$." },
   { id: "geo-79-14", topicId: "geometry", subtopic: "Polygons", difficulty: "7-9", questionText: "A regular polygon has exterior angle 24°. Find the number of sides and each interior angle.", answer: "Sides = $15$. Interior = $156°$." },
+  // Diagram questions
+  {
+    id: "geo-d8", topicId: "geometry", subtopic: "Circle theorems", difficulty: "7-9",
+    questionText: "A, B, C and D are points on a circle. Angle ABC = 75°. Find angle ADC.",
+    answer: "$105°$",
+    hintText: "Opposite angles in a cyclic quadrilateral add up to 180°.",
+    diagram: {
+      type: "labeled_shape",
+      shape: "circle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }],
+      circle: { center: "O" },
+      angles: [{ vertex: "B", degrees: 75, label: "75°" }],
+    },
+  },
+  {
+    id: "geo-d9", topicId: "geometry", subtopic: "Trigonometry (SOH CAH TOA)", difficulty: "7-9",
+    questionText: "Find the area of triangle ABC using $\\frac{1}{2}ab\\sin C$.",
+    answer: "$28.6\\text{ cm}^2$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "triangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
+      sides: [
+        { from: "A", to: "B", label: "7 cm" },
+        { from: "A", to: "C", label: "9 cm" },
+      ],
+      angles: [{ vertex: "A", degrees: 65, label: "65°" }],
+    },
+  },
+  {
+    id: "geo-d10", topicId: "geometry", subtopic: "Similarity and congruence", difficulty: "7-9",
+    questionText: "Triangles ABC and DEF are similar. Find the length of EF.",
+    answer: "$EF = 10\\text{ cm}$",
+    hintText: "Scale factor = $\\frac{DE}{AB}$",
+    diagram: {
+      type: "labeled_shape",
+      shape: "triangle",
+      vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
+      sides: [
+        { from: "A", to: "B", label: "3 cm" },
+        { from: "B", to: "C", label: "4 cm" },
+        { from: "A", to: "C", label: "5 cm" },
+      ],
+    },
+  },
 ];
 
 // ── RATIO, PROPORTION & RATES OF CHANGE ───────────────────────────────────
@@ -378,6 +572,24 @@ const PROBABILITY_G4_6: QuestionBankEntry[] = [
   { id: "pro-46-2", topicId: "probability", subtopic: "Conditional probability", difficulty: "4-6", questionText: "There are 4 boys and 6 girls. Two are chosen at random. What is the probability both are girls?", answer: "$\\frac{6}{10} \\times \\frac{5}{9} = \\frac{1}{3}$" },
   { id: "pro-46-3", topicId: "probability", subtopic: "Probability scale", difficulty: "4-6", questionText: "The probability of event A is 0.35. What is the probability A does not happen?", answer: "$0.65$" },
   { id: "pro-46-4", topicId: "probability", subtopic: "Venn diagrams", difficulty: "4-6", questionText: "P(A) = 0.6, P(B) = 0.3, P(A ∩ B) = 0.15. Find P(A but not B).", answer: "$0.45$" },
+  // Diagram question
+  {
+    id: "pro-d1", topicId: "probability", subtopic: "Venn diagrams", difficulty: "4-6",
+    questionText: "Use the Venn diagram below to find $P(A \\cup B)$. There are 50 students in total.",
+    answer: "$P(A \\cup B) = \\frac{35}{50} = 0.7$",
+    diagram: {
+      type: "venn_diagram",
+      sets: [{ label: "A", elements: [] }, { label: "B", elements: [] }],
+      regions: [
+        { region: "A_only", value: "15" },
+        { region: "A_and_B", value: "10" },
+        { region: "B_only", value: "10" },
+        { region: "neither", value: "15" },
+      ],
+      universalLabel: "ξ",
+      universalTotal: 50,
+    },
+  },
 ];
 
 const PROBABILITY_G7_9: QuestionBankEntry[] = [
@@ -426,6 +638,20 @@ const STATISTICS_G4_6: QuestionBankEntry[] = [
   { id: "sta-46-2", topicId: "statistics", subtopic: "Histograms", difficulty: "4-6", questionText: "A class has width 5 and frequency 20. What is the frequency density?", answer: "$\\frac{20}{5} = 4$" },
   { id: "sta-46-3", topicId: "statistics", subtopic: "Scatter graphs", difficulty: "4-6", questionText: "A line of best fit passes through $(2, 10)$ and $(8, 40)$. Estimate $y$ when $x = 5$.", answer: "Gradient $= 5$. $y = 10 + 5(3) = 25$." },
   { id: "sta-46-4", topicId: "statistics", subtopic: "Sampling", difficulty: "4-6", questionText: "120 Year 10 and 80 Year 11 students. Stratified sample of 40 needed. How many Year 11?", answer: "$\\frac{80}{200} \\times 40 = 16$" },
+  // Diagram question
+  {
+    id: "sta-d1", topicId: "statistics", subtopic: "Box plots", difficulty: "4-6",
+    questionText: "From the box plot below, find the interquartile range.",
+    answer: "$IQR = 25 - 12 = 13$",
+    diagram: {
+      type: "chart",
+      chartType: "box_plot",
+      title: "Test Scores",
+      xLabel: "Score",
+      boxPlot: { min: 5, q1: 12, median: 18, q3: 25, max: 35 },
+      xRange: [0, 40],
+    },
+  },
 ];
 
 const STATISTICS_G7_9: QuestionBankEntry[] = [
@@ -442,6 +668,25 @@ const STATISTICS_G7_9: QuestionBankEntry[] = [
   { id: "sta-79-4", topicId: "statistics", subtopic: "Scatter graphs", difficulty: "7-9", questionText: "A dataset shows negative correlation with one outlier. What happens to the line of best fit if the outlier is removed?", answer: "Correlation becomes stronger (closer to −1), and the line becomes steeper." },
   { id: "sta-79-5", topicId: "statistics", subtopic: "Sampling", difficulty: "7-9", questionText: "Explain the difference between stratified and systematic sampling.", answer: "Stratified: population divided into groups, sample from each in proportion. Systematic: every $k$th member selected after a random start." },
   { id: "sta-79-6", topicId: "statistics", subtopic: "Sampling", difficulty: "7-9", questionText: "A researcher uses the first 50 hospital arrivals as her sample. Explain why this may be biased.", answer: "Convenience sample — early arrivals may not represent all patients (different demographics attend at different times)." },
+  // Diagram question
+  {
+    id: "sta-d2", topicId: "statistics", subtopic: "Histograms", difficulty: "7-9",
+    questionText: "The histogram below shows the ages of people at an event. Find the total number of people.",
+    answer: "$30 + 40 + 50 + 30 = 150$",
+    diagram: {
+      type: "chart",
+      chartType: "histogram",
+      title: "Ages at Event",
+      xLabel: "Age",
+      yLabel: "Frequency density",
+      classIntervals: [
+        { from: 0, to: 20, frequency: 30 },
+        { from: 20, to: 30, frequency: 40 },
+        { from: 30, to: 50, frequency: 50 },
+        { from: 50, to: 80, frequency: 30 },
+      ],
+    },
+  },
 ];
 
 // ── CALCULUS (A-Level) ─────────────────────────────────────────────────────
