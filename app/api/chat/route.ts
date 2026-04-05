@@ -277,6 +277,7 @@ export async function POST(req: NextRequest) {
       hasImage || undefined,
       level || undefined,
       contentChunkBlock || undefined,
+      questionText || undefined,
     );
 
     // ── Stage 4: Prepare messages ─────────────────────────────────────

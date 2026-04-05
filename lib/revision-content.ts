@@ -293,7 +293,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 9. Sequences
   {
     subtopic: "Sequences",
-    topicId: "number",
+    topicId: "algebra",
     summary:
       "Find the $n$th term of arithmetic sequences and recognise common types of sequences.",
     keyConcepts: [
@@ -431,7 +431,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 12. Ratio
   {
     subtopic: "Ratio",
-    topicId: "number",
+    topicId: "ratio",
     summary:
       "Simplify ratios, share amounts in a given ratio, and work with ratio problems.",
     keyConcepts: [
@@ -474,7 +474,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 13. Proportion
   {
     subtopic: "Proportion",
-    topicId: "number",
+    topicId: "ratio",
     summary:
       "Solve direct and inverse proportion problems, including using the unitary method and algebraic formulae.",
     keyConcepts: [
@@ -1758,7 +1758,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 43. Probability
   {
     subtopic: "Probability",
-    topicId: "data",
+    topicId: "probability",
     summary:
       "Calculate probabilities of single and combined events.",
     keyConcepts: [
@@ -1802,7 +1802,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 44. Tree Diagrams
   {
     subtopic: "Tree Diagrams",
-    topicId: "data",
+    topicId: "probability",
     summary:
       "Use tree diagrams to calculate probabilities of combined events, with and without replacement.",
     keyConcepts: [
@@ -1847,7 +1847,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 45. Averages
   {
     subtopic: "Averages",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Calculate the mean, median, mode and range from lists of data and frequency tables.",
     keyConcepts: [
@@ -1888,7 +1888,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 46. Cumulative Frequency and Box Plots (Higher)
   {
     subtopic: "Cumulative Frequency and Box Plots",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Draw and interpret cumulative frequency curves and box plots to compare data sets.",
     keyConcepts: [
@@ -1926,7 +1926,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 47. Pie Charts
   {
     subtopic: "Pie Charts",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Draw and interpret pie charts by calculating sector angles.",
     keyConcepts: [
@@ -1947,7 +1947,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 48. Stem and Leaf Diagrams
   {
     subtopic: "Stem and Leaf Diagrams",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Organise data into stem and leaf diagrams to find averages and compare distributions.",
     keyConcepts: [
@@ -1969,7 +1969,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 49. Bar Charts and Histograms (Higher)
   {
     subtopic: "Bar Charts and Histograms",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Draw and interpret bar charts and histograms, understanding that in histograms the area represents frequency.",
     keyConcepts: [
@@ -2013,7 +2013,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 50. Scattergraphs
   {
     subtopic: "Scattergraphs",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Plot scatter diagrams, describe correlation, and use lines of best fit to make estimates.",
     keyConcepts: [
@@ -2847,7 +2847,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 64. Venn Diagrams and Set Notation
   {
     subtopic: "Venn Diagrams and Set Notation",
-    topicId: "data",
+    topicId: "probability",
     summary:
       "Use Venn diagrams and set notation to organise data, find probabilities, and solve problems involving two or three sets.",
     keyConcepts: [
@@ -2910,7 +2910,7 @@ export const REVISION_CONTENT: RevisionNote[] = [
   // 65. Sampling Methods
   {
     subtopic: "Sampling Methods",
-    topicId: "data",
+    topicId: "statistics",
     summary:
       "Understand different sampling methods and when to use each one to collect representative data.",
     keyConcepts: [

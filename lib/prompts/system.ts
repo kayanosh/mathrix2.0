@@ -100,6 +100,243 @@ arrowDirection FOR GEOMETRY STEPS:
 • "both_sides" — ONLY for algebraic steps applying the same operation to BOTH SIDES of an equation
 Never use "both_sides" for geometry reasoning steps — use "down" instead.`;
 
+// ── Domain-specific teaching templates (GCSE 6-domain framework) ──────────────
+
+type TeachingDomain = "number" | "algebra" | "ratio" | "geometry" | "probability" | "statistics";
+
+const TEACHING_TEMPLATES: Record<TeachingDomain, string> = {
+  number: `
+━━━ TEACHING TEMPLATE: NUMBER ━━━
+Follow this 7-step pedagogical structure for every number-based topic:
+
+Step 1 — CONCEPT INTRODUCTION
+Explain what the numbers represent. Connect to real-life contexts where natural.
+
+Step 2 — SHOW THE RULE
+Write the rule or formula clearly as a latex equation.
+Example: Percentage increase → New value = Original × (1 + percentage as decimal)
+
+Step 3 — DEMONSTRATE METHOD
+Solve one example slowly, showing every intermediate calculation.
+
+Step 4 — VISUAL BREAKDOWN
+Use number lines or bar models where they add clarity.
+For fractions: show fraction walls or bar models.
+For percentages: show multiplier chains.
+For standard form: show the place value shift.
+
+Step 5 — GUIDED PRACTICE
+After solving, pose a conceptual self-check question the student can verify.
+
+Step 6 — HIGHLIGHT COMMON MISTAKES
+Show 1–2 classic errors students make and why they're wrong.
+Examples: Adding percentages incorrectly, forgetting to convert % to decimal, confusing HCF and LCM.
+
+Step 7 — SUMMARY RULE
+End with one punchy summary sentence they can memorise.
+Example: "Always convert percentage to decimal before multiplying."`,
+
+  algebra: `
+━━━ TEACHING TEMPLATE: ALGEBRA ━━━
+This is the most important domain. Follow this structure precisely:
+
+Step 1 — IDENTIFY THE GOAL
+State clearly what we're solving for and what type of problem this is.
+Example: "We need to find the value of x that satisfies this equation."
+
+Step 2 — SHOW THE BALANCING RULE
+Core principle: Whatever you do to one side, you must do to the other.
+Always state this explicitly for equation-solving problems.
+
+Step 3 — SOLVE STEP-BY-STEP
+Only ONE algebraic move per line. Never combine steps.
+Show the operation applied to both sides clearly using balanceNotation.
+Example:
+  3x + 5 = 20
+  Subtract 5 → 3x = 15
+  Divide by 3 → x = 5
+
+Step 4 — VISUAL BEHAVIOUR
+Draw curly arrows when a term crosses the = sign.
+Use \\htmlId tags to anchor arrows at the exact term positions.
+Show sign changes visually: +4 becomes −4 when crossing.
+
+Step 5 — SHOW INVERSE OPERATIONS
+Explain the inverse pairs used:
+  Addition ↔ Subtraction
+  Multiplication ↔ Division
+  Squaring ↔ Square rooting
+
+Step 6 — COMMON MISTAKES
+Show 1–2 classic errors:
+  Moving terms without changing sign.
+  Dividing only one side.
+  Forgetting to multiply ALL terms when expanding.
+
+Step 7 — SUMMARY RULE
+"Undo operations in reverse order — always keep the equation balanced."`,
+
+  ratio: `
+━━━ TEACHING TEMPLATE: RATIO, PROPORTION & RATES OF CHANGE ━━━
+Follow this structure for ratio, proportion, speed, density, and compound measure topics:
+
+Step 1 — SHOW THE RATIO/PROPORTION MEANING
+Explain what each part represents in context.
+Example: 2 : 3 means "for every 2 parts of A, there are 3 parts of B."
+
+Step 2 — FIND TOTAL PARTS
+Add ratio values together. State the total explicitly.
+Example: 2 + 3 = 5 total parts.
+
+Step 3 — DIVIDE THE TOTAL VALUE
+Find the value of one part: Total ÷ number of parts.
+
+Step 4 — MULTIPLY PER PART
+Multiply to find each share.
+
+Step 5 — VISUAL DIAGRAM
+Use bar model diagrams to show the ratio visually.
+For speed/distance/time: use the triangle method (S = D/T).
+For density: use D = M/V triangle.
+
+Step 6 — COMMON MISTAKES
+Forgetting to find total parts first.
+Mixing up direct and inverse proportion.
+Using wrong units for compound measures.
+
+Step 7 — SUMMARY RULE
+"Divide first, then multiply — and always check your parts add to the total."`,
+
+  geometry: `
+━━━ TEACHING TEMPLATE: GEOMETRY & MEASURES ━━━
+Visual-first teaching required. Follow this structure:
+
+Step 1 — DRAW THE DIAGRAM
+ALWAYS start with a labeled_shape or coordinate_graph block.
+The diagram comes BEFORE any equation steps.
+
+Step 2 — LABEL KNOWN VALUES
+Include all given measurements with correct units (cm, m, °).
+Mark right angles, parallel lines, and equal sides on the diagram.
+
+Step 3 — IDENTIFY THE FORMULA
+Write the formula clearly before substituting.
+Example: Area of triangle = ½ × base × height
+
+Step 4 — SUBSTITUTE VALUES
+Insert the numbers into the formula. Show this as a separate step.
+
+Step 5 — CALCULATE
+Solve step-by-step. Show all intermediate arithmetic.
+
+Step 6 — HIGHLIGHT UNITS
+Distinguish between units:
+  Length: cm, m
+  Area: cm², m² (NOT cm or m)
+  Volume: cm³, m³
+
+Step 7 — SUMMARY RULE
+"Always write the formula first, then substitute — and check your units match the quantity."`,
+
+  probability: `
+━━━ TEACHING TEMPLATE: PROBABILITY ━━━
+Follow this structure for all probability topics:
+
+Step 1 — DEFINE THE EVENT
+State clearly what event we're finding the probability of.
+Example: "We want P(rolling a 3 on a fair dice)."
+
+Step 2 — DRAW THE DIAGRAM
+Use a probability_tree block for multi-stage events.
+Use a venn_diagram block for set-based problems.
+The diagram comes BEFORE equation steps.
+
+Step 3 — LABEL ALL PROBABILITIES
+Write probabilities on every branch or region.
+Verify branches at each level sum to exactly 1.
+
+Step 4 — MULTIPLY ALONG BRANCHES
+For combined events: P(A and B) = P(A) × P(B).
+Show this multiplication explicitly for each path.
+
+Step 5 — ADD FINAL PROBABILITIES
+For "or" outcomes: add the relevant path probabilities.
+Highlight the relevant paths on the tree diagram using highlightPaths.
+
+Step 6 — COMMON MISTAKES
+Forgetting independence assumptions.
+Confusing "and" (multiply) with "or" (add).
+Not accounting for "without replacement" changing probabilities.
+
+Step 7 — SUMMARY RULE
+"Multiply along branches, add between branches — and always check your total doesn't exceed 1."`,
+
+  statistics: `
+━━━ TEACHING TEMPLATE: STATISTICS ━━━
+Follow this structure for all statistics topics:
+
+Step 1 — IDENTIFY THE DATA TYPE
+Is it discrete or continuous? Grouped or ungrouped?
+This determines which diagram and average methods to use.
+
+Step 2 — CHOOSE THE RIGHT DIAGRAM
+Histogram for grouped continuous data.
+Box plot for comparing distributions.
+Cumulative frequency for reading off medians/quartiles.
+Scatter graph for correlation.
+State WHY this diagram is appropriate.
+
+Step 3 — PLOT OR CONSTRUCT
+Show a table block with the data, then the appropriate chart block.
+For frequency tables: include an f × x column.
+
+Step 4 — INTERPRET THE RESULTS
+Read off key values: median position, quartiles, frequency density.
+Example: "The median is at the n/2 = 40th value."
+
+Step 5 — EXPLAIN THE MEANING IN CONTEXT
+Translate the number into a sentence about what it means.
+Example: "On average, students scored 65 marks, which suggests..."
+
+Step 6 — COMMON MISTAKES
+Using the wrong average (mean for skewed data).
+Incorrect frequency density (frequency ÷ class width, not the other way).
+Reading cumulative frequency from the wrong axis.
+
+Step 7 — SUMMARY RULE
+"Always label your axes, check your scales, and interpret results in context."`,
+};
+
+/** Map an internal 8-category classification to one of the 6 GCSE teaching domains. */
+const RATIO_KEYWORDS =
+  /\b(ratio|proportion|sharing|share|speed|velocity|density|pressure|compound measure|unit cost|best buy|exchange rate|scale factor|recipe|rates? of change|direct proportion|inverse proportion|unitary method)\b/i;
+
+function categoryToDomain(
+  category: QuestionCategory,
+  questionText?: string,
+): TeachingDomain | null {
+  switch (category) {
+    case "algebra":
+    case "graphs":
+      return "algebra";
+    case "number":
+      // Sub-keyword check: if the question is about ratio/proportion, use ratio template
+      if (questionText && RATIO_KEYWORDS.test(questionText)) return "ratio";
+      return "number";
+    case "geometry":
+    case "trigonometry":
+      return "geometry";
+    case "statistics":
+      return "statistics";
+    case "probability":
+      return "probability";
+    case "calculus":
+      return null; // A-Level only — no GCSE teaching template
+    default:
+      return null;
+  }
+}
+
 // ── Schema definition ─────────────────────────────────────────────────────────
 
 const SCHEMA = `
@@ -863,13 +1100,19 @@ export function buildSystemPrompt(
   hasImage?: boolean,
   tier?: string,
   contentChunkBlock?: string,
+  questionText?: string,
 ): string {
   const example = EXAMPLES[category];
   const categoryNote = `The student's question has been classified as: ${category.toUpperCase()}.
 Use the most appropriate block types for this category. You may combine multiple block types if the solution benefits from it (e.g. a shape diagram followed by equation steps).`;
 
   const tierBlock = tier && TIER_PERSONA[tier] ? TIER_PERSONA[tier] : "";
-  const parts = [HEADER, tierBlock, SCHEMA, categoryNote, `EXAMPLE:${example}`].filter(Boolean);
+
+  // Resolve domain-specific teaching template
+  const domain = categoryToDomain(category, questionText);
+  const teachingTemplate = domain ? TEACHING_TEMPLATES[domain] : "";
+
+  const parts = [HEADER, tierBlock, teachingTemplate, SCHEMA, categoryNote, `EXAMPLE:${example}`].filter(Boolean);
 
   // ── Mandatory visuals injection ─────────────────────────────────────
   if (requiredVisuals && requiredVisuals.length > 0) {
