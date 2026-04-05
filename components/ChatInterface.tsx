@@ -281,6 +281,29 @@ export default function ChatInterface() {
     localStorage.setItem(ANON_PROMPT_KEY, JSON.stringify({ date: today, count: current + 1 }));
   };
 
+  /** Compress image to fit within max dimensions and quality */
+  const compressImage = useCallback((dataUrl: string, maxDim = 1200, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(dataUrl); // fallback to original
+      img.src = dataUrl;
+    });
+  }, []);
+
   /** Convert selected file to base64 data URI */
   const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -291,10 +314,14 @@ export default function ChatInterface() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => setPendingImage(reader.result as string);
+    reader.onload = async () => {
+      const raw = reader.result as string;
+      const compressed = await compressImage(raw);
+      setPendingImage(compressed);
+    };
     reader.readAsDataURL(file);
     e.target.value = "";
-  }, []);
+  }, [compressImage]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevMsgCountRef = useRef(0);
@@ -361,6 +388,11 @@ export default function ChatInterface() {
         body: JSON.stringify({ messages: history, level, examBoard, tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined, subject: selectedSubject, hintMode }),
       });
 
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error(`[Chat] HTTP ${res.status}:`, errText);
+        throw new Error(res.status === 413 ? "Image is too large. Please use a smaller photo." : `Request failed (${res.status})`);
+      }
       if (!res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
@@ -449,7 +481,8 @@ export default function ChatInterface() {
           }
         }
       }
-    } catch {
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Something went wrong";
       setMessages((prev) => [
         ...prev,
         {
@@ -458,7 +491,7 @@ export default function ChatInterface() {
           content: "",
           parsed: {
             type: "explanation",
-            intro: "Sorry, something went wrong. Please check your API key and try again.",
+            intro: `Sorry, ${errorMsg}. Please try again.`,
             steps: [],
             conclusion: "",
           },
