@@ -135,7 +135,9 @@ export async function POST(req: NextRequest) {
     const category = classifyQuestion(questionText);
 
     // ── Stage 1a: Check question cache ────────────────────────────────
-    if (isCacheable(messages)) {
+    // Skip cache for image questions — hash is text-only, so different images
+    // with the same generic text ("Solve this question from the photo") would collide.
+    if (!hasImage && isCacheable(messages)) {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       const cached = await lookupCache(qHash);
@@ -659,7 +661,7 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Write to question cache (async, non-blocking) ─────────────────
-    if (isCacheable(messages)) {
+    if (!hasImage && isCacheable(messages)) {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       writeCache({
