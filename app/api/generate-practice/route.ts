@@ -12,9 +12,9 @@ export async function POST(req: NextRequest) {
     const resolvedDifficulty = difficulty || "medium";
 
     const difficultyGuide =
-      resolvedDifficulty === "easy"
+      resolvedDifficulty === "easy" || resolvedDifficulty === "1-3"
         ? "Keep it simple: single-step, small friendly numbers, straightforward application of one concept."
-        : resolvedDifficulty === "hard"
+        : resolvedDifficulty === "hard" || resolvedDifficulty === "7-9"
           ? "Make it challenging: multi-step, unfamiliar context, higher-tier skills, requires combining concepts."
           : "Standard difficulty: 2-3 steps, typical GCSE-style question.";
 

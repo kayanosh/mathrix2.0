@@ -18,6 +18,7 @@ import { SUBJECTS } from "@/lib/subjects";
 import {
   getQuestions,
   getQuestionCounts,
+  isGCSETopic,
   type Difficulty,
   type QuestionBankEntry,
 } from "@/lib/question-bank";
@@ -40,7 +41,10 @@ const MASTERY_COLOR: Record<MasteryLevel, string> = {
   mastered: "bg-emerald-500",
 };
 
-const DIFFICULTY_STYLE: Record<Difficulty, { label: string; bg: string; ring: string }> = {
+const DIFFICULTY_STYLE: Record<string, { label: string; bg: string; ring: string }> = {
+  "1-3": { label: "Grade 1-3", bg: "bg-emerald-50 text-emerald-700", ring: "ring-emerald-300" },
+  "4-6": { label: "Grade 4-6", bg: "bg-amber-50 text-amber-700", ring: "ring-amber-300" },
+  "7-9": { label: "Grade 7-9", bg: "bg-red-50 text-red-700", ring: "ring-red-300" },
   easy: { label: "Easy", bg: "bg-emerald-50 text-emerald-700", ring: "ring-emerald-300" },
   medium: { label: "Medium", bg: "bg-amber-50 text-amber-700", ring: "ring-amber-300" },
   hard: { label: "Hard", bg: "bg-red-50 text-red-700", ring: "ring-red-300" },
@@ -50,7 +54,17 @@ const mathsSubject = SUBJECTS.find((s) => s.id === "maths")!;
 
 export default function PracticeHub() {
   const [expandedTopic, setExpandedTopic] = useState<string | null>(null);
-  const [difficulty, setDifficulty] = useState<Difficulty>("medium");
+  const [difficulty, setDifficulty] = useState<Difficulty>("4-6");
+
+  // When expanding a new topic, set the right default difficulty
+  const handleExpandTopic = (topicId: string) => {
+    if (expandedTopic === topicId) {
+      setExpandedTopic(null);
+      return;
+    }
+    setExpandedTopic(topicId);
+    setDifficulty(isGCSETopic(topicId) ? "4-6" : "medium");
+  };
   const [currentQ, setCurrentQ] = useState<QuestionBankEntry | null>(null);
   const [queueIndex, setQueueIndex] = useState(0);
   const [queue, setQueue] = useState<QuestionBankEntry[]>([]);
@@ -184,7 +198,7 @@ export default function PracticeHub() {
           {mathsSubject.topics.map((topic) => {
             const isExpanded = expandedTopic === topic.id;
             const counts = getQuestionCounts(topic.id);
-            const totalQs = counts.easy + counts.medium + counts.hard;
+            const totalQs = Object.values(counts).reduce((a, b) => a + b, 0);
 
             // Aggregate mastery across topic subtopics
             const topicKeys = topic.subtopics.map((s) => `${topic.name} — ${s}`);
@@ -207,7 +221,7 @@ export default function PracticeHub() {
               <div key={topic.id} className="rounded-2xl border border-gray-200 overflow-hidden">
                 {/* Topic header */}
                 <button
-                  onClick={() => setExpandedTopic(isExpanded ? null : topic.id)}
+                  onClick={() => handleExpandTopic(topic.id)}
                   className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
                 >
                   <div className="flex items-center gap-3">
@@ -223,7 +237,7 @@ export default function PracticeHub() {
                   <div className="px-5 py-5 bg-white border-t border-gray-200 space-y-5">
                     {/* Difficulty tabs */}
                     <div className="flex gap-2">
-                      {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
+                      {(isGCSETopic(topic.id) ? ["1-3", "4-6", "7-9"] as Difficulty[] : ["easy", "medium", "hard"] as Difficulty[]).map((d) => {
                         const style = DIFFICULTY_STYLE[d];
                         const isActive = difficulty === d;
                         return (
