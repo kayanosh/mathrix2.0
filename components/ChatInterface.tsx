@@ -618,6 +618,7 @@ export default function ChatInterface() {
           <Link href="/revision" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Revision</Link>
           <Link href="/syllabus" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Syllabus</Link>
           <Link href="/exam-papers" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Papers</Link>
+          <Link href="/teacher" className="hidden sm:inline text-xs sm:text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium">Teacher</Link>
           <button
             onClick={() => setShowPricing(true)}
             className="text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium"

@@ -7,6 +7,7 @@ export const config = {
 };
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
+import { buildTeacherExplanationPrompt } from "@/lib/prompts/teacher";
 import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
       tier,
       useWhiteboard = true,
       hintMode = false,
+      teacherMode = false,
     } = body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -227,6 +229,74 @@ export async function POST(req: NextRequest) {
           };
       send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
       send("verification_done", { verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
+      controller.close();
+      return;
+    }
+
+    // ── Teacher mode fast path: topic explanation (skip CAS/critic) ───────
+    if (teacherMode) {
+      console.log("[TeacherMode] Generating topic explanation — skipping CAS/critic");
+
+      // Extract topic/subtopic from the message (format: "[TEACHER MODE] Explain ...")
+      const teacherMatch = questionText.match(/\[TEACHER MODE\].*?"(.+?)\s*—\s*(.+?)"/);
+      const teacherTopic = teacherMatch?.[1] || "Maths";
+      const teacherSubtopic = teacherMatch?.[2] || questionText;
+
+      const teacherSystemPrompt = buildTeacherExplanationPrompt(
+        teacherTopic,
+        teacherSubtopic,
+        level || "GCSE",
+      );
+
+      const teacherMessages = convertToAnthropicMessages([
+        { role: "user" as const, content: questionText },
+      ]);
+
+      let teacherRaw = "";
+      try {
+        const r = await claudeSolve(teacherSystemPrompt, teacherMessages);
+        teacherRaw = r.content;
+      } catch {
+        const fb = await openai.chat.completions.create({
+          model: "gpt-4o",
+          max_tokens: 8192,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system" as const, content: teacherSystemPrompt },
+            { role: "user" as const, content: questionText },
+          ],
+        });
+        teacherRaw = fb.choices[0]?.message?.content || "";
+      }
+
+      const teacherResult = validateResponse(teacherRaw, []);
+      const teacherData: WhiteboardResponse = teacherResult.ok && teacherResult.data
+        ? teacherResult.data
+        : {
+            intro: "Let's explore this topic together.",
+            blocks: [{ type: "text", content: teacherRaw.replace(/```json|```/g, "").trim() }],
+            conclusion: "And that covers the essentials.",
+          };
+
+      send("solver_done", {
+        whiteboard: teacherData,
+        response: { type: "explanation", intro: teacherData.intro, steps: [], conclusion: teacherData.conclusion },
+        category,
+        validationWarnings: teacherResult.errors || [],
+      });
+      send("verification_done", {
+        verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+        whiteboard: teacherData,
+      });
+
+      // Increment usage for authenticated users
+      if (user) {
+        const today = new Date().toISOString().split("T")[0];
+        try {
+          await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+        } catch { /* ignore */ }
+      }
+
       controller.close();
       return;
     }

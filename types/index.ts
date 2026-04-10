@@ -116,3 +116,25 @@ export interface ContentChunk {
   page_number: number;
   created_at: string;
 }
+
+// ── Teacher Mode ──────────────────────────────────────────────────────────────
+
+export type TeacherQuestionDifficulty = "easy" | "medium" | "hard" | "exam";
+
+export interface TeacherQuestion {
+  id: number;
+  questionText: string;
+  answer: string;
+  answerLatex?: string;
+  difficulty: TeacherQuestionDifficulty;
+  marks?: number;
+}
+
+export interface TeacherWorksheetData {
+  topic: string;
+  subtopic: string;
+  level: string;
+  examBoard?: string;
+  questions: TeacherQuestion[];
+  generatedAt: string;
+}

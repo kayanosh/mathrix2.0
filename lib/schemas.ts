@@ -323,3 +323,25 @@ export const QuestionCategorySchema = z.enum([
   "graphs",
   "calculus",
 ]);
+
+// ── Teacher Mode ──────────────────────────────────────────────────────────────
+
+export const TeacherQuestionDifficultySchema = z.enum([
+  "easy",
+  "medium",
+  "hard",
+  "exam",
+]);
+
+export const TeacherQuestionSchema = z.object({
+  id: z.number().int().min(1),
+  questionText: z.string().min(1),
+  answer: z.string().min(1),
+  answerLatex: z.string().optional(),
+  difficulty: TeacherQuestionDifficultySchema,
+  marks: z.number().int().min(1).optional(),
+});
+
+export const TeacherQuestionsResponseSchema = z.object({
+  questions: z.array(TeacherQuestionSchema).min(1).max(25),
+});
