@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Printer, Eye, EyeOff } from "lucide-react";
+import { Printer, Eye, EyeOff, Sparkles } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 import InlineMath from "@/components/InlineMath";
+import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
 import type { TeacherQuestion } from "@/types";
 
 const DIFFICULTY_CONFIG = {
@@ -50,6 +52,7 @@ export default function TeacherWorksheet({
   generatedAt,
 }: TeacherWorksheetProps) {
   const [showAnswers, setShowAnswers] = useState(false);
+  const [explainQuestion, setExplainQuestion] = useState<string | null>(null);
 
   const easyQs = questions.filter((q) => q.difficulty === "easy");
   const mediumQs = questions.filter((q) => q.difficulty === "medium");
@@ -153,6 +156,15 @@ export default function TeacherWorksheet({
                             )}
                           </div>
 
+                          {/* Explain button */}
+                          <button
+                            onClick={() => setExplainQuestion(q.questionText)}
+                            className="mt-1 flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 transition-colors print:hidden"
+                          >
+                            <Sparkles size={12} />
+                            Explain with AI
+                          </button>
+
                           {/* Answer (toggled) */}
                           {showAnswers && (
                             <div className="mt-1.5 pl-3 border-l-2 border-emerald-300 text-sm text-emerald-700 print:text-gray-700">
@@ -195,6 +207,16 @@ export default function TeacherWorksheet({
           </div>
         </div>
       )}
+
+      {/* ── AI Explanation Modal ───────────────────────────────────── */}
+      <AnimatePresence>
+        {explainQuestion && (
+          <PracticeWhiteboardModal
+            question={explainQuestion}
+            onClose={() => setExplainQuestion(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

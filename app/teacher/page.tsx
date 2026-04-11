@@ -26,6 +26,8 @@ const mathsSubject = SUBJECTS.find((s) => s.id === "maths")!;
 
 const DAILY_LIMIT = 1;
 const STORAGE_KEY_PREFIX = "mathrix_teacher_lessons_";
+const LESSON_CACHE_PREFIX = "mathrix_teacher_cache_lesson_";
+const WORKSHEET_CACHE_PREFIX = "mathrix_teacher_cache_ws_";
 
 function getTodayKey(): string {
   return STORAGE_KEY_PREFIX + new Date().toISOString().split("T")[0];
@@ -40,6 +42,39 @@ function incrementLessonsToday(): void {
   if (typeof window === "undefined") return;
   const current = getLessonsToday();
   localStorage.setItem(getTodayKey(), String(current + 1));
+}
+
+/** Build a cache key from topic + subtopic */
+function cacheKey(prefix: string, topic: string, subtopic: string): string {
+  return prefix + `${topic}|${subtopic}`.toLowerCase().replace(/\s+/g, "_");
+}
+
+/** Read a cached JSON value from localStorage, returns null if missing or expired (>7 days) */
+function readCache<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as { data: T; ts: number };
+    // Expire after 7 days
+    if (Date.now() - entry.ts > 7 * 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return entry.data;
+  } catch {
+    return null;
+  }
+}
+
+/** Write a value to localStorage cache with timestamp */
+function writeCache<T>(key: string, data: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+  } catch {
+    // localStorage full — silently ignore
+  }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -85,10 +120,30 @@ export default function TeacherModePage() {
 
       setSelectedTopic(topicName);
       setSelectedSubtopic(subtopic);
-      setPhase("explaining");
       setExplanation(null);
       setWorksheet(null);
       setError(null);
+
+      // ── Check lesson cache first ──────────────────────────────
+      const lessonKey = cacheKey(LESSON_CACHE_PREFIX, topicName, subtopic);
+      const cachedLesson = readCache<WhiteboardResponse>(lessonKey);
+      if (cachedLesson) {
+        setExplanation(cachedLesson);
+        setPhase("explained");
+        // Also try loading cached worksheet
+        const wsKey = cacheKey(WORKSHEET_CACHE_PREFIX, topicName, subtopic);
+        const cachedWs = readCache<TeacherWorksheetData>(wsKey);
+        if (cachedWs) {
+          setWorksheet(cachedWs);
+          setPhase("worksheet");
+        }
+        setTimeout(() => {
+          lessonRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+        return;
+      }
+
+      setPhase("explaining");
 
       // Scroll to lesson area
       setTimeout(() => {
@@ -137,6 +192,11 @@ export default function TeacherModePage() {
                 if (eventData.whiteboard) {
                   setExplanation(eventData.whiteboard);
                   setPhase("explained");
+                  // Cache the lesson
+                  writeCache(
+                    cacheKey(LESSON_CACHE_PREFIX, topicName, subtopic),
+                    eventData.whiteboard,
+                  );
                 }
               } catch {
                 // Skip unparseable lines
@@ -161,6 +221,15 @@ export default function TeacherModePage() {
   // ── Question Generation ─────────────────────────────────────────
   const handleGenerateQuestions = useCallback(async () => {
     if (!selectedTopic || !selectedSubtopic) return;
+
+    // ── Check worksheet cache first ─────────────────────────────
+    const wsKey = cacheKey(WORKSHEET_CACHE_PREFIX, selectedTopic, selectedSubtopic);
+    const cachedWs = readCache<TeacherWorksheetData>(wsKey);
+    if (cachedWs) {
+      setWorksheet(cachedWs);
+      setPhase("worksheet");
+      return;
+    }
 
     setPhase("generating");
     setError(null);
@@ -189,6 +258,9 @@ export default function TeacherModePage() {
       const data: TeacherWorksheetData = await res.json();
       setWorksheet(data);
       setPhase("worksheet");
+
+      // Cache the worksheet
+      writeCache(wsKey, data);
     } catch (err) {
       console.error("Question generation error:", err);
       setError("Failed to generate questions. Please try again.");
