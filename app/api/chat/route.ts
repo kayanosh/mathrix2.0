@@ -14,7 +14,7 @@ import {
   buildCorrectionMessage,
   parseCriticResponse,
 } from "@/lib/prompts/critic";
-import { validateResponse } from "@/lib/validate";
+import { validateResponse, sanitizeWhiteboardResponse } from "@/lib/validate";
 import { casSolve } from "@/lib/cas-solver";
 import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
 import { buildGroundTruth } from "@/lib/ground-truth";
@@ -835,7 +835,7 @@ function sendFallback(
   }
 
   send("solver_done", {
-    whiteboard: fallback,
+    whiteboard: sanitizeWhiteboardResponse(fallback),
     response: {
       type: "explanation",
       intro:
@@ -856,7 +856,7 @@ function sendFallback(
       criticVerified: false,
       toolChecksPassed: false,
     },
-    whiteboard: fallback,
+    whiteboard: sanitizeWhiteboardResponse(fallback),
   });
 }
 

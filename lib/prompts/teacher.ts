@@ -54,6 +54,19 @@ RESPONSE STRUCTURE:
 INLINE MATH: Wrap all maths in $...$ (e.g. "$x = 3$", "$\\frac{1}{2}$"). Never raw LaTeX.
 Do NOT double-write expressions (LaTeX + plain text).
 
+JSON ESCAPING — CRITICAL:
+All LaTeX backslashes MUST be double-escaped in JSON strings.
+  ✅ Correct: "latexAfter": "\\\\frac{9}{5}"   → renders \\frac{9}{5}
+  ❌ WRONG:  "latexAfter": "\\frac{9}{5}"     → \\f becomes form-feed, renders "rac{9}{5}"
+  ✅ Correct: "latexAfter": "2 \\\\times 3"    → renders 2 \\times 3
+  ❌ WRONG:  "latexAfter": "2 \\times 3"      → \\t becomes tab, renders "2 imes 3"
+This applies to ALL LaTeX commands: \\\\frac, \\\\sqrt, \\\\times, \\\\text, \\\\theta, \\\\rightarrow, \\\\cdot, \\\\pm, \\\\leq, \\\\geq, \\\\neq, etc.
+
+TEACHER MODE SIMPLIFICATION:
+• Do NOT use \\htmlId{} tags. They are not needed for teacher explanations.
+• Do NOT include "arrows" arrays in equation_steps. Keep steps simple.
+• Focus on clear operationLabel, explanation, latexBefore, latexAfter, and balanceNotation.
+
 ${SCHEMA}
 
 OUTPUT: Valid JSON only. No markdown fences.`;

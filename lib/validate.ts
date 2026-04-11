@@ -11,6 +11,50 @@ export interface ValidationResult {
   errors?: string[];
 }
 
+// ── LaTeX repair ────────────────────────────────────────────────────────────
+
+/**
+ * Fix strings mangled by JSON backslash escaping.
+ *
+ * When a model outputs  \frac  inside a JSON string value (instead of \\frac),
+ * JSON.parse interprets  \f  as U+000C (form-feed),  \t  as U+0009 (tab), etc.
+ * This reverses those common manglings so LaTeX renders correctly.
+ */
+function repairMangledBackslashes(s: string): string {
+  return s
+    .replace(/\f/g, "\\f")              // form-feed  → \f  (fixes \frac, \forall, \flat)
+    .replace(/\t/g, "\\t")              // tab        → \t  (fixes \times, \text, \theta, \tan, \to)
+    .replace(/\r/g, "\\r")              // CR         → \r  (fixes \rightarrow, \rho, \Rightarrow)
+    .replace(/\x08/g, "\\b")            // backspace  → \b  (fixes \binom, \boxed, \begin, \beta)
+    .replace(/(?<!\\)htmlId/g, "\\htmlId"); // bare htmlId (invalid \h escape stripped backslash)
+}
+
+/**
+ * Recursively walk a parsed object and repair every string value.
+ */
+function deepRepairStrings<T>(obj: T): T {
+  if (typeof obj === "string") return repairMangledBackslashes(obj) as T;
+  if (Array.isArray(obj)) return obj.map(deepRepairStrings) as T;
+  if (obj && typeof obj === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = deepRepairStrings(v);
+    }
+    return out as T;
+  }
+  return obj;
+}
+
+/**
+ * Sanitise a WhiteboardResponse, repairing any LaTeX that was mangled during
+ * JSON serialisation / parsing.  Safe to call on any WhiteboardResponse.
+ */
+export function sanitizeWhiteboardResponse(
+  data: WhiteboardResponse,
+): WhiteboardResponse {
+  return deepRepairStrings(data);
+}
+
 /**
  * Parse raw JSON text from Claude, stripping markdown fences if present.
  */
@@ -130,11 +174,13 @@ export function validateResponse(
     return { ok: false, errors: zodErrors };
   }
 
-  // 4. Semantic validation
-  const data = result.data as WhiteboardResponse;
+  // 4. Repair mangled LaTeX
+  const data = sanitizeWhiteboardResponse(result.data as WhiteboardResponse);
+
+  // 5. Semantic validation
   const semanticErrors = semanticChecks(data);
 
-  // 5. Required visuals validation
+  // 6. Required visuals validation
   const visualErrors = validateRequiredVisuals(
     data,
     requiredBlockTypes || []

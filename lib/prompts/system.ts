@@ -599,7 +599,15 @@ IMPORTANT RULES:
 • You output SEMANTIC DATA only — never specify pixel coordinates or positions
 • The client computes all layout positions from the semantic data
 • You may use multiple block types in one response (e.g. equation_steps + coordinate_graph)
-• Order blocks in the natural teaching sequence`;
+• Order blocks in the natural teaching sequence
+
+JSON ESCAPING — CRITICAL:
+All LaTeX backslashes MUST be double-escaped inside JSON string values.
+  ✅ "latexAfter": "\\\\frac{9}{5}"   → renders as \\frac{9}{5}
+  ❌ "latexAfter": "\\frac{9}{5}"     → \\f = form-feed → renders "rac{9}{5}"
+  ✅ "latexAfter": "2 \\\\times 3"    → renders as 2 \\times 3
+  ❌ "latexAfter": "2 \\times 3"      → \\t = tab → renders "imes 3"
+This applies to EVERY LaTeX command: \\\\frac, \\\\sqrt, \\\\times, \\\\text, \\\\theta, \\\\rightarrow, \\\\cdot, \\\\pm, \\\\leq, \\\\geq, \\\\neq, \\\\htmlId, etc.`;
 
 // ── Category-specific examples ────────────────────────────────────────────────
 
