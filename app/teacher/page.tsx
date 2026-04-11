@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -58,14 +58,27 @@ export default function TeacherModePage() {
   const [worksheet, setWorksheet] = useState<TeacherWorksheetData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [limitReached, setLimitReached] = useState(false);
+  const [isPro, setIsPro] = useState(false);
 
   const lessonRef = useRef<HTMLDivElement>(null);
+
+  // ── Fetch subscription status on mount ──────────────────────────
+  useEffect(() => {
+    fetch("/api/usage")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.subscriptionStatus === "pro") {
+          setIsPro(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Topic Explanation ───────────────────────────────────────────
   const handleSelectSubtopic = useCallback(
     async (topicName: string, subtopic: string) => {
-      // Check usage limit
-      if (getLessonsToday() >= DAILY_LIMIT) {
+      // Check usage limit — Pro users are unlimited
+      if (!isPro && getLessonsToday() >= DAILY_LIMIT) {
         setLimitReached(true);
         return;
       }
@@ -132,15 +145,17 @@ export default function TeacherModePage() {
           }
         }
 
-        // Mark usage
-        incrementLessonsToday();
+        // Mark usage (only for non-Pro users)
+        if (!isPro) {
+          incrementLessonsToday();
+        }
       } catch (err) {
         console.error("Teacher explanation error:", err);
         setError("Failed to generate topic explanation. Please try again.");
         setPhase("browse");
       }
     },
-    [],
+    [isPro],
   );
 
   // ── Question Generation ─────────────────────────────────────────
