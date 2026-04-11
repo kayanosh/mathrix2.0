@@ -339,7 +339,7 @@ function categoryToDomain(
 
 // ── Schema definition ─────────────────────────────────────────────────────────
 
-const SCHEMA = `
+export const SCHEMA = `
 ━━━ WhiteboardResponse SCHEMA ━━━
 
 {
