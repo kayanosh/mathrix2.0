@@ -26,8 +26,8 @@ const mathsSubject = SUBJECTS.find((s) => s.id === "maths")!;
 
 const DAILY_LIMIT = 1;
 const STORAGE_KEY_PREFIX = "mathrix_teacher_lessons_";
-const LESSON_CACHE_PREFIX = "mathrix_teacher_cache_v2_lesson_";
-const WORKSHEET_CACHE_PREFIX = "mathrix_teacher_cache_v2_ws_";
+const LESSON_CACHE_PREFIX = "mathrix_teacher_cache_v3_lesson_";
+const WORKSHEET_CACHE_PREFIX = "mathrix_teacher_cache_v3_ws_";
 
 function getTodayKey(): string {
   return STORAGE_KEY_PREFIX + new Date().toISOString().split("T")[0];

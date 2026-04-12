@@ -6,6 +6,84 @@
 
 import { SCHEMA } from "./system";
 
+// ── Subtopic → Required visuals map ──────────────────────────────────────────
+
+interface TeacherVisual {
+  blocks: string[];
+  hint: string;
+}
+
+const TEACHER_VISUAL_MAP: Record<string, TeacherVisual> = {
+  // ── Geometry & Measures ──
+  "angles":                    { blocks: ["labeled_shape"], hint: "Draw the angle configuration with all angles clearly labeled" },
+  "polygons":                  { blocks: ["labeled_shape"], hint: "Draw the polygon with interior and exterior angles labeled" },
+  "circle theorems":           { blocks: ["labeled_shape"], hint: "Draw the circle with inscribed angles, chords, tangents, and radii as needed" },
+  "pythagoras' theorem":       { blocks: ["labeled_shape"], hint: "Draw a right-angled triangle with all three sides labeled (including the hypotenuse)" },
+  "pythagoras theorem":        { blocks: ["labeled_shape"], hint: "Draw a right-angled triangle with all three sides labeled (including the hypotenuse)" },
+  "trigonometry (soh cah toa)": { blocks: ["labeled_shape"], hint: "Draw the right-angled triangle with θ, opposite, adjacent, and hypotenuse labeled" },
+  "trigonometry":              { blocks: ["labeled_shape"], hint: "Draw the right-angled triangle with θ, opposite, adjacent, and hypotenuse labeled" },
+  "area and perimeter":        { blocks: ["labeled_shape"], hint: "Draw the shape with all dimensions clearly labeled" },
+  "volume":                    { blocks: ["labeled_shape"], hint: "Draw the 3D shape with length, width, and height labeled" },
+  "transformations":           { blocks: ["coordinate_graph"], hint: "Plot the original shape and its image on a coordinate grid, labeling vertices" },
+  "bearings":                  { blocks: ["labeled_shape"], hint: "Draw the bearing diagram with a North line and the angle measured clockwise" },
+  "loci and constructions":    { blocks: ["labeled_shape"], hint: "Draw the construction showing arcs, perpendicular bisectors, or angle bisectors as needed" },
+  "vectors":                   { blocks: ["labeled_shape"], hint: "Draw the vector diagram with labeled vectors showing direction and magnitude" },
+  "similarity and congruence": { blocks: ["labeled_shape"], hint: "Draw both shapes side by side with corresponding sides and angles labeled" },
+
+  // ── Algebra (graph topics) ──
+  "straight line graphs":      { blocks: ["coordinate_graph"], hint: "Plot the line on a coordinate grid, labeling gradient, y-intercept, and at least two points" },
+  "quadratic and cubic graphs": { blocks: ["coordinate_graph"], hint: "Plot the curve showing the vertex/turning point, roots (x-intercepts), and y-intercept" },
+  "simultaneous equations":    { blocks: ["coordinate_graph"], hint: "Plot both lines on the same grid and label the intersection point" },
+  "functions":                 { blocks: ["coordinate_graph"], hint: "Plot the function on a coordinate grid, labeling key features (intercepts, asymptotes)" },
+  "completing the square":     { blocks: ["coordinate_graph"], hint: "Plot the parabola and label the vertex found from the completed square form" },
+  "inequalities":              { blocks: ["number_line"], hint: "Draw a number line with open/filled circles and shading to represent the inequality" },
+  "sequences":                 { blocks: ["table"], hint: "Include a table showing position number (n) and the corresponding term value" },
+
+  // ── Ratio, Proportion & Rates of Change ──
+  "direct proportion":         { blocks: ["coordinate_graph"], hint: "Plot the proportional relationship y = kx as a straight line through the origin" },
+  "inverse proportion":        { blocks: ["coordinate_graph"], hint: "Plot the curve y = k/x showing how y decreases as x increases" },
+  "scale factors":             { blocks: ["labeled_shape"], hint: "Draw the original and enlarged/reduced shape with corresponding sides labeled" },
+
+  // ── Probability ──
+  "tree diagrams":             { blocks: ["probability_tree"], hint: "Draw the full probability tree with all branches labeled with events and probabilities" },
+  "venn diagrams":             { blocks: ["venn_diagram"], hint: "Draw the Venn diagram with all regions filled in (A only, B only, A∩B, neither)" },
+  "conditional probability":   { blocks: ["probability_tree"], hint: "Draw the probability tree for the conditional scenario with updated probabilities" },
+  "probability scale":         { blocks: ["number_line"], hint: "Draw a 0 to 1 number line with events positioned at their probability values" },
+
+  // ── Statistics ──
+  "histograms":                { blocks: ["chart"], hint: "Draw a histogram with class intervals on x-axis and frequency density on y-axis" },
+  "box plots":                 { blocks: ["chart"], hint: "Draw the box plot labeling minimum, Q1, median, Q3, and maximum" },
+  "scatter graphs":            { blocks: ["coordinate_graph"], hint: "Plot the scatter graph with data points and a line of best fit" },
+  "cumulative frequency":      { blocks: ["chart"], hint: "Draw the cumulative frequency curve (ogive) with upper class boundaries on x-axis" },
+  "averages (mean, median, mode)": { blocks: ["table"], hint: "Include a frequency table for the worked example showing how to calculate the mean" },
+  "averages":                  { blocks: ["table"], hint: "Include a frequency table for the worked example showing how to calculate the mean" },
+
+  // ── Number ──
+  "bounds":                    { blocks: ["number_line"], hint: "Draw a number line showing the upper and lower bounds and the error interval" },
+
+  // ── Calculus ──
+  "differentiation from first principles": { blocks: ["coordinate_graph"], hint: "Plot the curve with a secant line approaching the tangent, illustrating the limit" },
+  "integration":               { blocks: ["coordinate_graph"], hint: "Plot the curve with the area underneath shaded to represent the definite integral" },
+};
+
+/**
+ * Look up required visual blocks for a given subtopic.
+ * Uses case-insensitive matching and tries progressively shorter prefixes.
+ */
+export function getTeacherRequiredVisuals(subtopic: string): TeacherVisual {
+  const key = subtopic.toLowerCase().trim();
+
+  // Exact match first
+  if (TEACHER_VISUAL_MAP[key]) return TEACHER_VISUAL_MAP[key];
+
+  // Partial match — check if any map key is contained in the subtopic or vice versa
+  for (const [mapKey, visual] of Object.entries(TEACHER_VISUAL_MAP)) {
+    if (key.includes(mapKey) || mapKey.includes(key)) return visual;
+  }
+
+  return { blocks: [], hint: "" };
+}
+
 /**
  * Builds a system prompt that instructs Claude to explain a topic and work
  * through one example question on the whiteboard.
@@ -15,7 +93,18 @@ export function buildTeacherExplanationPrompt(
   topic: string,
   subtopic: string,
   level: string = "GCSE",
+  visuals?: TeacherVisual,
 ): string {
+  const visualSection = visuals && visuals.blocks.length > 0
+    ? `
+MANDATORY VISUAL DIAGRAMS — YOU MUST INCLUDE THESE:
+Your response MUST contain the following block type(s): ${visuals.blocks.map(b => `"${b}"`).join(", ")}
+Specific instruction: ${visuals.hint}
+Place the visual block(s) BEFORE the equation_steps for the worked example.
+If you omit these visual blocks, your response will be REJECTED and you will have to redo it.
+`
+    : "";
+
   return `You are Mathrix — the world's best ${level} maths tutor for UK students.
 You are in TEACHER MODE. A teacher has selected the topic "${topic} — ${subtopic}" and wants you to
 explain it clearly to a classroom of students, then work through one example question step by step.
@@ -39,11 +128,10 @@ YOUR TASK (two parts in one response):
    • State the question clearly in a text block
    • Solve it step by step using equation_steps (or appropriate block types)
    • Include pedagogical scaffolding: rule, why, selfCheck where helpful
-   • For geometry topics: include a labeled_shape or coordinate_graph BEFORE solving
-
+${visualSection}
 RESPONSE STRUCTURE:
 • "intro": Set the scene for the lesson — e.g. "Right then, let's tackle ${subtopic}."
-• "blocks": Start with text blocks explaining the topic, then equation_steps (or visuals) for the worked example. Maximum 10 blocks.
+• "blocks": Start with text blocks explaining the topic, then visuals and equation_steps for the worked example. Maximum 10 blocks.
 • "conclusion": Summarise the key idea and the answer to the example
 • "subject": "Maths"
 • "topic": "${topic} — ${subtopic}"

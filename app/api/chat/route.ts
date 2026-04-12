@@ -7,7 +7,7 @@ export const config = {
 };
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
-import { buildTeacherExplanationPrompt } from "@/lib/prompts/teacher";
+import { buildTeacherExplanationPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";
 import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
@@ -242,16 +242,25 @@ export async function POST(req: NextRequest) {
       const teacherTopic = teacherMatch?.[1] || "Maths";
       const teacherSubtopic = teacherMatch?.[2] || questionText;
 
+      // Look up required visuals for this subtopic
+      const visuals = getTeacherRequiredVisuals(teacherSubtopic);
+      const requiredBlocks = visuals.blocks;
+      if (requiredBlocks.length > 0) {
+        console.log(`[TeacherMode] Required visuals for "${teacherSubtopic}": ${requiredBlocks.join(", ")}`);
+      }
+
       const teacherSystemPrompt = buildTeacherExplanationPrompt(
         teacherTopic,
         teacherSubtopic,
         level || "GCSE",
+        visuals,
       );
 
       const teacherMessages = convertToAnthropicMessages([
         { role: "user" as const, content: questionText },
       ]);
 
+      // First attempt
       let teacherRaw = "";
       try {
         const r = await claudeSolve(teacherSystemPrompt, teacherMessages);
@@ -269,14 +278,39 @@ export async function POST(req: NextRequest) {
         teacherRaw = fb.choices[0]?.message?.content || "";
       }
 
-      const teacherResult = validateResponse(teacherRaw, []);
+      let teacherResult = validateResponse(teacherRaw, requiredBlocks);
+
+      // Retry once if required visuals are missing
+      if (!teacherResult.ok && requiredBlocks.length > 0) {
+        const missingVisuals = (teacherResult.errors || []).filter(e => e.includes("Missing required visual block"));
+        if (missingVisuals.length > 0) {
+          console.log(`[TeacherMode] Retrying — missing visuals: ${missingVisuals.join("; ")}`);
+          const retryMessages = convertToAnthropicMessages([
+            { role: "user" as const, content: questionText },
+            { role: "assistant" as const, content: teacherRaw },
+            { role: "user" as const, content: `Your response was rejected because: ${missingVisuals.join(". ")}. You MUST include ${requiredBlocks.map(b => `a "${b}" block`).join(" and ")}. Please regenerate the full response with the required visual diagram(s).` },
+          ]);
+          try {
+            const r2 = await claudeSolve(teacherSystemPrompt, retryMessages);
+            const retryResult = validateResponse(r2.content, requiredBlocks);
+            if (retryResult.ok || retryResult.data) {
+              teacherResult = retryResult;
+            }
+          } catch {
+            // Accept the first attempt if retry fails
+          }
+        }
+      }
+
       const teacherData: WhiteboardResponse = teacherResult.ok && teacherResult.data
         ? teacherResult.data
-        : {
-            intro: "Let's explore this topic together.",
-            blocks: [{ type: "text", content: teacherRaw.replace(/```json|```/g, "").trim() }],
-            conclusion: "And that covers the essentials.",
-          };
+        : teacherResult.data
+          ? teacherResult.data
+          : {
+              intro: "Let's explore this topic together.",
+              blocks: [{ type: "text", content: teacherRaw.replace(/```json|```/g, "").trim() }],
+              conclusion: "And that covers the essentials.",
+            };
 
       send("solver_done", {
         whiteboard: teacherData,
