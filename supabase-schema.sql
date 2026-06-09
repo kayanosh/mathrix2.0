@@ -239,3 +239,70 @@ begin
   limit match_count;
 end;
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SKILL PROGRESS TABLE — Per-user, per-skill mastery (persists across devices)
+-- Enables the personalised progress chart that parents view via the student login.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.skill_progress (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  skill_key text not null,              -- "Topic — subtopic"
+  section text,                         -- 'curriculum' | 'sats' | 'eleven_plus' | null
+  subject text,                         -- 'maths' | 'english' | 'vr' | 'nvr' | null
+  year text,                            -- 'Year 5' | 'Year 6' | null
+  attempts integer not null default 0,
+  correct integer not null default 0,
+  last_seen timestamptz not null default now(),
+  unique (user_id, skill_key)
+);
+
+alter table public.skill_progress enable row level security;
+
+-- Users can read their own progress (this is what powers the parent-facing chart)
+create policy "Users can view own progress"
+  on public.skill_progress for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_skill_progress_user
+  on public.skill_progress (user_id);
+
+-- Insert/update is handled server-side via the service role (see app/api/progress).
+
+-- Atomic upsert + increment of a skill attempt.
+create or replace function public.record_skill_attempt(
+  p_user_id uuid,
+  p_skill_key text,
+  p_correct_delta integer,
+  p_section text default null,
+  p_subject text default null,
+  p_year text default null
+)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  insert into public.skill_progress (user_id, skill_key, section, subject, year, attempts, correct, last_seen)
+  values (p_user_id, p_skill_key, p_section, p_subject, p_year, 1, greatest(p_correct_delta, 0), now())
+  on conflict (user_id, skill_key)
+  do update set
+    attempts = public.skill_progress.attempts + 1,
+    correct = public.skill_progress.correct + greatest(p_correct_delta, 0),
+    section = coalesce(excluded.section, public.skill_progress.section),
+    subject = coalesce(excluded.subject, public.skill_progress.subject),
+    year = coalesce(excluded.year, public.skill_progress.year),
+    last_seen = now();
+end;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PROFILE EXTENSIONS — roles & school grouping (bulk-provisioned students)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+alter table public.profiles
+  add column if not exists role text not null default 'student'
+    check (role in ('student', 'teacher', 'admin'));
+alter table public.profiles add column if not exists school text;
+alter table public.profiles add column if not exists year_group text;

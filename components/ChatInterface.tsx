@@ -615,7 +615,9 @@ export default function ChatInterface() {
               <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
           )}
+          <Link href="/ks2" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">KS2</Link>
           <Link href="/subjects" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Practice</Link>
+          <Link href="/progress" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Progress</Link>
           <Link href="/revision" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Revision</Link>
           <Link href="/syllabus" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Syllabus</Link>
           <Link href="/exam-papers" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Papers</Link>

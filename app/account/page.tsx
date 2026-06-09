@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { ArrowLeft, CreditCard, LogOut, Crown, Loader2 } from "lucide-react";
+import { ArrowLeft, CreditCard, LogOut, Crown, Loader2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 export default function AccountPage() {
@@ -155,6 +155,13 @@ export default function AccountPage() {
 
         {/* Actions */}
         <section className="space-y-3">
+          <Link
+            href="/progress"
+            className="w-full flex items-center gap-3 px-5 py-4 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-left"
+          >
+            <TrendingUp size={18} className="text-gray-400" />
+            <span className="font-medium">View Progress</span>
+          </Link>
           {isPro && (
             <button
               onClick={handleManageSubscription}

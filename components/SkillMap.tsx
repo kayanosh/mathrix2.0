@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import Link from "next/link";
 import { SUBJECTS } from "@/lib/subjects";
-import { getSkillData, getMastery, getAccuracy, type MasteryLevel } from "@/lib/skills";
+import { getSkillData, getMastery, getAccuracy, syncSkillsFromServer, type MasteryLevel, type SkillData } from "@/lib/skills";
 
 interface Props {
   onClose: () => void;
@@ -20,24 +21,21 @@ const MASTERY_STYLE: Record<MasteryLevel, { bg: string; text: string; border: st
 };
 
 export default function SkillMap({ onClose, onPractise }: Props) {
-  const skillData = useMemo(() => getSkillData(), []);
+  const [skillData, setSkillData] = useState<SkillData>(() => getSkillData());
 
-  // Flatten all subtopics across all subjects for the skill map
-  // Match against skill keys using "TopicName — subtopic" format
-  const allTopics = SUBJECTS.flatMap((subject) =>
-    subject.topics.flatMap((topic) =>
-      topic.subtopics.map((sub) => ({
-        key: `${topic.name} — ${sub}`,
-        subtopic: sub,
-        topicName: topic.name,
-        subjectName: subject.name,
-        subjectIcon: subject.icon,
-      }))
-    )
-  );
+  // Pull the latest progress from the server (cross-device truth) on open.
+  useEffect(() => {
+    let active = true;
+    syncSkillsFromServer().then((merged) => {
+      if (active && merged) setSkillData(merged);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Count mastered/practiced/learning
-  const totalAttempted = Object.keys(skillData).length;
+  const totalAttempted = Object.values(skillData).filter((r) => r.attempts > 0).length;
   const masteredCount = Object.values(skillData).filter((r) => getMastery(r) === "mastered").length;
 
   return (
@@ -85,7 +83,7 @@ export default function SkillMap({ onClose, onPractise }: Props) {
 
         {/* Topic grid */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
-          {SUBJECTS.slice(0, 1).map((subject) => (
+          {SUBJECTS.map((subject) => (
             <div key={subject.id} className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-base">{subject.icon}</span>
@@ -123,6 +121,16 @@ export default function SkillMap({ onClose, onPractise }: Props) {
               ))}
             </div>
           ))}
+        </div>
+
+        {/* Footer link to full progress report */}
+        <div className="flex-shrink-0 border-t border-gray-100 px-6 py-3 text-center">
+          <Link
+            href="/progress"
+            className="text-[13px] font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            View full progress report
+          </Link>
         </div>
       </motion.div>
     </motion.div>

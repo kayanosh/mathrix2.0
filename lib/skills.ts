@@ -1,7 +1,12 @@
 /**
- * Skill tracking — stores per-topic attempt counts in localStorage.
- * No backend required for v1. Keyed by the topic string from WhiteboardResponse.topic
- * (format: "Algebra — Solving linear equations")
+ * Skill tracking — per-topic attempt counts.
+ *
+ * Reads/writes localStorage for instant, offline-friendly UI (and anonymous
+ * users). When the student is signed in, every attempt is ALSO persisted to
+ * Supabase via /api/progress so it survives across devices and can be viewed by
+ * parents through the student login (see app/progress).
+ *
+ * Skill keys use the "Topic — subtopic" convention.
  */
 
 const SKILLS_KEY = "mathrix_skills";
@@ -13,6 +18,13 @@ export interface SkillRecord {
 }
 
 export type SkillData = Record<string, SkillRecord>;
+
+/** Optional metadata persisted alongside an attempt (used by KS2 sections). */
+export interface SkillMeta {
+  section?: string;
+  subject?: string;
+  year?: string;
+}
 
 export type MasteryLevel = "unseen" | "learning" | "practiced" | "confident" | "mastered";
 
@@ -40,38 +52,99 @@ export function getSkillData(): SkillData {
   }
 }
 
-export function recordSkillAttempt(topic: string | undefined): void {
-  if (!topic || typeof window === "undefined") return;
+function writeSkillData(data: SkillData): void {
   try {
-    const data = getSkillData();
-    const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
-    data[topic] = { attempts: existing.attempts + 1, correct: existing.correct, lastSeen: Date.now() };
     localStorage.setItem(SKILLS_KEY, JSON.stringify(data));
   } catch {
     // ignore storage errors
   }
 }
 
-export function recordCorrect(topic: string): void {
-  if (!topic || typeof window === "undefined") return;
+/** Fire-and-forget POST to the progress API. Silently no-ops for anon users (401). */
+function persistToServer(
+  skillKey: string,
+  kind: "attempt" | "correct" | "incorrect",
+  meta?: SkillMeta,
+): void {
+  if (typeof window === "undefined") return;
   try {
-    const data = getSkillData();
-    const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
-    data[topic] = { attempts: existing.attempts + 1, correct: existing.correct + 1, lastSeen: Date.now() };
-    localStorage.setItem(SKILLS_KEY, JSON.stringify(data));
+    void fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skillKey, kind, ...meta }),
+      keepalive: true,
+    }).catch(() => {
+      /* offline / anonymous — localStorage already has the record */
+    });
   } catch {
-    // ignore storage errors
+    /* ignore */
   }
 }
 
-export function recordIncorrect(topic: string): void {
+export function recordSkillAttempt(topic: string | undefined, meta?: SkillMeta): void {
   if (!topic || typeof window === "undefined") return;
+  const data = getSkillData();
+  const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
+  data[topic] = { attempts: existing.attempts + 1, correct: existing.correct, lastSeen: Date.now() };
+  writeSkillData(data);
+  persistToServer(topic, "attempt", meta);
+}
+
+export function recordCorrect(topic: string, meta?: SkillMeta): void {
+  if (!topic || typeof window === "undefined") return;
+  const data = getSkillData();
+  const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
+  data[topic] = { attempts: existing.attempts + 1, correct: existing.correct + 1, lastSeen: Date.now() };
+  writeSkillData(data);
+  persistToServer(topic, "correct", meta);
+}
+
+export function recordIncorrect(topic: string, meta?: SkillMeta): void {
+  if (!topic || typeof window === "undefined") return;
+  const data = getSkillData();
+  const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
+  data[topic] = { attempts: existing.attempts + 1, correct: existing.correct, lastSeen: Date.now() };
+  writeSkillData(data);
+  persistToServer(topic, "incorrect", meta);
+}
+
+/** A progress row as returned by GET /api/progress. */
+export interface ServerProgressRow {
+  skill_key: string;
+  section: string | null;
+  subject: string | null;
+  year: string | null;
+  attempts: number;
+  correct: number;
+  last_seen: string;
+}
+
+/**
+ * Fetch the signed-in user's progress from the server and merge it into
+ * localStorage (server is the source of truth where it has more attempts).
+ * Returns the merged SkillData, or null if not signed in / offline.
+ */
+export async function syncSkillsFromServer(): Promise<SkillData | null> {
+  if (typeof window === "undefined") return null;
   try {
-    const data = getSkillData();
-    const existing = data[topic] || { attempts: 0, correct: 0, lastSeen: 0 };
-    data[topic] = { attempts: existing.attempts + 1, correct: existing.correct, lastSeen: Date.now() };
-    localStorage.setItem(SKILLS_KEY, JSON.stringify(data));
+    const res = await fetch("/api/progress");
+    if (!res.ok) return null;
+    const { progress } = (await res.json()) as { progress: ServerProgressRow[] };
+    const local = getSkillData();
+    for (const row of progress) {
+      const existing = local[row.skill_key];
+      // Server wins when it has at least as many attempts (cross-device truth).
+      if (!existing || row.attempts >= existing.attempts) {
+        local[row.skill_key] = {
+          attempts: row.attempts,
+          correct: row.correct,
+          lastSeen: new Date(row.last_seen).getTime(),
+        };
+      }
+    }
+    writeSkillData(local);
+    return local;
   } catch {
-    // ignore storage errors
+    return null;
   }
 }
