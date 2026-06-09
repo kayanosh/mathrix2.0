@@ -205,9 +205,41 @@ export default function AuthModal({ onClose, onAuthenticated }: AuthModalProps) 
             </form>
 
             <p className="text-[11px] text-gray-400 text-center mt-4">
-              {tab === "signup"
-                ? "By signing up you agree to our Terms of Service"
-                : "Forgot your password? Contact support"}
+              {tab === "signup" ? (
+                <>
+                  By signing up you agree to our{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-500 hover:text-indigo-700 underline"
+                  >
+                    Terms &amp; Conditions
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-500 hover:text-indigo-700 underline"
+                  >
+                    Privacy Policy
+                  </a>
+                  .
+                </>
+              ) : (
+                <>
+                  Forgot your password?{" "}
+                  <a
+                    href="/contact"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-500 hover:text-indigo-700 underline"
+                  >
+                    Contact support
+                  </a>
+                </>
+              )}
             </p>
           </div>
         </motion.div>

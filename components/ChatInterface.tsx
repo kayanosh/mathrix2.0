@@ -18,6 +18,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import TierSelector from "./TierSelector";
 import SkillMap from "./SkillMap";
 import { recordSkillAttempt } from "@/lib/skills";
+import { COMPANY } from "@/lib/company";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -984,6 +985,17 @@ function HeroLanding(props: InputProps) {
           <Camera size={14} />
           Upload a photo instead
         </button>
+
+        {/* Legal + company links */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400">
+          <Link href="/privacy" className="hover:text-gray-600 transition-colors">Privacy Policy</Link>
+          <span className="text-gray-300">·</span>
+          <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms &amp; Conditions</Link>
+          <span className="text-gray-300">·</span>
+          <Link href="/contact" className="hover:text-gray-600 transition-colors">Contact</Link>
+          <span className="text-gray-300">·</span>
+          <span>{COMPANY.name} · Reg. {COMPANY.registrationNumber}</span>
+        </div>
       </div>
     </div>
   );
