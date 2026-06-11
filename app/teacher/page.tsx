@@ -298,14 +298,22 @@ export default function TeacherModePage() {
               <span className="font-semibold text-slate-900">Teacher Mode</span>
             </div>
           </div>
-          {phase !== "browse" && (
-            <button
-              onClick={handleReset}
-              className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
-            >
-              New Lesson
-            </button>
-          )}
+          <div className="flex items-center gap-4">
+            <Link href="/teacher/classes" className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors">
+              My Classes
+            </Link>
+            <Link href="/teacher/assign" className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors">
+              Assignments
+            </Link>
+            {phase !== "browse" && (
+              <button
+                onClick={handleReset}
+                className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                New Lesson
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

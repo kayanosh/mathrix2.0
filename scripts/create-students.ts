@@ -8,12 +8,14 @@
  * same student credentials.
  *
  * CSV format (header row required), columns in any order:
- *   name,email,year_group,school,password
+ *   name,email,year_group,school,password,class_code
  * Only `name` and `email` are required. If `password` is omitted, a secure
- * random one is generated.
+ * random one is generated. If `class_code` (a class join code) is given — or the
+ * --class=CODE flag is passed — the student is added to that class roster.
  *
  * Usage:
  *   npx tsx scripts/create-students.ts path/to/students.csv
+ *   npx tsx scripts/create-students.ts path/to/students.csv --class=AB12CD
  *   # or
  *   npx ts-node --compiler-options '{"module":"commonjs"}' scripts/create-students.ts path/to/students.csv
  *
@@ -51,13 +53,28 @@ if (!supabaseUrl || !serviceKey) {
   process.exit(1);
 }
 
-const csvPath = process.argv[2];
+const args = process.argv.slice(2);
+const csvPath: string = args.find((a) => !a.startsWith("--")) ?? "";
+const classFlag = args.find((a) => a.startsWith("--class="))?.split("=")[1] || "";
 if (!csvPath) {
-  console.error("Usage: npx tsx scripts/create-students.ts path/to/students.csv");
+  console.error("Usage: npx tsx scripts/create-students.ts path/to/students.csv [--class=CODE]");
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, serviceKey);
+
+/** Resolve a class join code to a class id (cached). */
+const classCache = new Map<string, string | null>();
+async function resolveClassId(code: string): Promise<string | null> {
+  const key = code.trim().toUpperCase();
+  if (!key) return null;
+  if (classCache.has(key)) return classCache.get(key)!;
+  const { data } = await supabase.from("classes").select("id").eq("join_code", key).single();
+  const id = data?.id ?? null;
+  classCache.set(key, id);
+  if (!id) console.log(`  ! class code "${key}" not found — skipping class assignment`);
+  return id;
+}
 
 // ── Minimal CSV parser (handles simple quoted fields) ─────────────────────────
 function parseCsv(text: string): Record<string, string>[] {
@@ -152,7 +169,20 @@ async function main() {
       .update({ role: "student", school: school || null, year_group: year_group || null })
       .eq("id", data.user.id);
 
-    const status = profileError ? `CREATED (profile update failed: ${profileError.message})` : "CREATED";
+    let status = profileError ? `CREATED (profile update failed: ${profileError.message})` : "CREATED";
+
+    // Optionally add to a class roster (per-row class_code wins over the flag).
+    const classCode = row.class_code || row.class || classFlag;
+    if (classCode) {
+      const classId = await resolveClassId(classCode);
+      if (classId) {
+        const { error: memberError } = await supabase
+          .from("class_members")
+          .upsert({ class_id: classId, student_id: data.user.id }, { onConflict: "class_id,student_id" });
+        status += memberError ? ` (class add failed: ${memberError.message})` : ` (added to ${classCode.toUpperCase()})`;
+      }
+    }
+
     results.push({ name, email, password, year_group, school, status });
     console.log(`  ✓ ${email} — ${status}`);
   }

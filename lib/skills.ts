@@ -24,6 +24,10 @@ export interface SkillMeta {
   section?: string;
   subject?: string;
   year?: string;
+  /** KS2 target: 'curriculum' | 'sats' | 'eleven_plus' */
+  target?: string;
+  /** KS2 tier: 'developing' | 'secure' | 'greater_depth' */
+  tier?: string;
 }
 
 export type MasteryLevel = "unseen" | "learning" | "practiced" | "confident" | "mastered";
@@ -108,12 +112,44 @@ export function recordIncorrect(topic: string, meta?: SkillMeta): void {
   persistToServer(topic, "incorrect", meta);
 }
 
+/**
+ * Mark a topic as mastered at a given target/tier. Records locally and on the
+ * server (the server stores the highest standard reached — see /api/progress).
+ */
+export function markTopicMastered(topicKey: string, meta?: SkillMeta): void {
+  if (!topicKey || typeof window === "undefined") return;
+  const data = getSkillData();
+  const existing = data[topicKey] || { attempts: 0, correct: 0, lastSeen: 0 };
+  // Ensure the topic registers as attempted/mastered locally.
+  data[topicKey] = {
+    attempts: Math.max(existing.attempts, 5),
+    correct: Math.max(existing.correct, 5),
+    lastSeen: Date.now(),
+  };
+  writeSkillData(data);
+  if (typeof window !== "undefined") {
+    try {
+      void fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skillKey: topicKey, kind: "mastered", ...meta }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /** A progress row as returned by GET /api/progress. */
 export interface ServerProgressRow {
   skill_key: string;
   section: string | null;
   subject: string | null;
   year: string | null;
+  target: string | null;
+  tier: string | null;
+  mastered_at: string | null;
   attempts: number;
   correct: number;
   last_seen: string;

@@ -7,6 +7,9 @@ interface ProgressRow {
   section: string | null;
   subject: string | null;
   year: string | null;
+  target: string | null;
+  tier: string | null;
+  mastered_at: string | null;
   attempts: number;
   correct: number;
   last_seen: string;
@@ -28,7 +31,7 @@ export async function GET() {
 
     const { data, error } = await supabaseAdmin
       .from("skill_progress")
-      .select("skill_key, section, subject, year, attempts, correct, last_seen")
+      .select("skill_key, section, subject, year, target, tier, mastered_at, attempts, correct, last_seen")
       .eq("user_id", user.id);
 
     if (error) {
@@ -47,7 +50,8 @@ export async function GET() {
 /**
  * POST /api/progress
  * Records a single skill attempt for the signed-in user.
- * Body: { skillKey, kind: "attempt" | "correct" | "incorrect", section?, subject?, year? }
+ * Body: { skillKey, kind: "attempt" | "correct" | "incorrect" | "mastered",
+ *         section?, subject?, year?, target?, tier? }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -63,8 +67,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing skillKey" }, { status: 400 });
     }
 
-    const kind: string = body.kind === "correct" || body.kind === "incorrect" ? body.kind : "attempt";
+    const allowed = ["correct", "incorrect", "mastered", "attempt"];
+    const kind: string = allowed.includes(body.kind) ? body.kind : "attempt";
     const correctDelta = kind === "correct" ? 1 : 0;
+    const mastered = kind === "mastered";
 
     const { error } = await supabaseAdmin.rpc("record_skill_attempt", {
       p_user_id: user.id,
@@ -73,6 +79,9 @@ export async function POST(req: NextRequest) {
       p_section: body.section ?? null,
       p_subject: body.subject ?? null,
       p_year: body.year ?? null,
+      p_target: body.target ?? null,
+      p_tier: body.tier ?? null,
+      p_mastered: mastered,
     });
 
     if (error) {

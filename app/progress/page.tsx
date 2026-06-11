@@ -11,6 +11,8 @@ import { RadialProgress, MasteryDistribution } from "@/components/ProgressChart"
 const SUBJECT_COLOR: Record<string, string> = {
   maths: "#4f46e5",
   english: "#e11d48",
+  science: "#059669",
+  arabic: "#0891b2",
   vr: "#d97706",
   nvr: "#7c3aed",
 };
@@ -95,7 +97,7 @@ export default function ProgressPage() {
       bySubject.set(subjectId, list);
     }
 
-    const order = ["maths", "english", "vr", "nvr"];
+    const order = ["maths", "english", "science", "arabic", "vr", "nvr"];
     return Array.from(bySubject.entries())
       .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
       .map(([id, skills]) => {
@@ -129,6 +131,17 @@ export default function ProgressPage() {
     const mastered = groups.reduce((s, g) => s + g.mastered, 0);
     return { attempted, mastered };
   }, [groups]);
+
+  // Reward badges: topics where a mastery quiz was passed (mastered_at set).
+  const badges = useMemo(() => {
+    const earned = rows.filter((r) => r.mastered_at);
+    const byTier = { greater_depth: 0, secure: 0, developing: 0 } as Record<string, number>;
+    for (const r of earned) {
+      const t = r.tier || "secure";
+      byTier[t] = (byTier[t] || 0) + 1;
+    }
+    return { total: earned.length, byTier, list: earned };
+  }, [rows]);
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -202,6 +215,44 @@ export default function ProgressPage() {
                 </p>
               </div>
             </section>
+
+            {/* Reward badges */}
+            {badges.total > 0 && (
+              <section className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">🏅</span>
+                  <h2 className="font-semibold text-amber-800">Badges earned ({badges.total})</h2>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {badges.byTier.greater_depth > 0 && (
+                    <span className="rounded-full bg-amber-400 text-amber-950 px-3 py-1 text-sm font-bold">
+                      🥇 Greater Depth × {badges.byTier.greater_depth}
+                    </span>
+                  )}
+                  {badges.byTier.secure > 0 && (
+                    <span className="rounded-full bg-gray-200 text-gray-700 px-3 py-1 text-sm font-bold">
+                      🥈 Secure × {badges.byTier.secure}
+                    </span>
+                  )}
+                  {badges.byTier.developing > 0 && (
+                    <span className="rounded-full bg-orange-200 text-orange-800 px-3 py-1 text-sm font-bold">
+                      🥉 Developing × {badges.byTier.developing}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {badges.list.slice(0, 16).map((b) => (
+                    <span
+                      key={b.skill_key}
+                      className="rounded-lg bg-white/70 px-2.5 py-1 text-[12px] text-amber-900 ring-1 ring-amber-200"
+                      title={b.skill_key}
+                    >
+                      ⭐ {b.skill_key.replace(/ — Mastery quiz$/, "")}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Per-subject cards */}
             <div className="space-y-5">

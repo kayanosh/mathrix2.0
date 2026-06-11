@@ -6,14 +6,15 @@
  *
  * Subjects covered: Maths, English, Verbal Reasoning (VR), Non-Verbal Reasoning (NVR).
  *
- * This dataset is based on the standard England National Curriculum and common
- * 11+ (GL / CEM) syllabuses. Adjust topics/subtopics here to match the school's
- * own scheme of work — everything in the UI is driven from this file.
+ * The "curriculum" content mirrors Barnet Hill Academy's Year 5 & Year 6
+ * Long Term Plans (2025-2026) for Maths and English. The SATs and 11+ sections
+ * follow the standard KS2 SATs structure and common 11+ (GL / CEM) syllabuses.
+ * Everything in the UI is driven from this file — edit here to adjust content.
  */
 
 export type KS2Year = "Year 5" | "Year 6";
 export type KS2Section = "curriculum" | "sats" | "eleven_plus";
-export type KS2SubjectId = "maths" | "english" | "vr" | "nvr";
+export type KS2SubjectId = "maths" | "english" | "science" | "arabic" | "vr" | "nvr";
 
 export interface KS2Topic {
   id: string;
@@ -39,6 +40,8 @@ export const KS2_SECTIONS: { id: KS2Section; label: string; blurb: string }[] = 
 export const KS2_SUBJECT_META: Record<KS2SubjectId, { name: string; icon: string }> = {
   maths: { name: "Mathematics", icon: "📐" },
   english: { name: "English", icon: "📖" },
+  science: { name: "Science", icon: "🔬" },
+  arabic: { name: "Arabic", icon: "🔤" },
   vr: { name: "Verbal Reasoning", icon: "🧩" },
   nvr: { name: "Non-Verbal Reasoning", icon: "🔷" },
 };
@@ -49,138 +52,348 @@ export const KS2_SUBJECT_META: Record<KS2SubjectId, { name: string; icon: string
 
 const Y5_MATHS: KS2Topic[] = [
   {
-    id: "y5-place-value",
-    name: "Number & Place Value",
+    id: "y5m-place-value",
+    name: "Place Value",
     subtopics: [
-      "Read and write numbers to 1,000,000",
+      "Numbers to 10,000 and 100,000",
+      "Numbers to 1,000,000",
       "Place value of each digit",
       "Powers of 10",
-      "Round to the nearest 10, 100, 1000, 10,000, 100,000",
-      "Negative numbers in context",
-      "Roman numerals to 1000 (M)",
+      "10, 100, 1000, 10,000 and 100,000 more or less",
+      "Compare and order numbers to 1,000,000",
+      "Round to the nearest 10, 100, 1000, 10,000 and 100,000",
+      "Roman numerals to 1000",
     ],
   },
   {
-    id: "y5-add-subtract",
+    id: "y5m-add-subtract",
     name: "Addition & Subtraction",
     subtopics: [
+      "Mental addition and subtraction",
       "Column addition of numbers with more than 4 digits",
       "Column subtraction of numbers with more than 4 digits",
-      "Mental addition and subtraction with larger numbers",
-      "Rounding to check answers",
-      "Multi-step word problems",
+      "Round to check answers",
+      "Inverse operations",
+      "Multi-step addition and subtraction problems",
     ],
   },
   {
-    id: "y5-multiply-divide",
-    name: "Multiplication & Division",
+    id: "y5m-mult-div-a",
+    name: "Multiplication & Division A",
     subtopics: [
-      "Multiples, factors and factor pairs",
-      "Prime numbers, square numbers and cube numbers",
-      "Multiply and divide by 10, 100 and 1000",
-      "Multiply up to 4-digit by a 1- or 2-digit number",
-      "Divide up to 4-digit by a 1-digit number with remainders",
-      "Multiplication and division word problems",
+      "Multiples",
+      "Factors and factor pairs",
+      "Common factors",
+      "Prime numbers",
+      "Square numbers",
+      "Cube numbers",
+      "Multiply by 10, 100 and 1000",
+      "Divide by 10, 100 and 1000",
     ],
   },
   {
-    id: "y5-fractions",
-    name: "Fractions, Decimals & Percentages",
+    id: "y5m-fractions",
+    name: "Fractions",
     subtopics: [
       "Equivalent fractions",
-      "Improper fractions and mixed numbers",
+      "Improper fractions to mixed numbers",
+      "Mixed numbers to improper fractions",
       "Compare and order fractions",
-      "Add and subtract fractions with the same denominator and multiples",
-      "Multiply proper fractions by whole numbers",
-      "Decimals up to 3 decimal places",
-      "Recognise the percent symbol and simple percentages",
+      "Add and subtract fractions",
+      "Add and subtract mixed numbers",
+      "Multiply fractions by integers",
+      "Fraction of an amount",
     ],
   },
   {
-    id: "y5-measurement",
-    name: "Measurement",
+    id: "y5m-mult-div-b",
+    name: "Multiplication & Division B",
     subtopics: [
-      "Convert between metric units",
-      "Understand approximate metric/imperial equivalents",
-      "Perimeter of composite rectilinear shapes",
-      "Area of rectangles (and estimate irregular areas)",
-      "Estimate volume and capacity",
-      "Solve problems involving money and time",
+      "Multiply up to 4-digit by 1-digit",
+      "Multiply 2-digit by 2-digit",
+      "Multiply 3-digit and 4-digit by 2-digit",
+      "Divide 4-digit by 1-digit",
+      "Division with remainders",
+      "Multiplication and division problems",
     ],
   },
   {
-    id: "y5-geometry-shape",
-    name: "Geometry — Properties of Shapes",
+    id: "y5m-decimals-percentages",
+    name: "Decimals & Percentages",
     subtopics: [
-      "Measure and draw angles in degrees",
-      "Angles at a point, on a line and a turn",
-      "Reflex, acute, obtuse and right angles",
-      "Regular and irregular polygons",
-      "3D shapes from 2D representations",
+      "Decimals up to 2 decimal places",
+      "Thousandths",
+      "Compare and order decimals",
+      "Round decimals",
+      "Understand percentages",
+      "Percentages as fractions and decimals",
+      "Equivalent fractions, decimals and percentages",
     ],
   },
   {
-    id: "y5-geometry-position",
-    name: "Geometry — Position & Direction",
+    id: "y5m-perimeter-area",
+    name: "Perimeter & Area",
     subtopics: [
-      "Reflection of shapes",
-      "Translation of shapes",
-      "Describe position using coordinates (first quadrant)",
+      "Perimeter of rectangles",
+      "Perimeter of rectilinear shapes",
+      "Area of rectangles",
+      "Area of compound shapes",
+      "Estimate area of irregular shapes",
     ],
   },
   {
-    id: "y5-statistics",
+    id: "y5m-statistics",
     name: "Statistics",
     subtopics: [
-      "Complete, read and interpret line graphs",
-      "Read and interpret tables and timetables",
+      "Read and interpret line graphs",
+      "Draw line graphs",
+      "Read and interpret tables",
+      "Two-way tables",
+      "Timetables",
+    ],
+  },
+  {
+    id: "y5m-shape",
+    name: "Shape",
+    subtopics: [
+      "Measure angles in degrees",
+      "Draw angles",
+      "Angles on a straight line",
+      "Angles around a point",
+      "Calculate missing angles",
+      "Regular and irregular polygons",
+      "3D shapes",
+    ],
+  },
+  {
+    id: "y5m-position-direction",
+    name: "Position & Direction",
+    subtopics: [
+      "Read and plot coordinates (first quadrant)",
+      "Translation",
+      "Reflection",
+      "Lines of symmetry",
+    ],
+  },
+  {
+    id: "y5m-decimals",
+    name: "Decimals",
+    subtopics: [
+      "Add and subtract decimals",
+      "Decimal sequences",
+      "Multiply decimals by 10, 100 and 1000",
+      "Divide decimals by 10, 100 and 1000",
+    ],
+  },
+  {
+    id: "y5m-negative-numbers",
+    name: "Negative Numbers",
+    subtopics: [
+      "Understand negative numbers",
+      "Count through zero",
+      "Compare and order negative numbers",
+      "Negative number problems",
+    ],
+  },
+  {
+    id: "y5m-converting-units",
+    name: "Converting Units",
+    subtopics: [
+      "Metric units of length, mass and capacity",
+      "Convert metric units",
+      "Imperial units",
+      "Units of time",
+      "Timetables and time problems",
+    ],
+  },
+  {
+    id: "y5m-volume",
+    name: "Volume",
+    subtopics: [
+      "What is volume?",
+      "Compare volume",
+      "Estimate volume",
+      "Estimate capacity",
     ],
   },
 ];
 
 const Y5_ENGLISH: KS2Topic[] = [
   {
-    id: "y5-reading",
-    name: "Reading Comprehension",
+    id: "y5e-reading",
+    name: "Reading — Class Texts",
     subtopics: [
-      "Retrieve and record information",
-      "Draw inferences and justify with evidence",
-      "Predict from details stated and implied",
-      "Summarise main ideas across paragraphs",
-      "Identify how language and structure contribute to meaning",
+      "Stay Where You Are and Then Leave",
+      "Kensuke's Kingdom",
+      "Beetle Boy",
+      "Street Child",
+      "Skellig",
+      "Tom's Midnight Garden",
     ],
   },
   {
-    id: "y5-writing",
-    name: "Writing Composition",
+    id: "y5e-writing",
+    name: "Writing — Genres",
     subtopics: [
-      "Plan writing for purpose and audience",
-      "Organise paragraphs around a theme",
-      "Use cohesive devices within and across paragraphs",
-      "Describe settings, characters and atmosphere",
-      "Use dialogue to convey character and advance action",
+      "Classic Fiction",
+      "Letter Writing",
+      "Stories with a Scary Setting",
+      "Explanation Texts (with complex diagrams)",
+      "Classical Poetry",
+      "Stories with Mystery Settings",
+      "Recounts: Biographies & Autobiographies",
+      "Playscripts",
+      "Drama and Roleplay",
+      "Stories with a Fantasy Setting",
+      "Poetry — Haiku",
+      "Instructions",
+      "Non-Chronological Reports (Posters)",
+      "Poetry — Free Verse",
+      "Legends",
+      "Newspaper Reports",
+      "Persuasive Texts — Advertisements (Leaflets)",
+      "Discussion Texts",
     ],
   },
   {
-    id: "y5-grammar",
-    name: "Grammar & Punctuation",
+    id: "y5e-gps",
+    name: "Grammar, Punctuation & Spelling",
     subtopics: [
-      "Modal verbs and adverbs (possibility)",
-      "Relative clauses with who, which, where, when, whose, that",
-      "Adverbials of time, place and number",
+      "Relative clauses",
+      "Modal verbs and adverbs",
       "Brackets, dashes and commas for parenthesis",
-      "Expanded noun phrases",
+      "Adverbials of time, place and number",
+      "Prefixes and suffixes",
+      "Homophones",
+      "Year 5/6 statutory spelling words",
+    ],
+  },
+];
+
+const Y5_SCIENCE: KS2Topic[] = [
+  {
+    id: "y5s-forces",
+    name: "Forces — Unbalanced Forces",
+    subtopics: [
+      "Gravity and the force of gravity on Earth",
+      "Air resistance",
+      "Water resistance",
+      "Friction",
+      "Mechanisms: levers, pulleys and gears",
     ],
   },
   {
-    id: "y5-spelling-vocab",
-    name: "Spelling & Vocabulary",
+    id: "y5s-earth-space",
+    name: "Forces — Earth and Space",
     subtopics: [
-      "Prefixes and suffixes",
-      "Homophones and commonly confused words",
-      "Silent letters",
-      "Words ending in -ough",
-      "Synonyms and antonyms",
+      "The Sun, Earth and Moon as spherical bodies",
+      "Earth's rotation: day and night",
+      "The Moon's orbit of the Earth",
+      "The planets of the solar system",
+    ],
+  },
+  {
+    id: "y5s-materials-properties",
+    name: "Materials — Properties and Changes",
+    subtopics: [
+      "Compare and group everyday materials",
+      "Solubility and dissolving",
+      "Thermal and electrical conductivity",
+      "Hardness, transparency and magnetism",
+      "Reversible changes",
+    ],
+  },
+  {
+    id: "y5s-materials-mixtures",
+    name: "Materials — Mixtures and Separation",
+    subtopics: [
+      "Separating mixtures: filtering, sieving and evaporating",
+      "Dissolving and recovering solutes",
+      "Irreversible changes and new materials",
+    ],
+  },
+  {
+    id: "y5s-life-cycles",
+    name: "Living Things — Life Cycles and Reproduction",
+    subtopics: [
+      "Life cycles of mammals, amphibians, insects and birds",
+      "The life cycle of a plant",
+      "Reproduction in plants (pollination)",
+      "Reproduction in animals",
+    ],
+  },
+  {
+    id: "y5s-human-timeline",
+    name: "Animals Including Humans — Human Timeline & Puberty",
+    subtopics: [
+      "Changes from birth to old age",
+      "Stages of human development",
+      "Changes during puberty",
+      "Gestation periods of animals",
+    ],
+  },
+  {
+    id: "y5s-making-connections",
+    name: "Making Connections (Working Scientifically)",
+    subtopics: [
+      "Planning a fair test",
+      "Taking measurements and recording results",
+      "Drawing conclusions from evidence",
+    ],
+  },
+];
+
+const Y5_ARABIC: KS2Topic[] = [
+  {
+    id: "y5a-daily-routine",
+    name: "My Daily Routine (Morning & Evening)",
+    subtopics: [
+      "Morning routine vocabulary",
+      "Evening routine vocabulary",
+      "Telling the time",
+      "Describing daily activities",
+    ],
+  },
+  {
+    id: "y5a-free-time",
+    name: "Entertainment & Free Time",
+    subtopics: [
+      "Hobbies vocabulary",
+      "Free time activities",
+      "Expressing likes and dislikes",
+    ],
+  },
+  {
+    id: "y5a-school",
+    name: "Life at School",
+    subtopics: [
+      "School subjects",
+      "Classroom objects",
+      "Phrases for the school day",
+    ],
+  },
+  {
+    id: "y5a-achievements",
+    name: "Achievements",
+    subtopics: [
+      "Talking about accomplishments",
+      "Introduction to the past tense",
+    ],
+  },
+  {
+    id: "y5a-celebrations",
+    name: "Celebrations",
+    subtopics: [
+      "Islamic celebrations vocabulary",
+      "Describing events",
+    ],
+  },
+  {
+    id: "y5a-feelings",
+    name: "Thoughts & Feelings",
+    subtopics: [
+      "Emotions vocabulary",
+      "Expressing opinions",
     ],
   },
 ];
@@ -191,150 +404,343 @@ const Y5_ENGLISH: KS2Topic[] = [
 
 const Y6_MATHS: KS2Topic[] = [
   {
-    id: "y6-place-value",
-    name: "Number & Place Value",
+    id: "y6m-place-value",
+    name: "Place Value",
     subtopics: [
-      "Read and write numbers to 10,000,000",
-      "Round any whole number to a required degree of accuracy",
-      "Use negative numbers and calculate intervals across zero",
+      "Numbers to 1,000,000",
+      "Numbers to 10,000,000",
+      "Read, write and compare numbers to 10,000,000",
+      "Place value of each digit",
+      "Round any number",
+      "Negative numbers",
     ],
   },
   {
-    id: "y6-four-operations",
-    name: "Four Operations",
+    id: "y6m-add-subtract",
+    name: "Addition & Subtraction",
     subtopics: [
-      "Long multiplication of up to 4-digit by 2-digit",
-      "Long division with whole-number and decimal remainders",
-      "Order of operations (BIDMAS / BODMAS)",
-      "Common factors, common multiples and prime numbers",
-      "Multi-step problems choosing operations",
+      "Add and subtract integers",
+      "Common factors and common multiples",
+      "Prime numbers",
+      "Mental calculations and estimation",
+      "Reason from known facts",
+      "Multi-step problems",
     ],
   },
   {
-    id: "y6-fractions",
+    id: "y6m-mult-div",
+    name: "Multiplication & Division",
+    subtopics: [
+      "Long multiplication",
+      "Short division",
+      "Long division",
+      "Division with remainders",
+      "Order of operations (BIDMAS)",
+      "Multiplication and division problems",
+    ],
+  },
+  {
+    id: "y6m-fractions",
     name: "Fractions",
     subtopics: [
       "Simplify fractions",
       "Compare and order fractions",
-      "Add and subtract fractions with different denominators",
-      "Multiply pairs of proper fractions",
-      "Divide proper fractions by whole numbers",
-      "Convert fractions to decimals",
+      "Add and subtract fractions",
+      "Add and subtract mixed numbers",
+      "Multiply fractions",
+      "Divide fractions by integers",
+      "Fraction of an amount",
     ],
   },
   {
-    id: "y6-decimals-percentages",
-    name: "Decimals & Percentages",
+    id: "y6m-converting-units",
+    name: "Converting Units",
     subtopics: [
-      "Multiply and divide decimals",
-      "Round decimals to a given number of places",
-      "Find percentages of amounts",
-      "Equivalence of fractions, decimals and percentages",
+      "Metric measures",
+      "Convert metric measures",
+      "Miles and kilometres",
+      "Imperial measures",
     ],
   },
   {
-    id: "y6-ratio-proportion",
-    name: "Ratio & Proportion",
+    id: "y6m-ratio",
+    name: "Ratio",
     subtopics: [
-      "Relative sizes and the ratio symbol",
-      "Scale factors and scaling problems",
-      "Unequal sharing using fractions and multiples",
-      "Percentage comparison problems",
+      "Ratio and the ratio symbol",
+      "Calculate ratio",
+      "Scale factors and scale drawings",
+      "Use ratio to compare",
+      "Proportion problems",
+      "Recipes",
     ],
   },
   {
-    id: "y6-algebra",
+    id: "y6m-algebra",
     name: "Algebra",
     subtopics: [
-      "Use simple formulae",
-      "Generate and describe linear number sequences",
-      "Express missing number problems algebraically",
-      "Find pairs of numbers that satisfy an equation with two unknowns",
+      "One-step and two-step function machines",
+      "Form expressions",
+      "Substitution",
+      "Formulae",
+      "Form and solve equations",
+      "Linear number sequences",
+      "Find pairs of values",
     ],
   },
   {
-    id: "y6-measurement",
-    name: "Measurement",
+    id: "y6m-decimals",
+    name: "Decimals",
     subtopics: [
-      "Convert between metric and imperial units",
-      "Area and perimeter of shapes",
-      "Area of triangles and parallelograms",
-      "Volume of cubes and cuboids",
+      "Decimals as fractions",
+      "Multiply and divide by 10, 100 and 1000",
+      "Multiply decimals",
+      "Divide decimals",
+      "Decimals and fractions",
     ],
   },
   {
-    id: "y6-geometry-shape",
-    name: "Geometry — Properties of Shapes",
+    id: "y6m-fdp",
+    name: "Fractions, Decimals & Percentages",
     subtopics: [
-      "Draw and measure angles accurately",
-      "Build and recognise nets of 3D shapes",
-      "Parts of a circle: radius, diameter, circumference",
-      "Angles in triangles, quadrilaterals and polygons",
-      "Vertically opposite angles",
+      "Equivalent fractions, decimals and percentages",
+      "Order fractions, decimals and percentages",
+      "Percentage of an amount",
+      "Percentages — missing values",
     ],
   },
   {
-    id: "y6-geometry-position",
-    name: "Geometry — Position & Direction",
+    id: "y6m-area-perimeter-volume",
+    name: "Area, Perimeter & Volume",
     subtopics: [
-      "Coordinates in all four quadrants",
-      "Translate and reflect shapes on a grid",
+      "Area and perimeter",
+      "Area of triangles",
+      "Area of parallelograms",
+      "Volume of cuboids",
+      "Volume of shapes",
     ],
   },
   {
-    id: "y6-statistics",
+    id: "y6m-statistics",
     name: "Statistics",
     subtopics: [
-      "Interpret and construct pie charts",
-      "Interpret and construct line graphs",
-      "Calculate and interpret the mean as an average",
+      "Read and interpret line graphs",
+      "Draw line graphs",
+      "Read and interpret pie charts",
+      "Pie charts with percentages",
+      "The mean",
+    ],
+  },
+  {
+    id: "y6m-shape",
+    name: "Shape",
+    subtopics: [
+      "Measure and classify angles",
+      "Calculate angles",
+      "Vertically opposite angles",
+      "Angles in a triangle",
+      "Angles in quadrilaterals and polygons",
+      "Draw shapes accurately",
+      "Nets of 3D shapes",
+      "Parts of a circle",
+    ],
+  },
+  {
+    id: "y6m-position-direction",
+    name: "Position & Direction",
+    subtopics: [
+      "Coordinates in four quadrants",
+      "Translation",
+      "Reflection",
+    ],
+  },
+  {
+    id: "y6m-problem-solving",
+    name: "Themed Projects, Consolidation & Problem Solving",
+    subtopics: [
+      "Multi-step problem solving",
+      "Reasoning and investigations",
+      "SATs revision and consolidation",
     ],
   },
 ];
 
 const Y6_ENGLISH: KS2Topic[] = [
   {
-    id: "y6-reading",
-    name: "Reading Comprehension",
+    id: "y6e-reading",
+    name: "Reading — Class Texts",
     subtopics: [
-      "Inference with evidence from the text",
-      "Identify and discuss author's intent and viewpoint",
-      "Explore figurative and descriptive language",
-      "Compare characters, settings and themes within and across texts",
-      "Distinguish fact from opinion",
+      "Rose Blanche",
+      "Holes",
+      "Shackleton's Journey",
+      "How to Live Forever",
+      "Macbeth",
+      "The Other Side of Truth",
     ],
   },
   {
-    id: "y6-writing",
-    name: "Writing Composition",
+    id: "y6e-writing",
+    name: "Writing — Genres",
     subtopics: [
-      "Select formal and informal vocabulary and structures",
-      "Cohesion across paragraphs and whole texts",
-      "Use the passive voice for effect",
-      "Integrate dialogue and description purposefully",
-      "Proofread and edit for accuracy and impact",
+      "Informal Letter",
+      "Diary Entry",
+      "Poetry — War Poems",
+      "Fiction Genres",
+      "Poetry — Cinquain",
+      "Persuasion",
+      "Newspaper Report",
+      "Legends",
+      "Instructions",
+      "Recounts",
+      "Drama and Roleplay",
+      "Explanation",
+      "Adventure Story",
+      "Balanced/Unbalanced Arguments",
+      "Stories with Flashbacks",
+      "Character Viewpoint Narrative",
+      "Autobiography",
+      "Formal Letter",
+      "Poetry — Free Verse",
+      "Stories from Other Cultures",
     ],
   },
   {
-    id: "y6-grammar",
-    name: "Grammar & Punctuation",
+    id: "y6e-gps",
+    name: "Grammar, Punctuation & Spelling",
     subtopics: [
       "Active and passive voice",
-      "Subjunctive form in formal writing",
-      "Subject and object of a sentence",
-      "Semicolons, colons and dashes to mark clauses",
-      "Bullet points and hyphens",
-      "Synonyms and antonyms for formal vocabulary",
+      "Subjunctive form",
+      "Semicolons, colons and dashes",
+      "Hyphens, bullet points and ellipsis",
+      "Synonyms and antonyms",
+      "Year 5/6 statutory spelling words",
+    ],
+  },
+];
+
+const Y6_SCIENCE: KS2Topic[] = [
+  {
+    id: "y6s-classification",
+    name: "Living Things — Classification",
+    subtopics: [
+      "Classifying living things into broad groups",
+      "Micro-organisms, plants and animals",
+      "Classification keys",
+      "Comparing big and small organisms",
     ],
   },
   {
-    id: "y6-spelling-vocab",
-    name: "Spelling & Vocabulary",
+    id: "y6s-evolution",
+    name: "Evolution and Inheritance",
     subtopics: [
-      "Suffixes -cious / -tious and -able / -ible",
-      "Homophones and near-homophones",
-      "The Year 5/6 statutory spelling list",
-      "Word families and etymology",
+      "Inheritance and offspring variation",
+      "Adaptation to environments",
+      "Natural selection and evolution",
+      "Fossils as evidence",
+    ],
+  },
+  {
+    id: "y6s-circulation",
+    name: "Animals Including Humans — Circulation and Health",
+    subtopics: [
+      "The heart and circulatory system",
+      "Blood and blood vessels",
+      "Diet, exercise and lifestyle",
+      "Impact of drugs and alcohol on the body",
+    ],
+  },
+  {
+    id: "y6s-electricity",
+    name: "Energy — Circuits, Batteries and Switches",
+    subtopics: [
+      "Components of a circuit",
+      "Voltage and the brightness of bulbs",
+      "Circuit symbols and diagrams",
+      "Switches and how they work",
+    ],
+  },
+  {
+    id: "y6s-light",
+    name: "Light and Reflection",
+    subtopics: [
+      "How light travels",
+      "Reflection",
+      "How we see objects",
+      "Shadows and the shape of objects",
+    ],
+  },
+  {
+    id: "y6s-fossils",
+    name: "Fossils",
+    subtopics: [
+      "How fossils are formed",
+      "What fossils tell us about the past",
+      "The work of Mary Anning",
+    ],
+  },
+  {
+    id: "y6s-making-connections",
+    name: "Making Connections (Working Scientifically)",
+    subtopics: [
+      "Planning enquiries and fair tests",
+      "Recording and presenting data",
+      "Drawing evidence-based conclusions",
+    ],
+  },
+];
+
+const Y6_ARABIC: KS2Topic[] = [
+  {
+    id: "y6a-healthy-lifestyle",
+    name: "Healthy Lifestyle (Healthy Habits)",
+    subtopics: [
+      "Healthy habits vocabulary",
+      "Exercise and wellbeing",
+      "Giving advice",
+    ],
+  },
+  {
+    id: "y6a-food-drink",
+    name: "Food & Drink (Preferences)",
+    subtopics: [
+      "Food and drink vocabulary",
+      "Expressing preferences",
+      "Ordering food",
+    ],
+  },
+  {
+    id: "y6a-city-environment",
+    name: "My City & the Environment",
+    subtopics: [
+      "Places in the city",
+      "Giving and following directions",
+      "The environment vocabulary",
+    ],
+  },
+  {
+    id: "y6a-travel-tourism",
+    name: "Travel & Tourism",
+    subtopics: [
+      "Travel vocabulary",
+      "Means of transport",
+      "Holidays and tourism",
+    ],
+  },
+  {
+    id: "y6a-house-furniture",
+    name: "House & Furniture",
+    subtopics: [
+      "Rooms of the house",
+      "Furniture vocabulary",
+      "Describing your home",
+    ],
+  },
+  {
+    id: "y6a-descriptions",
+    name: "Descriptions",
+    subtopics: [
+      "Describing people",
+      "Describing places",
+      "Adjectives and agreement",
     ],
   },
 ];
@@ -623,8 +1029,18 @@ function subject(id: KS2SubjectId, topics: KS2Topic[]): KS2SubjectContent {
  * For "sats" and "eleven_plus" the same set applies regardless of year toggle.
  */
 const CURRICULUM_BY_YEAR: Record<KS2Year, KS2SubjectContent[]> = {
-  "Year 5": [subject("maths", Y5_MATHS), subject("english", Y5_ENGLISH)],
-  "Year 6": [subject("maths", Y6_MATHS), subject("english", Y6_ENGLISH)],
+  "Year 5": [
+    subject("maths", Y5_MATHS),
+    subject("english", Y5_ENGLISH),
+    subject("science", Y5_SCIENCE),
+    subject("arabic", Y5_ARABIC),
+  ],
+  "Year 6": [
+    subject("maths", Y6_MATHS),
+    subject("english", Y6_ENGLISH),
+    subject("science", Y6_SCIENCE),
+    subject("arabic", Y6_ARABIC),
+  ],
 };
 
 const SATS_SUBJECTS: KS2SubjectContent[] = [
@@ -664,4 +1080,82 @@ export function sectionUsesYear(section: KS2Section): boolean {
  */
 export function ks2SkillKey(topicName: string, subtopic: string): string {
   return `${topicName} — ${subtopic}`;
+}
+
+export interface KS2TopicContext {
+  topic: KS2Topic;
+  subject: KS2SubjectContent;
+  section: KS2Section;
+  year: KS2Year;
+  /** Sibling topics within the same subject/section/year (for next-topic nav). */
+  siblings: KS2Topic[];
+}
+
+/** Every (section, year) pair the dataset exposes. */
+function allSectionYearPairs(): Array<{ section: KS2Section; year: KS2Year }> {
+  const pairs: Array<{ section: KS2Section; year: KS2Year }> = [];
+  for (const s of KS2_SECTIONS) {
+    if (sectionUsesYear(s.id)) {
+      for (const y of KS2_YEARS) pairs.push({ section: s.id, year: y });
+    } else {
+      // year is irrelevant; use the first as a canonical value
+      pairs.push({ section: s.id, year: KS2_YEARS[0] });
+    }
+  }
+  return pairs;
+}
+
+/** Find a topic (and its full context) by its globally-unique id. */
+export function getKS2TopicById(topicId: string): KS2TopicContext | null {
+  for (const { section, year } of allSectionYearPairs()) {
+    const subjects = getKS2Content(section, year);
+    for (const subject of subjects) {
+      const topic = subject.topics.find((t) => t.id === topicId);
+      if (topic) {
+        return { topic, subject, section, year, siblings: subject.topics };
+      }
+    }
+  }
+  return null;
+}
+
+export interface KS2TopicSummary {
+  id: string;
+  name: string;
+  subjectId: KS2SubjectId;
+  subjectName: string;
+  section: KS2Section;
+  year: KS2Year;
+}
+
+/** A flat list of every topic across all sections/years (for pickers). */
+export function listAllKS2Topics(): KS2TopicSummary[] {
+  const out: KS2TopicSummary[] = [];
+  const seen = new Set<string>();
+  for (const { section, year } of allSectionYearPairs()) {
+    for (const subject of getKS2Content(section, year)) {
+      for (const topic of subject.topics) {
+        if (seen.has(topic.id)) continue;
+        seen.add(topic.id);
+        out.push({
+          id: topic.id,
+          name: topic.name,
+          subjectId: subject.id,
+          subjectName: subject.name,
+          section,
+          year,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** The next topic in the same subject/section/year, or null if last. */
+export function getNextKS2Topic(topicId: string): KS2TopicContext | null {
+  const ctx = getKS2TopicById(topicId);
+  if (!ctx) return null;
+  const idx = ctx.siblings.findIndex((t) => t.id === topicId);
+  const next = ctx.siblings[idx + 1];
+  return next ? getKS2TopicById(next.id) : null;
 }

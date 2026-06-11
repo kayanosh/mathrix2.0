@@ -250,13 +250,21 @@ create table if not exists public.skill_progress (
   user_id uuid not null references public.profiles(id) on delete cascade,
   skill_key text not null,              -- "Topic — subtopic"
   section text,                         -- 'curriculum' | 'sats' | 'eleven_plus' | null
-  subject text,                         -- 'maths' | 'english' | 'vr' | 'nvr' | null
+  subject text,                         -- 'maths' | 'english' | 'science' | 'arabic' | 'vr' | 'nvr' | null
   year text,                            -- 'Year 5' | 'Year 6' | null
+  target text,                          -- 'curriculum' | 'sats' | 'eleven_plus' | null
+  tier text,                            -- 'developing' | 'secure' | 'greater_depth' | null
+  mastered_at timestamptz,              -- set when a mastery quiz is passed
   attempts integer not null default 0,
   correct integer not null default 0,
   last_seen timestamptz not null default now(),
   unique (user_id, skill_key)
 );
+
+-- For pre-existing deployments: add the newer columns if missing.
+alter table public.skill_progress add column if not exists target text;
+alter table public.skill_progress add column if not exists tier text;
+alter table public.skill_progress add column if not exists mastered_at timestamptz;
 
 alter table public.skill_progress enable row level security;
 
@@ -277,15 +285,25 @@ create or replace function public.record_skill_attempt(
   p_correct_delta integer,
   p_section text default null,
   p_subject text default null,
-  p_year text default null
+  p_year text default null,
+  p_target text default null,
+  p_tier text default null,
+  p_mastered boolean default false
 )
 returns void
 language plpgsql
 security definer
 as $$
 begin
-  insert into public.skill_progress (user_id, skill_key, section, subject, year, attempts, correct, last_seen)
-  values (p_user_id, p_skill_key, p_section, p_subject, p_year, 1, greatest(p_correct_delta, 0), now())
+  insert into public.skill_progress (
+    user_id, skill_key, section, subject, year, target, tier,
+    attempts, correct, mastered_at, last_seen
+  )
+  values (
+    p_user_id, p_skill_key, p_section, p_subject, p_year, p_target, p_tier,
+    1, greatest(p_correct_delta, 0),
+    case when p_mastered then now() else null end, now()
+  )
   on conflict (user_id, skill_key)
   do update set
     attempts = public.skill_progress.attempts + 1,
@@ -293,6 +311,11 @@ begin
     section = coalesce(excluded.section, public.skill_progress.section),
     subject = coalesce(excluded.subject, public.skill_progress.subject),
     year = coalesce(excluded.year, public.skill_progress.year),
+    target = coalesce(excluded.target, public.skill_progress.target),
+    tier = coalesce(excluded.tier, public.skill_progress.tier),
+    -- keep the first time mastery was reached
+    mastered_at = case when p_mastered then coalesce(public.skill_progress.mastered_at, now())
+                       else public.skill_progress.mastered_at end,
     last_seen = now();
 end;
 $$;
@@ -306,3 +329,90 @@ alter table public.profiles
     check (role in ('student', 'teacher', 'admin'));
 alter table public.profiles add column if not exists school text;
 alter table public.profiles add column if not exists year_group text;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TEACHER CLASSES — rosters & per-pupil tracking
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.classes (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  join_code text not null unique,
+  school text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.class_members (
+  class_id uuid not null references public.classes(id) on delete cascade,
+  student_id uuid not null references public.profiles(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  primary key (class_id, student_id)
+);
+
+alter table public.classes enable row level security;
+alter table public.class_members enable row level security;
+
+-- Teachers manage only their own classes.
+create policy "Teachers manage own classes"
+  on public.classes for all
+  using (auth.uid() = teacher_id)
+  with check (auth.uid() = teacher_id);
+
+-- Teachers manage membership for classes they own.
+create policy "Teachers manage own class members"
+  on public.class_members for all
+  using (
+    exists (
+      select 1 from public.classes c
+      where c.id = class_members.class_id and c.teacher_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.classes c
+      where c.id = class_members.class_id and c.teacher_id = auth.uid()
+    )
+  );
+
+create index if not exists idx_classes_teacher on public.classes (teacher_id);
+create index if not exists idx_class_members_class on public.class_members (class_id);
+create index if not exists idx_class_members_student on public.class_members (student_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ASSIGNMENTS — teachers set work for a class with a target/tier
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists public.assignments (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  class_id uuid not null references public.classes(id) on delete cascade,
+  topic_id text not null,
+  topic_name text not null,
+  subject text,
+  target text,                 -- 'curriculum' | 'sats' | 'eleven_plus'
+  tier text,                   -- 'developing' | 'secure' | 'greater_depth'
+  due_date date,
+  created_at timestamptz not null default now()
+);
+
+alter table public.assignments enable row level security;
+
+-- Teachers manage their own assignments.
+create policy "Teachers manage own assignments"
+  on public.assignments for all
+  using (auth.uid() = teacher_id)
+  with check (auth.uid() = teacher_id);
+
+-- Students can read assignments for classes they belong to.
+create policy "Students view their class assignments"
+  on public.assignments for select
+  using (
+    exists (
+      select 1 from public.class_members m
+      where m.class_id = assignments.class_id and m.student_id = auth.uid()
+    )
+  );
+
+create index if not exists idx_assignments_class on public.assignments (class_id);
+create index if not exists idx_assignments_teacher on public.assignments (teacher_id);
