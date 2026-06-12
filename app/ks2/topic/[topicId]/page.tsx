@@ -2,9 +2,8 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lock, ChevronDown } from "lucide-react";
 import {
   getKS2TopicById,
   getNextKS2Topic,
@@ -15,8 +14,6 @@ import {
   KS2_TARGETS,
   KS2_TIERS,
   PATHWAY_STAGES,
-  targetTierPhrase,
-  tierMeta,
   type KS2Target,
   type KS2Tier,
   type KS2StageId,
@@ -31,16 +28,18 @@ import {
 } from "@/lib/skills";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import MasteryQuiz from "@/components/ks2/MasteryQuiz";
+import LessonPanel from "@/components/ks2/LessonPanel";
+import PracticePanel from "@/components/ks2/PracticePanel";
 
 export default function KS2TopicPage({ params }: { params: Promise<{ topicId: string }> }) {
   const { topicId } = use(params);
-  const router = useRouter();
   const ctx = useMemo(() => getKS2TopicById(topicId), [topicId]);
 
   const [target, setTarget] = useState<KS2Target>("curriculum");
   const [tier, setTier] = useState<KS2Tier>("secure");
   const [skillData, setSkillData] = useState<SkillData>({});
   const [showQuiz, setShowQuiz] = useState(false);
+  const [activeStage, setActiveStage] = useState<KS2StageId | null>(null);
 
   useEffect(() => {
     setSkillData(getSkillData());
@@ -100,30 +99,16 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
     }
   }
 
-  function stagePrompt(stage: KS2StageId): string {
-    const std = targetTierPhrase(target, tier);
-    const subj = subject.name;
-    const t = topic.name;
-    switch (stage) {
-      case "learn":
-        return `I'm a KS2 ${year} pupil. Teach me "${t}" in ${subj} at ${std}. Explain it simply with a clear example, like a friendly teacher.`;
-      case "guided":
-        return `Show me a worked example for "${t}" in ${subj} at ${std}, explaining each step. Then give me one similar question to try myself.`;
-      case "practise":
-        return `Give me one ${std} ${subj} practice question on "${t}". Just the question first — I'll attempt it, then check my answer step by step.`;
-      default:
-        return "";
+  function openStage(stage: KS2StageId) {
+    if (stage === "quiz") {
+      setShowQuiz(true);
+      return;
     }
-  }
-
-  function launchStage(stage: KS2StageId) {
-    recordSkillAttempt(ks2SkillKey(topic.name, PATHWAY_STAGES.find((s) => s.id === stage)!.label), meta);
-    try {
-      localStorage.setItem("mathrix_tier", "KS2");
-    } catch {
-      /* ignore */
+    const next = activeStage === stage ? null : stage;
+    setActiveStage(next);
+    if (next) {
+      recordSkillAttempt(ks2SkillKey(topic.name, PATHWAY_STAGES.find((s) => s.id === stage)!.label), meta);
     }
-    router.push(`/?q=${encodeURIComponent(stagePrompt(stage))}`);
   }
 
   return (
@@ -193,27 +178,62 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
         <div className="space-y-3">
           {PATHWAY_STAGES.map((stage, i) => {
             const isQuiz = stage.id === "quiz";
+            const isOpen = activeStage === stage.id;
             return (
-              <button
-                key={stage.id}
-                onClick={() => (isQuiz ? setShowQuiz(true) : launchStage(stage.id))}
-                className="w-full flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left hover:border-indigo-300 hover:shadow-sm transition-all"
-              >
-                <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">
-                  {stage.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-gray-900">
-                    {i + 1}. {stage.label}
-                  </p>
-                  <p className="text-[13px] text-gray-500">{stage.blurb}</p>
-                </div>
-                {isQuiz && isMastered ? (
-                  <Check size={20} className="text-emerald-500 shrink-0" />
-                ) : (
-                  <ArrowRight size={18} className="text-gray-300 shrink-0" />
+              <div key={stage.id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <button
+                  onClick={() => openStage(stage.id)}
+                  className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-all"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">
+                    {stage.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900">
+                      {i + 1}. {stage.label}
+                    </p>
+                    <p className="text-[13px] text-gray-500">{stage.blurb}</p>
+                  </div>
+                  {isQuiz ? (
+                    isMastered ? (
+                      <Check size={20} className="text-emerald-500 shrink-0" />
+                    ) : (
+                      <ArrowRight size={18} className="text-gray-300 shrink-0" />
+                    )
+                  ) : (
+                    <ChevronDown
+                      size={18}
+                      className={`text-gray-300 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
+                  )}
+                </button>
+
+                {isOpen && !isQuiz && (
+                  <div className="border-t border-gray-100 p-4 sm:p-5">
+                    {stage.id === "practise" ? (
+                      <PracticePanel
+                        subjectId={subject.id}
+                        subjectName={subject.name}
+                        topicName={topic.name}
+                        subtopics={topic.subtopics}
+                        target={target}
+                        tier={tier}
+                      />
+                    ) : (
+                      <LessonPanel
+                        subjectName={subject.name}
+                        topicId={topic.id}
+                        topicName={topic.name}
+                        subtopics={topic.subtopics}
+                        target={target}
+                        tier={tier}
+                        kind={stage.id === "guided" ? "guided" : "lesson"}
+                        accentHex={accent.hex}
+                      />
+                    )}
+                  </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
