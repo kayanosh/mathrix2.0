@@ -433,3 +433,38 @@ body {
   border-color: rgba(99,102,241,0.5) !important;
   box-shadow: 0 0 0 3px rgba(99,102,241,0.1), 0 4px 16px -4px rgba(99,102,241,0.08);
 }
+
+/* ── KS2 printable worksheet ─────────────────────────────
+   The worksheet markup is hidden on screen and only shown when printing.
+   When printing we hide everything else and reveal just the worksheet. */
+.ks2-print-root {
+  display: none;
+}
+
+@media print {
+  /* Hide all on-screen chrome */
+  body * {
+    visibility: hidden !important;
+  }
+  .ks2-print-root,
+  .ks2-print-root * {
+    visibility: visible !important;
+  }
+  .ks2-print-root {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 8mm;
+    color: #000;
+    background: #fff;
+  }
+  .ks2-print-question {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  @page {
+    margin: 14mm;
+  }
+}

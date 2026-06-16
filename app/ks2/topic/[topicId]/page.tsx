@@ -221,6 +221,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
                       />
                     ) : (
                       <LessonPanel
+                        subjectId={subject.id}
                         subjectName={subject.name}
                         topicId={topic.id}
                         topicName={topic.name}

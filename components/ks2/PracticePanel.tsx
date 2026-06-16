@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Loader2, RotateCcw, Eye, EyeOff, Sparkles } from "lucide-react";
+import { Loader2, RotateCcw, Eye, EyeOff, Sparkles, Printer } from "lucide-react";
 import InlineMath from "@/components/InlineMath";
 import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
 import KS2ExplainModal from "@/components/ks2/KS2ExplainModal";
-import type { KS2Target, KS2Tier } from "@/lib/ks2-pathway";
+import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
 
 interface QuizQuestion {
   question: string;
@@ -28,6 +28,7 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
   const [error, setError] = useState(false);
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [askQuestion, setAskQuestion] = useState<string | null>(null);
+  const [includeAnswers, setIncludeAnswers] = useState(false);
 
   const isMaths = /math/i.test(subjectName) || subjectId === "maths";
 
@@ -78,9 +79,28 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-gray-500">
-        Have a go at these. Stuck? Tap <span className="font-semibold text-indigo-600">Ask AI</span> for a step-by-step explanation.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-gray-500">
+          Have a go at these. Stuck? Tap <span className="font-semibold text-indigo-600">Ask AI</span> for a step-by-step explanation.
+        </p>
+        <div className="flex items-center gap-3">
+          <label className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeAnswers}
+              onChange={(e) => setIncludeAnswers(e.target.checked)}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            Answer key
+          </label>
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-gray-800"
+          >
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
 
       {questions.map((q, i) => (
         <div key={i} className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -132,6 +152,50 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
             />
           ))}
       </AnimatePresence>
+
+      {/* Print-only worksheet (hidden on screen) */}
+      <div className="ks2-print-root">
+        <div style={{ borderBottom: "2px solid #000", paddingBottom: "8px", marginBottom: "16px" }}>
+          <div style={{ fontSize: "20px", fontWeight: 700 }}>
+            {subjectName}: {topicName}
+          </div>
+          <div style={{ fontSize: "12px", marginTop: "2px" }}>
+            {targetMeta(target).label} · {tierMeta(tier).label} ({tierMeta(tier).standard})
+          </div>
+          <div style={{ display: "flex", gap: "32px", marginTop: "12px", fontSize: "13px" }}>
+            <span>Name: ______________________________</span>
+            <span>Date: ____________________</span>
+          </div>
+        </div>
+
+        <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {questions.map((q, i) => (
+            <li
+              key={i}
+              className="ks2-print-question"
+              style={{ marginBottom: "22px", fontSize: "14px", lineHeight: 1.5 }}
+            >
+              <div style={{ display: "flex", gap: "8px" }}>
+                <span style={{ fontWeight: 700 }}>{i + 1}.</span>
+                <span>
+                  <InlineMath text={q.question} />
+                </span>
+              </div>
+              {includeAnswers ? (
+                <div style={{ marginTop: "6px", fontSize: "13px", fontStyle: "italic" }}>
+                  Answer: <InlineMath text={q.answer || ""} />
+                </div>
+              ) : (
+                <div style={{ borderBottom: "1px solid #bbb", height: "26px", marginTop: "10px" }} />
+              )}
+            </li>
+          ))}
+        </ol>
+
+        <div style={{ marginTop: "24px", fontSize: "11px", textAlign: "center", color: "#555" }}>
+          Mathrix · KS2 practice worksheet
+        </div>
+      </div>
     </div>
   );
 }

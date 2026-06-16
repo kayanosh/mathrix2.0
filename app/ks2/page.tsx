@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Sparkles, TrendingUp, GraduationCap } from "lucide-react";
 import {
   KS2_YEARS,
@@ -162,17 +163,27 @@ export default function KS2Page() {
 
         {/* Topic cards */}
         {current && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <motion.div
+            key={`${current.id}-${year}`}
+            initial="hidden"
+            animate="show"
+            variants={{ show: { transition: { staggerChildren: 0.05 } } }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
             {current.topics.map((topic) => (
-              <TopicCard
+              <motion.div
                 key={topic.id}
-                topic={topic}
-                subjectId={current.id}
-                href={`/ks2/topic/${topic.id}`}
-                skillData={skillData}
-              />
+                variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
+              >
+                <TopicCard
+                  topic={topic}
+                  subjectId={current.id}
+                  href={`/ks2/topic/${topic.id}`}
+                  skillData={skillData}
+                />
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
 
         {/* Quick intro to the workflow */}
