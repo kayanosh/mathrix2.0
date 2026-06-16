@@ -13,6 +13,7 @@ const SUBJECT_COLOR: Record<string, string> = {
   english: "#e11d48",
   science: "#059669",
   arabic: "#0891b2",
+  computing: "#0ea5e9",
   vr: "#d97706",
   nvr: "#7c3aed",
 };

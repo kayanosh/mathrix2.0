@@ -47,6 +47,11 @@ import {
   Coins,
   Calendar,
   Brain,
+  Network,
+  Code2,
+  Table,
+  Boxes,
+  Laptop,
 } from "lucide-react";
 import type { KS2SubjectId } from "./ks2";
 
@@ -85,6 +90,12 @@ const PALETTE: KS2Accent[] = [
 
 /* Keyword → icon. First match wins; order matters (specific before generic). */
 const ICON_RULES: Array<{ re: RegExp; Icon: LucideIcon }> = [
+  // Computing (placed first so e.g. "spreadsheet" wins over the maths "data" rule)
+  { re: /spreadsheet/i, Icon: Table },
+  { re: /web page|website|html/i, Icon: Globe },
+  { re: /3d model|modelling|tinkercad/i, Icon: Boxes },
+  { re: /programming|variable|sensing|micro:bit|scratch|debug/i, Icon: Code2 },
+  { re: /network|internet|communication|systems and networks/i, Icon: Network },
   // Maths
   { re: /place value|number|roman|negative/i, Icon: Hash },
   { re: /add|subtract/i, Icon: Calculator },
@@ -129,6 +140,7 @@ const SUBJECT_FALLBACK_ICON: Record<KS2SubjectId, LucideIcon> = {
   english: BookOpen,
   science: Atom,
   arabic: Languages,
+  computing: Laptop,
   vr: Puzzle,
   nvr: Shapes,
 };

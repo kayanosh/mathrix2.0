@@ -14,12 +14,15 @@
 
 export type KS2Year = "Year 5" | "Year 6";
 export type KS2Section = "curriculum" | "sats" | "eleven_plus";
-export type KS2SubjectId = "maths" | "english" | "science" | "arabic" | "vr" | "nvr";
+export type KS2Term = "Autumn" | "Spring" | "Summer";
+export type KS2SubjectId = "maths" | "english" | "science" | "arabic" | "computing" | "vr" | "nvr";
 
 export interface KS2Topic {
   id: string;
   name: string;
   subtopics: string[];
+  /** School term this unit is taught in (curriculum only; year-long units omit it). */
+  term?: KS2Term;
 }
 
 export interface KS2SubjectContent {
@@ -30,6 +33,8 @@ export interface KS2SubjectContent {
 }
 
 export const KS2_YEARS: KS2Year[] = ["Year 5", "Year 6"];
+
+export const KS2_TERMS: KS2Term[] = ["Autumn", "Spring", "Summer"];
 
 export const KS2_SECTIONS: { id: KS2Section; label: string; blurb: string }[] = [
   { id: "curriculum", label: "Curriculum", blurb: "National Curriculum KS2 by year group" },
@@ -42,6 +47,7 @@ export const KS2_SUBJECT_META: Record<KS2SubjectId, { name: string; icon: string
   english: { name: "English", icon: "📖" },
   science: { name: "Science", icon: "🔬" },
   arabic: { name: "Arabic", icon: "🔤" },
+  computing: { name: "Computing", icon: "💻" },
   vr: { name: "Verbal Reasoning", icon: "🧩" },
   nvr: { name: "Non-Verbal Reasoning", icon: "🔷" },
 };
@@ -406,6 +412,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-place-value",
     name: "Place Value",
+    term: "Autumn",
     subtopics: [
       "Numbers to 1,000,000",
       "Numbers to 10,000,000",
@@ -418,6 +425,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-add-subtract",
     name: "Addition & Subtraction",
+    term: "Autumn",
     subtopics: [
       "Add and subtract integers",
       "Common factors and common multiples",
@@ -430,6 +438,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-mult-div",
     name: "Multiplication & Division",
+    term: "Autumn",
     subtopics: [
       "Long multiplication",
       "Short division",
@@ -442,6 +451,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-fractions",
     name: "Fractions",
+    term: "Autumn",
     subtopics: [
       "Simplify fractions",
       "Compare and order fractions",
@@ -455,6 +465,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-converting-units",
     name: "Converting Units",
+    term: "Autumn",
     subtopics: [
       "Metric measures",
       "Convert metric measures",
@@ -465,6 +476,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-ratio",
     name: "Ratio",
+    term: "Spring",
     subtopics: [
       "Ratio and the ratio symbol",
       "Calculate ratio",
@@ -477,6 +489,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-algebra",
     name: "Algebra",
+    term: "Spring",
     subtopics: [
       "One-step and two-step function machines",
       "Form expressions",
@@ -490,6 +503,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-decimals",
     name: "Decimals",
+    term: "Spring",
     subtopics: [
       "Decimals as fractions",
       "Multiply and divide by 10, 100 and 1000",
@@ -501,6 +515,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-fdp",
     name: "Fractions, Decimals & Percentages",
+    term: "Spring",
     subtopics: [
       "Equivalent fractions, decimals and percentages",
       "Order fractions, decimals and percentages",
@@ -511,6 +526,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-area-perimeter-volume",
     name: "Area, Perimeter & Volume",
+    term: "Spring",
     subtopics: [
       "Area and perimeter",
       "Area of triangles",
@@ -522,6 +538,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-statistics",
     name: "Statistics",
+    term: "Spring",
     subtopics: [
       "Read and interpret line graphs",
       "Draw line graphs",
@@ -533,6 +550,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-shape",
     name: "Shape",
+    term: "Summer",
     subtopics: [
       "Measure and classify angles",
       "Calculate angles",
@@ -547,6 +565,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-position-direction",
     name: "Position & Direction",
+    term: "Summer",
     subtopics: [
       "Coordinates in four quadrants",
       "Translation",
@@ -556,6 +575,7 @@ const Y6_MATHS: KS2Topic[] = [
   {
     id: "y6m-problem-solving",
     name: "Themed Projects, Consolidation & Problem Solving",
+    term: "Summer",
     subtopics: [
       "Multi-step problem solving",
       "Reasoning and investigations",
@@ -566,20 +586,15 @@ const Y6_MATHS: KS2Topic[] = [
 
 const Y6_ENGLISH: KS2Topic[] = [
   {
-    id: "y6e-reading",
-    name: "Reading — Class Texts",
-    subtopics: [
-      "Rose Blanche",
-      "Holes",
-      "Shackleton's Journey",
-      "How to Live Forever",
-      "Macbeth",
-      "The Other Side of Truth",
-    ],
+    id: "y6e-read-autumn",
+    name: "Reading — Autumn",
+    term: "Autumn",
+    subtopics: ["Rose Blanche", "Holes"],
   },
   {
-    id: "y6e-writing",
-    name: "Writing — Genres",
+    id: "y6e-write-autumn",
+    name: "Writing — Autumn",
+    term: "Autumn",
     subtopics: [
       "Informal Letter",
       "Diary Entry",
@@ -589,12 +604,38 @@ const Y6_ENGLISH: KS2Topic[] = [
       "Persuasion",
       "Newspaper Report",
       "Legends",
+    ],
+  },
+  {
+    id: "y6e-read-spring",
+    name: "Reading — Spring",
+    term: "Spring",
+    subtopics: ["Shackleton's Journey", "How to Live Forever?", "Macbeth"],
+  },
+  {
+    id: "y6e-write-spring",
+    name: "Writing — Spring",
+    term: "Spring",
+    subtopics: [
       "Instructions",
       "Recounts",
       "Drama and Roleplay",
       "Explanation",
       "Adventure Story",
       "Balanced/Unbalanced Arguments",
+    ],
+  },
+  {
+    id: "y6e-read-summer",
+    name: "Reading — Summer",
+    term: "Summer",
+    subtopics: ["The Other Side of Truth"],
+  },
+  {
+    id: "y6e-write-summer",
+    name: "Writing — Summer",
+    term: "Summer",
+    subtopics: [
       "Stories with Flashbacks",
       "Character Viewpoint Narrative",
       "Autobiography",
@@ -621,6 +662,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-classification",
     name: "Living Things — Classification",
+    term: "Autumn",
     subtopics: [
       "Classifying living things into broad groups",
       "Micro-organisms, plants and animals",
@@ -631,6 +673,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-evolution",
     name: "Evolution and Inheritance",
+    term: "Autumn",
     subtopics: [
       "Inheritance and offspring variation",
       "Adaptation to environments",
@@ -641,6 +684,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-circulation",
     name: "Animals Including Humans — Circulation and Health",
+    term: "Spring",
     subtopics: [
       "The heart and circulatory system",
       "Blood and blood vessels",
@@ -651,6 +695,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-electricity",
     name: "Energy — Circuits, Batteries and Switches",
+    term: "Spring",
     subtopics: [
       "Components of a circuit",
       "Voltage and the brightness of bulbs",
@@ -661,6 +706,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-light",
     name: "Light and Reflection",
+    term: "Summer",
     subtopics: [
       "How light travels",
       "Reflection",
@@ -671,6 +717,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-fossils",
     name: "Fossils",
+    term: "Summer",
     subtopics: [
       "How fossils are formed",
       "What fossils tell us about the past",
@@ -680,6 +727,7 @@ const Y6_SCIENCE: KS2Topic[] = [
   {
     id: "y6s-making-connections",
     name: "Making Connections (Working Scientifically)",
+    term: "Summer",
     subtopics: [
       "Planning enquiries and fair tests",
       "Recording and presenting data",
@@ -741,6 +789,92 @@ const Y6_ARABIC: KS2Topic[] = [
       "Describing people",
       "Describing places",
       "Adjectives and agreement",
+    ],
+  },
+];
+
+const Y6_COMPUTING: KS2Topic[] = [
+  {
+    id: "y6c-systems-networks",
+    name: "Computing Systems & Networks — Communication",
+    term: "Autumn",
+    subtopics: [
+      "The internet and the World Wide Web",
+      "How data is shared across networks",
+      "Ways we communicate online (email, messaging, video calls)",
+      "Searching effectively and evaluating information",
+      "Spotting reliable vs unreliable sources",
+      "Communicating safely, kindly and respectfully online",
+    ],
+  },
+  {
+    id: "y6c-web-pages",
+    name: "Creating Media — Web Page Creation",
+    term: "Autumn",
+    subtopics: [
+      "What makes a good web page",
+      "Introduction to Google Sites and basic HTML",
+      "Planning the pages of a website",
+      "Adding text, images and hyperlinks",
+      "Navigation between linked pages",
+      "Copyright, fair use and crediting sources",
+      "Reviewing and improving the website",
+    ],
+  },
+  {
+    id: "y6c-programming-variables",
+    name: "Programming A — Variables in Games",
+    term: "Spring",
+    subtopics: [
+      "What a variable is and why we use one",
+      "Creating and using variables in Scratch",
+      "Changing a variable during play (score and lives)",
+      "Designing a game that uses variables",
+      "Building the game step by step",
+      "Testing and debugging the program",
+      "Evaluating and improving the project",
+    ],
+  },
+  {
+    id: "y6c-spreadsheets",
+    name: "Data & Information — Introduction to Spreadsheets",
+    term: "Spring",
+    subtopics: [
+      "Cells, rows and columns",
+      "Entering data and labels",
+      "Writing formulas to calculate",
+      "Using functions such as SUM",
+      "Creating charts from data",
+      "Sorting and organising data",
+      "Using a spreadsheet to answer questions",
+    ],
+  },
+  {
+    id: "y6c-3d-modelling",
+    name: "Creating Media — 3D Modelling",
+    term: "Summer",
+    subtopics: [
+      "Introduction to 3D modelling with TinkerCAD",
+      "Working in three dimensions",
+      "Moving, resizing and rotating objects",
+      "Combining shapes using groups and holes",
+      "Planning a 3D model for a purpose",
+      "Building the model accurately",
+      "Evaluating and refining the design",
+    ],
+  },
+  {
+    id: "y6c-programming-sensing",
+    name: "Programming B — Sensing Movement",
+    term: "Summer",
+    subtopics: [
+      "Introduction to the micro:bit",
+      "Inputs, processes and outputs",
+      "Sensing with the accelerometer and buttons",
+      "Selection and conditions (if… then)",
+      "Counting movements: a step-counter project",
+      "Designing a wearable program",
+      "Testing on a virtual and physical device",
     ],
   },
 ];
@@ -1039,6 +1173,7 @@ const CURRICULUM_BY_YEAR: Record<KS2Year, KS2SubjectContent[]> = {
     subject("maths", Y6_MATHS),
     subject("english", Y6_ENGLISH),
     subject("science", Y6_SCIENCE),
+    subject("computing", Y6_COMPUTING),
     subject("arabic", Y6_ARABIC),
   ],
 };
@@ -1072,6 +1207,13 @@ export function getKS2Content(section: KS2Section, year: KS2Year): KS2SubjectCon
 /** Whether a section's content varies by year group (only the curriculum does). */
 export function sectionUsesYear(section: KS2Section): boolean {
   return section === "curriculum";
+}
+
+/** Whether the curriculum for a year group is organised into school terms. */
+export function yearHasTerms(year: KS2Year): boolean {
+  return CURRICULUM_BY_YEAR[year].some((subject) =>
+    subject.topics.some((topic) => !!topic.term)
+  );
 }
 
 /** URL slug for each section (the route segment under /ks2). */
