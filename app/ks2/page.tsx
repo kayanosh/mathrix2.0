@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, GraduationCap } from "lucide-react";
-import {
-  KS2_YEARS,
-  KS2_SECTIONS,
-  getKS2Content,
-  sectionUsesYear,
-  type KS2Year,
-  type KS2Section,
-} from "@/lib/ks2";
-import { getSkillData, syncSkillsFromServer, type SkillData } from "@/lib/skills";
-import TopicCard from "@/components/ks2/TopicCard";
+import { Sparkles, TrendingUp, GraduationCap, ArrowRight } from "lucide-react";
+import { KS2_SECTIONS, ks2SectionPath, type KS2Section } from "@/lib/ks2";
 
 interface AssignedTopic {
   id: string;
@@ -25,33 +16,21 @@ interface AssignedTopic {
   due_date: string | null;
 }
 
+const SECTION_CARDS: Record<KS2Section, { emoji: string; gradient: string }> = {
+  curriculum: { emoji: "📚", gradient: "from-sky-400 to-blue-500" },
+  sats: { emoji: "📝", gradient: "from-emerald-400 to-green-500" },
+  eleven_plus: { emoji: "🎯", gradient: "from-violet-400 to-purple-500" },
+};
+
 export default function KS2Page() {
-  const [section, setSection] = useState<KS2Section>("curriculum");
-  const [year, setYear] = useState<KS2Year>("Year 5");
-  const [activeSubject, setActiveSubject] = useState<string>("maths");
-  const [skillData, setSkillData] = useState<SkillData>({});
   const [assigned, setAssigned] = useState<AssignedTopic[]>([]);
 
   useEffect(() => {
-    setSkillData(getSkillData());
-    syncSkillsFromServer().then((merged) => {
-      if (merged) setSkillData(merged);
-    });
     fetch("/api/assignments")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setAssigned(d.assignments || []))
       .catch(() => {});
   }, []);
-
-  const subjects = useMemo(() => getKS2Content(section, year), [section, year]);
-
-  useEffect(() => {
-    if (!subjects.some((s) => s.id === activeSubject)) {
-      setActiveSubject(subjects[0]?.id ?? "maths");
-    }
-  }, [subjects, activeSubject]);
-
-  const current = subjects.find((s) => s.id === activeSubject) ?? subjects[0];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50/60 to-white text-gray-900">
@@ -79,13 +58,13 @@ export default function KS2Page() {
           <span className="text-3xl">🚀</span>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Let&rsquo;s Learn!</h1>
         </div>
-        <p className="text-gray-500 mb-6 text-lg">
-          Pick a subject and a topic. Learn it, practise it, and earn your stars. ⭐
+        <p className="text-gray-500 mb-7 text-lg">
+          Choose your path. Learn it, practise it, and earn your stars. ⭐
         </p>
 
         {/* Assigned to you */}
         {assigned.length > 0 && (
-          <div className="mb-7 rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
+          <div className="mb-8 rounded-2xl border-2 border-amber-200 bg-amber-50 p-4">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">📌</span>
               <h2 className="font-bold text-amber-800">Assigned to you</h2>
@@ -108,83 +87,37 @@ export default function KS2Page() {
           </div>
         )}
 
-        {/* Section tabs */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {KS2_SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setSection(s.id)}
-              className={`px-5 py-2.5 rounded-2xl text-sm font-bold transition-all ${
-                section === s.id
-                  ? "bg-indigo-600 text-white shadow-md scale-105"
-                  : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
-              }`}
-              title={s.blurb}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Year toggle (curriculum only) */}
-        {sectionUsesYear(section) && (
-          <div className="flex items-center gap-1 bg-white ring-1 ring-gray-200 rounded-xl p-0.5 w-fit mb-5">
-            {KS2_YEARS.map((y) => (
-              <button
-                key={y}
-                onClick={() => setYear(y)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${
-                  year === y ? "bg-indigo-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {y}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Subject tabs */}
-        <div className="flex flex-wrap items-center gap-2 mb-7">
-          {subjects.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSubject(s.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
-                activeSubject === s.id
-                  ? "bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 scale-105"
-                  : "bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50"
-              }`}
-            >
-              <span className="text-lg">{s.icon}</span>
-              {s.name}
-            </button>
-          ))}
-        </div>
-
-        {/* Topic cards */}
-        {current && (
-          <motion.div
-            key={`${current.id}-${year}`}
-            initial="hidden"
-            animate="show"
-            variants={{ show: { transition: { staggerChildren: 0.05 } } }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-          >
-            {current.topics.map((topic) => (
+        {/* Section cards */}
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.08 } } }}
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+        >
+          {KS2_SECTIONS.map((s) => {
+            const card = SECTION_CARDS[s.id];
+            return (
               <motion.div
-                key={topic.id}
-                variants={{ hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }}
+                key={s.id}
+                variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } }}
               >
-                <TopicCard
-                  topic={topic}
-                  subjectId={current.id}
-                  href={`/ks2/topic/${topic.id}`}
-                  skillData={skillData}
-                />
+                <Link
+                  href={ks2SectionPath(s.id)}
+                  className="group block h-full rounded-3xl bg-white ring-1 ring-gray-200 p-6 hover:ring-indigo-300 hover:shadow-lg transition-all"
+                >
+                  <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center text-3xl mb-4 group-hover:scale-105 transition-transform`}>
+                    {card.emoji}
+                  </div>
+                  <h2 className="text-xl font-extrabold text-gray-900 mb-1">{s.label}</h2>
+                  <p className="text-sm text-gray-500 mb-4">{s.blurb}</p>
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-indigo-600">
+                    Start learning <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
+                  </span>
+                </Link>
               </motion.div>
-            ))}
-          </motion.div>
-        )}
+            );
+          })}
+        </motion.div>
 
         {/* Quick intro to the workflow */}
         <div className="mt-10 rounded-2xl bg-white ring-1 ring-gray-200 p-5">

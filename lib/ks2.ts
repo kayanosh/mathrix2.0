@@ -1074,6 +1074,26 @@ export function sectionUsesYear(section: KS2Section): boolean {
   return section === "curriculum";
 }
 
+/** URL slug for each section (the route segment under /ks2). */
+const SECTION_SLUGS: Record<KS2Section, string> = {
+  curriculum: "curriculum",
+  sats: "sats",
+  eleven_plus: "eleven-plus",
+};
+
+/** The dedicated page path for a section, e.g. "/ks2/eleven-plus". */
+export function ks2SectionPath(section: KS2Section): string {
+  return `/ks2/${SECTION_SLUGS[section]}`;
+}
+
+/** Resolve a URL slug back to its section id, or null if unknown. */
+export function ks2SectionFromSlug(slug: string): KS2Section | null {
+  const entry = (Object.entries(SECTION_SLUGS) as [KS2Section, string][]).find(
+    ([, s]) => s === slug
+  );
+  return entry ? entry[0] : null;
+}
+
 /**
  * Builds the canonical skill key used for progress tracking, matching the
  * "Topic — subtopic" convention used elsewhere (see lib/skills.ts).

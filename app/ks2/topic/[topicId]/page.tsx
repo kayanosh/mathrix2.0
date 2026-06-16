@@ -8,12 +8,13 @@ import {
   getKS2TopicById,
   getNextKS2Topic,
   ks2SkillKey,
+  ks2SectionPath,
   sectionUsesYear,
 } from "@/lib/ks2";
 import {
-  KS2_TARGETS,
   KS2_TIERS,
   PATHWAY_STAGES,
+  targetMeta,
   type KS2Target,
   type KS2Tier,
   type KS2StageId,
@@ -35,7 +36,6 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   const { topicId } = use(params);
   const ctx = useMemo(() => getKS2TopicById(topicId), [topicId]);
 
-  const [target, setTarget] = useState<KS2Target>("curriculum");
   const [tier, setTier] = useState<KS2Tier>("secure");
   const [skillData, setSkillData] = useState<SkillData>({});
   const [showQuiz, setShowQuiz] = useState(false);
@@ -45,9 +45,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
     setSkillData(getSkillData());
     syncSkillsFromServer().then((m) => m && setSkillData(m));
     try {
-      const t = localStorage.getItem("ks2_target") as KS2Target | null;
       const ti = localStorage.getItem("ks2_tier") as KS2Tier | null;
-      if (t) setTarget(t);
       if (ti) setTier(ti);
     } catch {
       /* ignore */
@@ -66,6 +64,9 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   }
 
   const { topic, subject, section, year } = ctx;
+  // The framework ("working towards") is determined by the section the topic
+  // belongs to — KS2Section and KS2Target share the same string union.
+  const target: KS2Target = section;
   const { Icon, accent } = getTopicVisual(topic.id, topic.name, subject.id);
   const next = getNextKS2Topic(topic.id);
 
@@ -82,14 +83,6 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   const masteryRec = skillData[masteryKey];
   const isMastered = getMastery(masteryRec) === "mastered";
 
-  function setTargetPersist(t: KS2Target) {
-    setTarget(t);
-    try {
-      localStorage.setItem("ks2_target", t);
-    } catch {
-      /* ignore */
-    }
-  }
   function setTierPersist(t: KS2Tier) {
     setTier(t);
     try {
@@ -114,7 +107,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50/60 to-white text-gray-900">
       <nav className="flex items-center justify-between px-6 py-4">
-        <Link href="/ks2" className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+        <Link href={ks2SectionPath(section)} className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">
           <ArrowLeft size={16} /> All topics
         </Link>
         <span className="text-sm text-gray-400">
@@ -139,21 +132,13 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
           )}
         </div>
 
-        {/* Target selector */}
-        <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">I&rsquo;m working towards</p>
-        <div className="flex flex-wrap gap-2 mb-5">
-          {KS2_TARGETS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTargetPersist(t.id)}
-              className={`px-4 py-2 rounded-2xl text-sm font-bold transition-all ${
-                target === t.id ? "bg-indigo-600 text-white shadow" : "bg-white ring-1 ring-gray-200 text-gray-600 hover:bg-gray-50"
-              }`}
-              title={t.blurb}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Framework (determined by the section) */}
+        <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Working towards</p>
+        <div className="mb-5">
+          <span className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 text-white px-4 py-2 text-sm font-bold">
+            {targetMeta(target).label}
+          </span>
+          <span className="ml-2 text-sm text-gray-500">{targetMeta(target).blurb}</span>
         </div>
 
         {/* Tier selector */}
