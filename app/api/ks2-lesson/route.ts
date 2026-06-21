@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -97,7 +98,8 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "conclusion": "1 sentence wrapping up",
   "answer": "the final answer"
 }
-Use 2-5 steps. Omit "table" entirely if it would not help.`;
+Use 2-5 steps. Omit "table" entirely if it would not help.
+${englishExplainExtra(subject, topic, subtopics)}`;
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },
@@ -174,7 +176,8 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "keyPoints": ["short thing to remember", "another"],
   "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }
 }
-Use 3-5 sections, 2-4 worked-example steps, and 2-4 key points.`;
+Use 3-5 sections, 2-4 worked-example steps, and 2-4 key points.
+${englishLessonExtra(subject, topic, subtopics)}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

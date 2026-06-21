@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { englishQuizExtra } from "@/lib/ks2-english";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -50,7 +51,8 @@ Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
 Difficulty: ${tierPhrase}.
 Write exactly ${count} questions appropriate for a 9-11 year old, in clear, child-friendly language.
 For each question provide a concise correct answer or mark scheme (for writing tasks, give 2-3 key success criteria).
-Return ONLY valid JSON: {"questions":[{"question":"...","answer":"..."}]}. No markdown, no extra text.`;
+Return ONLY valid JSON: {"questions":[{"question":"...","answer":"..."}]}. No markdown, no extra text.
+${englishQuizExtra(subject, topic, subtopics)}`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

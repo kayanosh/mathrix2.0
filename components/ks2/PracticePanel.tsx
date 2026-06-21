@@ -147,6 +147,7 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
             <KS2ExplainModal
               subjectName={subjectName}
               topicName={topicName}
+              subtopics={subtopics}
               question={askQuestion}
               onClose={() => setAskQuestion(null)}
             />

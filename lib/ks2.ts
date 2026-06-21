@@ -60,6 +60,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-place-value",
     name: "Place Value",
+    term: "Autumn",
     subtopics: [
       "Numbers to 10,000 and 100,000",
       "Numbers to 1,000,000",
@@ -74,6 +75,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-add-subtract",
     name: "Addition & Subtraction",
+    term: "Autumn",
     subtopics: [
       "Mental addition and subtraction",
       "Column addition of numbers with more than 4 digits",
@@ -86,6 +88,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-mult-div-a",
     name: "Multiplication & Division A",
+    term: "Autumn",
     subtopics: [
       "Multiples",
       "Factors and factor pairs",
@@ -100,6 +103,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-fractions",
     name: "Fractions",
+    term: "Autumn",
     subtopics: [
       "Equivalent fractions",
       "Improper fractions to mixed numbers",
@@ -114,6 +118,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-mult-div-b",
     name: "Multiplication & Division B",
+    term: "Spring",
     subtopics: [
       "Multiply up to 4-digit by 1-digit",
       "Multiply 2-digit by 2-digit",
@@ -126,6 +131,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-decimals-percentages",
     name: "Decimals & Percentages",
+    term: "Spring",
     subtopics: [
       "Decimals up to 2 decimal places",
       "Thousandths",
@@ -139,6 +145,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-perimeter-area",
     name: "Perimeter & Area",
+    term: "Spring",
     subtopics: [
       "Perimeter of rectangles",
       "Perimeter of rectilinear shapes",
@@ -150,6 +157,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-statistics",
     name: "Statistics",
+    term: "Spring",
     subtopics: [
       "Read and interpret line graphs",
       "Draw line graphs",
@@ -161,6 +169,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-shape",
     name: "Shape",
+    term: "Spring",
     subtopics: [
       "Measure angles in degrees",
       "Draw angles",
@@ -174,6 +183,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-position-direction",
     name: "Position & Direction",
+    term: "Summer",
     subtopics: [
       "Read and plot coordinates (first quadrant)",
       "Translation",
@@ -184,6 +194,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-decimals",
     name: "Decimals",
+    term: "Summer",
     subtopics: [
       "Add and subtract decimals",
       "Decimal sequences",
@@ -194,6 +205,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-negative-numbers",
     name: "Negative Numbers",
+    term: "Summer",
     subtopics: [
       "Understand negative numbers",
       "Count through zero",
@@ -204,6 +216,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-converting-units",
     name: "Converting Units",
+    term: "Summer",
     subtopics: [
       "Metric units of length, mass and capacity",
       "Convert metric units",
@@ -215,6 +228,7 @@ const Y5_MATHS: KS2Topic[] = [
   {
     id: "y5m-volume",
     name: "Volume",
+    term: "Summer",
     subtopics: [
       "What is volume?",
       "Compare volume",
@@ -226,32 +240,53 @@ const Y5_MATHS: KS2Topic[] = [
 
 const Y5_ENGLISH: KS2Topic[] = [
   {
-    id: "y5e-reading",
-    name: "Reading — Class Texts",
-    subtopics: [
-      "Stay Where You Are and Then Leave",
-      "Kensuke's Kingdom",
-      "Beetle Boy",
-      "Street Child",
-      "Skellig",
-      "Tom's Midnight Garden",
-    ],
+    id: "y5e-read-autumn",
+    name: "Reading — Autumn",
+    term: "Autumn",
+    subtopics: ["Stay Where You Are and Then Leave", "Kensuke's Kingdom"],
   },
   {
-    id: "y5e-writing",
-    name: "Writing — Genres",
+    id: "y5e-write-autumn",
+    name: "Writing — Autumn",
+    term: "Autumn",
     subtopics: [
       "Classic Fiction",
       "Letter Writing",
       "Stories with a Scary Setting",
       "Explanation Texts (with complex diagrams)",
       "Classical Poetry",
+    ],
+  },
+  {
+    id: "y5e-read-spring",
+    name: "Reading — Spring",
+    term: "Spring",
+    subtopics: ["Beetle Boy", "Street Child"],
+  },
+  {
+    id: "y5e-write-spring",
+    name: "Writing — Spring",
+    term: "Spring",
+    subtopics: [
       "Stories with Mystery Settings",
       "Recounts: Biographies & Autobiographies",
       "Playscripts",
       "Drama and Roleplay",
       "Stories with a Fantasy Setting",
       "Poetry — Haiku",
+    ],
+  },
+  {
+    id: "y5e-read-summer",
+    name: "Reading — Summer",
+    term: "Summer",
+    subtopics: ["Skellig", "Tom's Midnight Garden"],
+  },
+  {
+    id: "y5e-write-summer",
+    name: "Writing — Summer",
+    term: "Summer",
+    subtopics: [
       "Instructions",
       "Non-Chronological Reports (Posters)",
       "Poetry — Free Verse",
@@ -280,6 +315,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-forces",
     name: "Forces — Unbalanced Forces",
+    term: "Autumn",
     subtopics: [
       "Gravity and the force of gravity on Earth",
       "Air resistance",
@@ -291,6 +327,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-earth-space",
     name: "Forces — Earth and Space",
+    term: "Autumn",
     subtopics: [
       "The Sun, Earth and Moon as spherical bodies",
       "Earth's rotation: day and night",
@@ -301,6 +338,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-materials-properties",
     name: "Materials — Properties and Changes",
+    term: "Spring",
     subtopics: [
       "Compare and group everyday materials",
       "Solubility and dissolving",
@@ -312,6 +350,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-materials-mixtures",
     name: "Materials — Mixtures and Separation",
+    term: "Spring",
     subtopics: [
       "Separating mixtures: filtering, sieving and evaporating",
       "Dissolving and recovering solutes",
@@ -321,6 +360,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-life-cycles",
     name: "Living Things — Life Cycles and Reproduction",
+    term: "Summer",
     subtopics: [
       "Life cycles of mammals, amphibians, insects and birds",
       "The life cycle of a plant",
@@ -331,6 +371,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-human-timeline",
     name: "Animals Including Humans — Human Timeline & Puberty",
+    term: "Summer",
     subtopics: [
       "Changes from birth to old age",
       "Stages of human development",
@@ -341,6 +382,7 @@ const Y5_SCIENCE: KS2Topic[] = [
   {
     id: "y5s-making-connections",
     name: "Making Connections (Working Scientifically)",
+    term: "Summer",
     subtopics: [
       "Planning a fair test",
       "Taking measurements and recording results",
@@ -353,6 +395,7 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-daily-routine",
     name: "My Daily Routine (Morning & Evening)",
+    term: "Autumn",
     subtopics: [
       "Morning routine vocabulary",
       "Evening routine vocabulary",
@@ -363,6 +406,7 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-free-time",
     name: "Entertainment & Free Time",
+    term: "Autumn",
     subtopics: [
       "Hobbies vocabulary",
       "Free time activities",
@@ -372,6 +416,7 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-school",
     name: "Life at School",
+    term: "Spring",
     subtopics: [
       "School subjects",
       "Classroom objects",
@@ -381,6 +426,7 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-achievements",
     name: "Achievements",
+    term: "Spring",
     subtopics: [
       "Talking about accomplishments",
       "Introduction to the past tense",
@@ -389,6 +435,7 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-celebrations",
     name: "Celebrations",
+    term: "Summer",
     subtopics: [
       "Islamic celebrations vocabulary",
       "Describing events",
@@ -397,9 +444,78 @@ const Y5_ARABIC: KS2Topic[] = [
   {
     id: "y5a-feelings",
     name: "Thoughts & Feelings",
+    term: "Summer",
     subtopics: [
       "Emotions vocabulary",
       "Expressing opinions",
+    ],
+  },
+];
+
+const Y5_COMPUTING: KS2Topic[] = [
+  {
+    id: "y5c-systems-searching",
+    name: "Computing Systems & Networks — Systems and Searching",
+    term: "Autumn",
+    subtopics: [
+      "How computers connect in a network",
+      "The internet and the World Wide Web",
+      "Searching the web effectively",
+      "Evaluating search results and spotting reliable sources",
+      "Online safety when searching and sharing",
+      "Communicating respectfully online",
+    ],
+  },
+  {
+    id: "y5c-video-production",
+    name: "Creating Media — Video Production",
+    term: "Autumn",
+    subtopics: [
+      "What makes a good video",
+      "Planning and storyboarding",
+      "Filming techniques (camera angles, lighting, sound)",
+      "Editing clips together",
+      "Adding titles, transitions and music",
+      "Reviewing and improving the final video",
+    ],
+  },
+  {
+    id: "y5c-programming-selection",
+    name: "Programming B — Selection in Quizzes",
+    term: "Spring",
+    subtopics: [
+      "What selection means (if… then… else)",
+      "Conditions that can be true or false",
+      "Designing a quiz in Scratch",
+      "Using selection to score answers",
+      "Testing and debugging the quiz program",
+      "Evaluating and improving the project",
+    ],
+  },
+  {
+    id: "y5c-flat-file-databases",
+    name: "Data & Information — Flat-File Databases",
+    term: "Spring",
+    subtopics: [
+      "Records, fields and data types",
+      "Entering and organising data",
+      "Sorting and filtering records",
+      "Querying data to answer questions",
+      "Presenting findings clearly",
+      "Evaluating the usefulness of data",
+    ],
+  },
+  {
+    id: "y5c-vector-graphics",
+    name: "Creating Media — Introduction to Vector Graphics",
+    term: "Summer",
+    subtopics: [
+      "Vector graphics vs raster images",
+      "Drawing tools and shapes",
+      "Layers and grouping objects",
+      "Planning a logo or poster design",
+      "Building the design step by step",
+      "Evaluating and refining the final graphic",
     ],
   },
 ];
@@ -1167,6 +1283,7 @@ const CURRICULUM_BY_YEAR: Record<KS2Year, KS2SubjectContent[]> = {
     subject("maths", Y5_MATHS),
     subject("english", Y5_ENGLISH),
     subject("science", Y5_SCIENCE),
+    subject("computing", Y5_COMPUTING),
     subject("arabic", Y5_ARABIC),
   ],
   "Year 6": [

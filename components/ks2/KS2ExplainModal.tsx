@@ -10,6 +10,7 @@ import { ks2ExplanationToWhiteboard, type KS2Explanation } from "@/lib/ks2-expla
 interface Props {
   subjectName: string;
   topicName: string;
+  subtopics: string[];
   question: string;
   onClose: () => void;
 }
@@ -20,7 +21,7 @@ interface Props {
  * play the explanation on the speaking whiteboard. Maths uses the richer
  * CAS whiteboard modal instead.
  */
-export default function KS2ExplainModal({ subjectName, topicName, question, onClose }: Props) {
+export default function KS2ExplainModal({ subjectName, topicName, subtopics, question, onClose }: Props) {
   const [explanation, setExplanation] = useState<KS2Explanation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -33,7 +34,7 @@ export default function KS2ExplainModal({ subjectName, topicName, question, onCl
       const res = await fetch("/api/ks2-lesson", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: subjectName, topic: topicName, kind: "explain", question }),
+        body: JSON.stringify({ subject: subjectName, topic: topicName, subtopics, kind: "explain", question }),
       });
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as { explanation: KS2Explanation };
@@ -43,7 +44,7 @@ export default function KS2ExplainModal({ subjectName, topicName, question, onCl
     } finally {
       setLoading(false);
     }
-  }, [subjectName, topicName, question]);
+  }, [subjectName, topicName, subtopics, question]);
 
   useEffect(() => {
     load();
