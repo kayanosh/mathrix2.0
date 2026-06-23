@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { ArrowLeft, CreditCard, LogOut, Crown, Loader2, TrendingUp } from "lucide-react";
+import { ArrowLeft, CreditCard, LogOut, Crown, Loader2, TrendingUp, Mail } from "lucide-react";
 import Link from "next/link";
+import { COMPANY } from "@/lib/company";
 
 export default function AccountPage() {
   const supabase = createClient();
@@ -149,6 +150,13 @@ export default function AccountPage() {
               >
                 Upgrade to Pro — £9.99/mo
               </button>
+              <a
+                href={`mailto:${COMPANY.paidPlanEmail}`}
+                className="mt-3 flex items-center justify-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors"
+              >
+                <Mail size={14} />
+                {COMPANY.paidPlanEmail}
+              </a>
             </div>
           )}
         </section>

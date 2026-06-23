@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, Loader2, Zap } from "lucide-react";
+import { X, Check, Loader2, Zap, Mail } from "lucide-react";
+import { COMPANY } from "@/lib/company";
 
 interface PricingModalProps {
   onClose: () => void;
@@ -138,6 +139,13 @@ export default function PricingModal({ onClose, onUpgrade, isLoggedIn, currentPl
                     {isLoggedIn ? "Upgrade to Pro" : "Sign up & Upgrade"}
                   </button>
                 )}
+                <a
+                  href={`mailto:${COMPANY.paidPlanEmail}`}
+                  className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 transition-colors"
+                >
+                  <Mail size={13} />
+                  {COMPANY.paidPlanEmail}
+                </a>
               </div>
             </div>
 

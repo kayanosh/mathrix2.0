@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, Loader2, Zap } from "lucide-react";
+import { X, Check, Loader2, Zap, Mail } from "lucide-react";
+import { COMPANY } from "@/lib/company";
 
 interface PaywallModalProps {
   onClose: () => void;
@@ -103,6 +104,14 @@ export default function PaywallModal({ onClose }: PaywallModalProps) {
               {loading && <Loader2 size={16} className="animate-spin" />}
               Upgrade to Pro
             </button>
+
+            <a
+              href={`mailto:${COMPANY.paidPlanEmail}`}
+              className="mt-3 inline-flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 transition-colors"
+            >
+              <Mail size={13} />
+              {COMPANY.paidPlanEmail}
+            </a>
 
             <p className="text-[11px] text-gray-400 mt-3">
               Recurring monthly charge. Cancel anytime from your account.
