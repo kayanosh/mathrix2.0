@@ -133,6 +133,30 @@ create policy "Authenticated users can read cache" on question_cache
 -- No insert/update policy for authenticated users — service role bypasses RLS
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- KS2 LESSON CACHE — Shared Learn / Guided lessons (one per topic+target+tier)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists ks2_lesson_cache (
+  cache_key text primary key,
+  topic_id text not null,
+  subject text,
+  topic_name text,
+  target text not null,
+  tier text not null,
+  kind text not null,                 -- 'lesson' | 'guided'
+  lesson_json jsonb not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+create index if not exists idx_ks2_lesson_cache_topic on ks2_lesson_cache (topic_id);
+
+alter table ks2_lesson_cache enable row level security;
+
+create policy "Authenticated users can read ks2 lesson cache" on ks2_lesson_cache
+  for select using (auth.role() = 'authenticated');
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- EXAM PAPERS TABLE — Metadata for downloadable past papers
 -- ═══════════════════════════════════════════════════════════════════════════
 

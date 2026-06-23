@@ -1,6 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, GraduationCap, TrendingUp } from "lucide-react";
 import { KS2_SECTIONS, type KS2Section } from "@/lib/ks2";
+import { getKS2SchoolMeta, type KS2SchoolMeta } from "@/lib/ks2-school";
 import SectionBrowser from "@/components/ks2/SectionBrowser";
 
 const SECTION_EMOJI: Record<KS2Section, string> = {
@@ -15,6 +19,14 @@ interface Props {
 
 export default function SectionPage({ section }: Props) {
   const meta = KS2_SECTIONS.find((s) => s.id === section);
+  const [school, setSchool] = useState<KS2SchoolMeta | null>(null);
+
+  useEffect(() => {
+    setSchool(getKS2SchoolMeta());
+  }, []);
+
+  const title =
+    section === "curriculum" && school ? `${school.name} · ${meta?.label ?? "Curriculum"}` : meta?.label ?? "KS2";
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50/60 to-white text-gray-900">
@@ -44,7 +56,7 @@ export default function SectionPage({ section }: Props) {
         {/* Header */}
         <div className="flex items-center gap-3 mb-2">
           <span className="text-3xl">{SECTION_EMOJI[section]}</span>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">{meta?.label ?? "KS2"}</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">{title}</h1>
         </div>
         <p className="text-gray-500 mb-6 text-lg">{meta?.blurb}</p>
 

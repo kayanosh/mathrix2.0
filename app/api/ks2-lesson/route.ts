@@ -1,6 +1,12 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
+import {
+  ks2LessonCacheKey,
+  lookupKS2LessonCache,
+  writeKS2LessonCache,
+  type CachedKS2Lesson,
+} from "@/lib/ks2-lesson-cache";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -74,6 +80,8 @@ export async function POST(req: NextRequest) {
     const target: string = body.target || "curriculum";
     const tier: string = body.tier || "secure";
     const kind: string = ["lesson", "guided", "explain"].includes(body.kind) ? body.kind : "lesson";
+    const topicId: string = (body.topicId || "").toString();
+    const force: boolean = body.force === true;
 
     const isMaths = /math/i.test(subject);
     const mathsRule = isMaths
@@ -151,6 +159,14 @@ ${englishExplainExtra(subject, topic, subtopics)}`;
     }
 
     // ── Full lesson / guided lesson ──────────────────────────────────────────
+    if (topicId && !force) {
+      const key = ks2LessonCacheKey(topicId, target, tier, kind);
+      const cached = await lookupKS2LessonCache(key);
+      if (cached) {
+        return NextResponse.json({ lesson: cached, cached: true });
+      }
+    }
+
     const subtopicLine = subtopics.length
       ? `Cover these objectives: ${subtopics.join("; ")}.`
       : "";
@@ -234,7 +250,20 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
       return NextResponse.json({ error: "Could not generate lesson" }, { status: 502 });
     }
 
-    return NextResponse.json({ lesson });
+    if (topicId) {
+      await writeKS2LessonCache({
+        cacheKey: ks2LessonCacheKey(topicId, target, tier, kind),
+        topicId,
+        subject,
+        topicName: topic,
+        target,
+        tier,
+        kind,
+        lesson: lesson as CachedKS2Lesson,
+      });
+    }
+
+    return NextResponse.json({ lesson, cached: false });
   } catch (err) {
     console.error("ks2-lesson error:", err);
     return NextResponse.json({ error: "Failed to generate lesson" }, { status: 500 });

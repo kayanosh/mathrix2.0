@@ -37,7 +37,7 @@ export const KS2_YEARS: KS2Year[] = ["Year 5", "Year 6"];
 export const KS2_TERMS: KS2Term[] = ["Autumn", "Spring", "Summer"];
 
 export const KS2_SECTIONS: { id: KS2Section; label: string; blurb: string }[] = [
-  { id: "curriculum", label: "Curriculum", blurb: "National Curriculum KS2 by year group" },
+  { id: "curriculum", label: "Curriculum", blurb: "Barnet Hill Academy Year 5 & 6 long-term plans" },
   { id: "sats", label: "SATs", blurb: "Key Stage 2 SATs preparation" },
   { id: "eleven_plus", label: "11+", blurb: "Eleven plus entrance exam preparation" },
 ];

@@ -298,6 +298,22 @@ export interface ChartBlock {
 
 // ── Block: Column Method (long division, column addition/multiplication) ──────
 
+export interface ColumnMethodMove {
+  fromRow: number;
+  fromCol: number;
+  toRow: number;
+  toCol: number;
+  label?: string;
+  kind?: "carry" | "borrow";
+}
+
+export interface ColumnMethodCellNote {
+  row: number;
+  col: number;
+  strike?: boolean;
+  rewrite?: string;
+}
+
 export interface ColumnMethodBlock {
   type: "column_method";
   method: "long_division" | "column_addition" | "column_subtraction" | "column_multiplication";
@@ -305,6 +321,10 @@ export interface ColumnMethodBlock {
   rows: string[];
   /** Carry digits: { row, col, digit } */
   carries?: { row: number; col: number; digit: string }[];
+  /** Animated arrows showing carries or borrows between cells */
+  moves?: ColumnMethodMove[];
+  /** Subtraction: crossed-out digit + rewritten value after borrowing */
+  cellNotes?: ColumnMethodCellNote[];
   /** Horizontal separator lines after certain rows (0-indexed) */
   separatorAfterRows?: number[];
   /** The original question (e.g. "384 ÷ 12") */

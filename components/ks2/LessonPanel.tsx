@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye } from "lucide-react";
+import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer } from "lucide-react";
 import InlineMath from "@/components/InlineMath";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
-import type { KS2Target, KS2Tier } from "@/lib/ks2-pathway";
+import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
 
 export interface LessonSection {
   heading: string;
@@ -82,6 +82,8 @@ export default function LessonPanel(props: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [showTryAnswer, setShowTryAnswer] = useState(false);
+  const [includeTryAnswer, setIncludeTryAnswer] = useState(true);
+  const [fromLibrary, setFromLibrary] = useState(false);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
@@ -98,15 +100,26 @@ export default function LessonPanel(props: Props) {
     setLoading(true);
     setError(false);
     setShowTryAnswer(false);
+    setFromLibrary(false);
     try {
       const res = await fetch("/api/ks2-lesson", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: subjectName, topic: topicName, subtopics, target, tier, kind }),
+        body: JSON.stringify({
+          topicId,
+          subject: subjectName,
+          topic: topicName,
+          subtopics,
+          target,
+          tier,
+          kind,
+          force,
+        }),
       });
       if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { lesson: KS2Lesson };
+      const data = (await res.json()) as { lesson: KS2Lesson; cached?: boolean };
       setLesson(data.lesson);
+      setFromLibrary(data.cached === true);
       writeCache(key, data.lesson);
     } catch {
       setError(true);
@@ -147,6 +160,29 @@ export default function LessonPanel(props: Props) {
       variants={{ show: { transition: { staggerChildren: 0.08 } } }}
       className="space-y-5"
     >
+      <div className="flex flex-wrap items-center gap-3 justify-end">
+        {fromLibrary && (
+          <p className="text-[12px] font-medium text-indigo-600 mr-auto">Loaded from saved lesson library</p>
+        )}
+          {lesson.tryThis && (
+            <label className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeTryAnswer}
+                onChange={(e) => setIncludeTryAnswer(e.target.checked)}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Include try-this answer
+            </label>
+          )}
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-gray-800"
+          >
+            <Printer size={14} /> Print
+          </button>
+      </div>
+
       {/* Hero badge + intro */}
       <motion.div variants={fadeUp} className="flex items-center gap-3">
         <motion.div
@@ -269,6 +305,89 @@ export default function LessonPanel(props: Props) {
         <button onClick={() => load(true)} className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-600">
           <RotateCcw size={13} /> Regenerate
         </button>
+      </div>
+
+      {/* Print-only lesson (hidden on screen) */}
+      <div className="ks2-print-root">
+        <div style={{ borderBottom: "2px solid #000", paddingBottom: "8px", marginBottom: "16px" }}>
+          <div style={{ fontSize: "20px", fontWeight: 700 }}>
+            {subjectName}: {topicName}
+          </div>
+          <div style={{ fontSize: "12px", marginTop: "2px" }}>
+            {kind === "guided" ? "Guided practice" : "Learn lesson"} · {targetMeta(target).label} ·{" "}
+            {tierMeta(tier).label} ({tierMeta(tier).standard})
+          </div>
+        </div>
+
+        {lesson.intro && (
+          <p style={{ fontSize: "14px", lineHeight: 1.55, marginBottom: "16px" }}>
+            <InlineMath text={lesson.intro} />
+          </p>
+        )}
+
+        {lesson.sections.map((s, i) => (
+          <div key={i} className="ks2-print-question" style={{ marginBottom: "14px", fontSize: "14px", lineHeight: 1.5 }}>
+            {s.heading && (
+              <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                {s.emoji ? `${s.emoji} ` : ""}
+                <InlineMath text={s.heading} />
+              </div>
+            )}
+            <p style={{ margin: 0 }}>
+              <InlineMath text={s.body} />
+            </p>
+          </div>
+        ))}
+
+        {lesson.workedExample?.question && (
+          <div className="ks2-print-question" style={{ marginBottom: "16px", fontSize: "14px", lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 700, marginBottom: "6px" }}>
+              {lesson.workedExample.emoji ? `${lesson.workedExample.emoji} ` : ""}Worked example
+            </div>
+            <p style={{ fontWeight: 600, margin: "0 0 8px" }}>
+              <InlineMath text={lesson.workedExample.question} />
+            </p>
+            <ol style={{ margin: 0, paddingLeft: "20px" }}>
+              {lesson.workedExample.steps.map((step, i) => (
+                <li key={i} style={{ marginBottom: "4px" }}>
+                  <InlineMath text={step} />
+                </li>
+              ))}
+            </ol>
+            {lesson.workedExample.answer && (
+              <p style={{ margin: "8px 0 0", fontWeight: 600 }}>
+                Answer: <InlineMath text={lesson.workedExample.answer} />
+              </p>
+            )}
+          </div>
+        )}
+
+        {lesson.keyPoints.length > 0 && (
+          <div className="ks2-print-question" style={{ marginBottom: "16px", fontSize: "14px", lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 700, marginBottom: "6px" }}>Remember</div>
+            <ul style={{ margin: 0, paddingLeft: "20px" }}>
+              {lesson.keyPoints.map((k, i) => (
+                <li key={i} style={{ marginBottom: "4px" }}>
+                  <InlineMath text={k} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {lesson.tryThis && (
+          <div className="ks2-print-question" style={{ fontSize: "14px", lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 700, marginBottom: "6px" }}>Now you try</div>
+            <p style={{ margin: "0 0 8px" }}>
+              <InlineMath text={lesson.tryThis.question} />
+            </p>
+            {includeTryAnswer && lesson.tryThis.answer && (
+              <p style={{ margin: 0, fontWeight: 600 }}>
+                Answer: <InlineMath text={lesson.tryThis.answer} />
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Accent underline */}

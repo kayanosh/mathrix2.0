@@ -3,7 +3,13 @@
  * Runs structural (Zod) + semantic checks + required visuals checks.
  */
 import { WhiteboardResponseSchema } from "./schemas";
-import type { WhiteboardResponse, ProbabilityTreeBlock, TreeBranch } from "@/types/whiteboard";
+import type {
+  WhiteboardResponse,
+  ProbabilityTreeBlock,
+  TreeBranch,
+  EquationStep,
+  EquationStepBlock,
+} from "@/types/whiteboard";
 
 export interface ValidationResult {
   ok: boolean;
@@ -107,12 +113,193 @@ function semanticChecks(data: WhiteboardResponse): string[] {
         if (block.steps.length === 0) {
           errors.push("equation_steps block has no steps");
         }
+        errors.push(...validateAlgebraArrows(block as EquationStepBlock));
         break;
       }
     }
   }
 
   return errors;
+}
+
+// ── Algebra arrow / step-block / language checks ──────────────────────────────
+
+/** Strip \htmlId{id}{...} wrappers so we can compare bare LaTeX strings. */
+function stripHtmlIds(s: string): string {
+  return s.replace(/\\htmlId\{[^}]*\}\{([^}]*)\}/g, "$1");
+}
+
+/** Split a LaTeX equation on the FIRST `=` into [lhs, rhs]. */
+function splitOnEquals(latex: string): [string, string] | null {
+  const cleaned = stripHtmlIds(latex);
+  const idx = cleaned.indexOf("=");
+  if (idx < 0) return null;
+  return [cleaned.slice(0, idx), cleaned.slice(idx + 1)];
+}
+
+/**
+ * Extract additive/subtractive constant tokens like "+5", "-12" from a side.
+ * Returns absolute values (numbers) regardless of sign.
+ */
+function extractConstantMagnitudes(side: string): number[] {
+  // Look for ±NN appearing at term boundaries (after start, +, -, *, /, =, {, (, space)
+  const out: number[] = [];
+  const re = /(?:^|[\s+\-*/=({,])\s*([+\-]?\d+(?:\.\d+)?)\b(?!\s*x)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(side)) !== null) {
+    const n = Math.abs(parseFloat(m[1]));
+    if (Number.isFinite(n)) out.push(n);
+  }
+  return out;
+}
+
+/**
+ * Heuristic: does a step look like a term has crossed the = sign?
+ *
+ * We compare the *constants* on each side of latexBefore vs latexAfter.
+ * If a number magnitude that was on the LHS in latexBefore now appears on the
+ * RHS in latexAfter (or vice versa), we treat that as a term-crossing.
+ */
+function stepHasTermCrossing(step: EquationStep): boolean {
+  if (!step.latexBefore || !step.latexAfter) return false;
+  const before = splitOnEquals(step.latexBefore);
+  const after = splitOnEquals(step.latexAfter);
+  if (!before || !after) return false;
+
+  const beforeL = extractConstantMagnitudes(before[0]);
+  const beforeR = extractConstantMagnitudes(before[1]);
+  const afterL = extractConstantMagnitudes(after[0]);
+  const afterR = extractConstantMagnitudes(after[1]);
+
+  // A constant on LHS in before that is now on RHS in after (and wasn't on RHS before)
+  for (const n of beforeL) {
+    if (!beforeR.includes(n) && afterR.includes(n) && !afterL.includes(n)) {
+      return true;
+    }
+  }
+  for (const n of beforeR) {
+    if (!beforeL.includes(n) && afterL.includes(n) && !afterR.includes(n)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Enforce the algebra-arrow contract on an equation_steps block:
+ *   1. Every step where a term physically crosses the = sign MUST declare an
+ *      `arrows` entry with a non-empty fromTerm/toTerm.
+ *   2. Every declared arrow MUST be anchored with matching `\htmlId{<id>-from}`
+ *      in latexBefore and `\htmlId{<id>-to}` in latexAfter.
+ */
+export function validateAlgebraArrows(block: EquationStepBlock): string[] {
+  const errors: string[] = [];
+
+  block.steps.forEach((step) => {
+    const hasArrows = !!(step.arrows && step.arrows.length > 0);
+
+    // (1) Term-crossing requires arrows
+    if (!hasArrows && stepHasTermCrossing(step)) {
+      errors.push(
+        `Step ${step.stepNumber}: a term appears to cross the = sign but no \`arrows\` entry is declared. Add an arrow with fromTerm/toTerm and \\htmlId tags.`,
+      );
+    }
+
+    // (2) Every declared arrow needs matching \htmlId pair
+    if (hasArrows && step.arrows) {
+      for (const arrow of step.arrows) {
+        const fromTag = `\\htmlId{${arrow.id}-from}`;
+        const toTag = `\\htmlId{${arrow.id}-to}`;
+        if (!step.latexBefore || !step.latexBefore.includes(fromTag)) {
+          errors.push(
+            `Step ${step.stepNumber}, arrow "${arrow.id}": latexBefore is missing \`${fromTag}\` tag.`,
+          );
+        }
+        if (!step.latexAfter.includes(toTag)) {
+          errors.push(
+            `Step ${step.stepNumber}, arrow "${arrow.id}": latexAfter is missing \`${toTag}\` tag.`,
+          );
+        }
+      }
+    }
+  });
+
+  return errors;
+}
+
+/**
+ * Hard rule: a maths question (response contains any `=` in equation_steps,
+ * or any block at all besides `text`) must NOT consist only of `text` blocks.
+ */
+export function validateExplanationsAreSteps(data: WhiteboardResponse): string[] {
+  if (data.blocks.length === 0) return [];
+
+  const allText = data.blocks.every((b) => b.type === "text");
+  if (!allText) return [];
+
+  // Detect maths intent from text content: any `=` in intro/conclusion/text body.
+  const combined = [
+    data.intro,
+    data.conclusion,
+    ...data.blocks.map((b) => (b.type === "text" ? b.content : "")),
+  ]
+    .join(" ");
+  const looksLikeMaths =
+    /=|\\frac|\\sqrt|\bx\s*[+\-*/=]/.test(combined) ||
+    /\bsolve\b|\bequation\b|\bcalculate\b|\bsimplify\b/i.test(combined);
+
+  if (looksLikeMaths) {
+    return [
+      "Response uses only text blocks for a maths question. Add a structured block (equation_steps, labeled_shape, coordinate_graph, etc.) — never answer maths with prose only.",
+    ];
+  }
+  return [];
+}
+
+/** Ornate vocabulary that violates the "plain English" rule. Warnings only. */
+const FORBIDDEN_ORNATE_WORDS = [
+  "splendid",
+  "indeed",
+  "shall we",
+  "precisely",
+  "remarkably",
+  "rather neat",
+  "rather elegant",
+  "jolly",
+  "alas",
+  "quite manageable",
+  "let us",
+];
+
+export function validateSimpleLanguage(data: WhiteboardResponse): string[] {
+  const warnings: string[] = [];
+  const sources: { label: string; text: string }[] = [
+    { label: "intro", text: data.intro || "" },
+    { label: "conclusion", text: data.conclusion || "" },
+    { label: "hint", text: data.hint || "" },
+  ];
+  for (const block of data.blocks) {
+    if (block.type === "equation_steps") {
+      block.steps.forEach((s) => {
+        sources.push({
+          label: `equation_steps step ${s.stepNumber} explanation`,
+          text: s.explanation || "",
+        });
+      });
+    }
+  }
+  for (const { label, text } of sources) {
+    if (!text) continue;
+    const lower = text.toLowerCase();
+    for (const word of FORBIDDEN_ORNATE_WORDS) {
+      if (lower.includes(word)) {
+        warnings.push(
+          `Language: "${label}" uses ornate word/phrase "${word}" — rewrite in plain everyday English.`,
+        );
+      }
+    }
+  }
+  return warnings;
 }
 
 /**
@@ -186,14 +373,36 @@ export function validateResponse(
     requiredBlockTypes || []
   );
 
-  // Visual errors are hard failures — trigger a retry
-  if (visualErrors.length > 0) {
-    return { ok: false, data, errors: [...visualErrors, ...semanticErrors] };
+  // 7. Structure check: never reply to a maths question with prose only
+  const structureErrors = validateExplanationsAreSteps(data);
+
+  // 8. Simple-language warnings (do NOT block — surface to critic/retry loop)
+  const languageWarnings = validateSimpleLanguage(data);
+
+  // Arrow contract violations (term crossings without arrows, missing \htmlId
+  // pairs) live inside semanticErrors and are hard failures. Differentiate
+  // them so we know whether to fail or just warn.
+  const arrowFailures = semanticErrors.filter(
+    (e) => e.startsWith("Step ") && (e.includes("cross") || e.includes("\\htmlId")),
+  );
+  const otherSemantic = semanticErrors.filter((e) => !arrowFailures.includes(e));
+
+  const hardErrors = [...visualErrors, ...structureErrors, ...arrowFailures];
+  if (hardErrors.length > 0) {
+    return {
+      ok: false,
+      data,
+      errors: [...hardErrors, ...otherSemantic, ...languageWarnings],
+    };
   }
 
-  if (semanticErrors.length > 0) {
-    // Semantic errors are warnings — still return data but flag them
-    return { ok: true, data, errors: semanticErrors };
+  if (otherSemantic.length > 0 || languageWarnings.length > 0) {
+    // Non-blocking warnings — still return data but flag them.
+    return {
+      ok: true,
+      data,
+      errors: [...otherSemantic, ...languageWarnings],
+    };
   }
 
   return { ok: true, data };

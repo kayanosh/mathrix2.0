@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Sparkles, TrendingUp, GraduationCap, ArrowRight } from "lucide-react";
 import { KS2_SECTIONS, ks2SectionPath, type KS2Section } from "@/lib/ks2";
+import { getKS2SchoolMeta, type KS2SchoolMeta } from "@/lib/ks2-school";
 
 interface AssignedTopic {
   id: string;
@@ -24,8 +25,10 @@ const SECTION_CARDS: Record<KS2Section, { emoji: string; gradient: string }> = {
 
 export default function KS2Page() {
   const [assigned, setAssigned] = useState<AssignedTopic[]>([]);
+  const [school, setSchool] = useState<KS2SchoolMeta | null>(null);
 
   useEffect(() => {
+    setSchool(getKS2SchoolMeta());
     fetch("/api/assignments")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setAssigned(d.assignments || []))
@@ -58,9 +61,15 @@ export default function KS2Page() {
           <span className="text-3xl">🚀</span>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Let&rsquo;s Learn!</h1>
         </div>
-        <p className="text-gray-500 mb-7 text-lg">
+        <p className="text-gray-500 mb-2 text-lg">
           Choose your path. Learn it, practise it, and earn your stars. ⭐
         </p>
+        {school && (
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700 mb-7">
+            🏫 {school.name}
+          </p>
+        )}
+        {!school && <div className="mb-7" />}
 
         {/* Assigned to you */}
         {assigned.length > 0 && (

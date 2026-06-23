@@ -33,6 +33,9 @@ RULES:
 • Check that the final answer actually answers what was asked.
 • If a "rule" field is present in a step, verify that the named rule is actually applicable.
 • If a "selfCheck" field is present, verify the self-check computation is correct.
+• ARROWS: For every equation_steps step where a term moves across the = sign, an "arrows" entry MUST be present with matching \\htmlId{<id>-from} in latexBefore and \\htmlId{<id>-to} in latexAfter. Missing arrows = critical issue (type: "arrow_missing").
+• PLAIN LANGUAGE: Explanations must use simple everyday English a 13-year-old can follow. Flag jargon (isolate, coefficient, transpose) and ornate words (splendid, indeed, rather, shall we, precisely) as type: "language_too_complex", severity: "minor".
+• NO PROSE-ONLY: A maths question must not be answered with only text blocks. If the response lacks any structured block (equation_steps, labeled_shape, etc.) for a maths question, flag as type: "missing_step", severity: "critical".
 
 You MUST respond with ONLY valid JSON matching this exact schema:
 
@@ -43,7 +46,7 @@ You MUST respond with ONLY valid JSON matching this exact schema:
   "issues": [
     {
       "step": <step number or 0 for general>,
-      "type": "arithmetic" | "algebra" | "sign" | "constraint" | "branch" | "method" | "diagram" | "missing_step",
+      "type": "arithmetic" | "algebra" | "sign" | "constraint" | "branch" | "method" | "diagram" | "missing_step" | "arrow_missing" | "language_too_complex",
       "severity": "critical" | "minor",
       "description": "<what is wrong>",
       "correction": "<what it should be>"

@@ -337,6 +337,24 @@ describe("ColumnMethodBlockSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts moves and cellNotes", () => {
+    const data = {
+      type: "column_method",
+      method: "column_addition",
+      rows: ["456", "+278"],
+      carries: [{ row: 0, col: 1, digit: "1" }],
+      moves: [
+        { fromRow: 0, fromCol: 2, toRow: 0, toCol: 1, label: "carry 1", kind: "carry" },
+      ],
+      cellNotes: [{ row: 0, col: 2, strike: true, rewrite: "13" }],
+      separatorAfterRows: [1],
+      question: "456 + 278",
+      answer: "734",
+    };
+    const result = ColumnMethodBlockSchema.safeParse(data);
+    expect(result.success).toBe(true);
+  });
+
   it("rejects empty rows", () => {
     const data = {
       type: "column_method",

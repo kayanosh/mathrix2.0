@@ -269,4 +269,171 @@ describe("validateResponse", () => {
     const result = validateResponse(colResponse);
     expect(result.ok).toBe(true);
   });
+
+  // ── Algebra arrow + step-block + language enforcement ──────────────────────
+
+  it("rejects a maths question answered with only text blocks", () => {
+    const proseOnly = JSON.stringify({
+      intro: "Let's solve x + 5 = 12.",
+      blocks: [
+        {
+          type: "text",
+          content: "Subtract 5 from both sides to get x = 7.",
+        },
+      ],
+      conclusion: "So x = 7.",
+    });
+    const result = validateResponse(proseOnly);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors!.some((e) => e.includes("only text blocks")),
+    ).toBe(true);
+  });
+
+  it("rejects an equation_steps step where a term crosses = without arrows", () => {
+    const noArrows = JSON.stringify({
+      intro: "Solve x + 5 = 12.",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Move +5",
+              explanation: "Move +5 across the equals sign.",
+              latexBefore: "x + 5 = 12",
+              latexAfter: "x = 12 - 5",
+              arrowDirection: "both_sides",
+            },
+            {
+              stepNumber: 2,
+              operationLabel: "Simplify",
+              explanation: "Work out the right-hand side.",
+              latexBefore: "x = 12 - 5",
+              latexAfter: "x = 7",
+              arrowDirection: "simplify",
+            },
+          ],
+        },
+      ],
+      conclusion: "So x = 7.",
+    });
+    const result = validateResponse(noArrows);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors!.some((e) =>
+        e.includes("term appears to cross the = sign"),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a step that declares an arrow without matching \\htmlId tags", () => {
+    const missingTags = JSON.stringify({
+      intro: "Solve x + 5 = 12.",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Move +5",
+              explanation: "Move +5 across — it becomes -5.",
+              latexBefore: "x + 5 = 12",
+              latexAfter: "x = 12 - 5",
+              arrowDirection: "both_sides",
+              arrows: [
+                {
+                  id: "a1",
+                  label: "-5",
+                  fromTerm: "+5",
+                  toTerm: "-5",
+                  signRule: "adding becomes subtracting",
+                  style: "curly",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      conclusion: "x = 7",
+    });
+    const result = validateResponse(missingTags);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors!.some((e) => e.includes("missing `\\htmlId{a1-from}`")),
+    ).toBe(true);
+    expect(
+      result.errors!.some((e) => e.includes("missing `\\htmlId{a1-to}`")),
+    ).toBe(true);
+  });
+
+  it("accepts a step with a properly tagged arrow", () => {
+    const tagged = JSON.stringify({
+      intro: "Let's solve x + 5 = 12.",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Move +5 across",
+              explanation: "Move +5 across the equals sign — it becomes -5.",
+              latexBefore: "x + \\htmlId{a1-from}{5} = 12",
+              latexAfter: "x = 12 \\htmlId{a1-to}{- 5}",
+              arrowDirection: "both_sides",
+              arrows: [
+                {
+                  id: "a1",
+                  label: "-5",
+                  fromTerm: "+5",
+                  toTerm: "-5",
+                  signRule: "adding becomes subtracting",
+                  style: "curly",
+                },
+              ],
+            },
+            {
+              stepNumber: 2,
+              operationLabel: "Simplify",
+              explanation: "Work out 12 minus 5.",
+              latexBefore: "x = 12 - 5",
+              latexAfter: "x = 7",
+              arrowDirection: "simplify",
+            },
+          ],
+        },
+      ],
+      conclusion: "So x = 7. Done!",
+    });
+    const result = validateResponse(tagged);
+    expect(result.ok).toBe(true);
+  });
+
+  it("warns when ornate words appear in explanation text", () => {
+    const ornate = JSON.stringify({
+      intro: "Splendid — let's tackle this rather elegant problem, shall we?",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Divide",
+              explanation: "Indeed, we divide both sides by 2.",
+              latexBefore: "2x = 6",
+              latexAfter: "x = 3",
+              arrowDirection: "down",
+            },
+          ],
+        },
+      ],
+      conclusion: "Precisely as expected — x = 3.",
+    });
+    const result = validateResponse(ornate);
+    // Warnings only — should still be ok
+    expect(result.ok).toBe(true);
+    expect(
+      result.errors!.some((e) => e.includes("ornate")),
+    ).toBe(true);
+  });
 });
