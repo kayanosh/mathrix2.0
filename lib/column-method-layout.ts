@@ -1,21 +1,34 @@
 import type { ColumnMethodMove } from "@/types/whiteboard";
 
-export const DEFAULT_CELL_W = 32;
-export const DEFAULT_CELL_H = 36;
-export const DEFAULT_CARRY_H = 16;
+export const DEFAULT_CELL_W = 48;
+export const DEFAULT_CELL_H = 52;
+export const DEFAULT_CARRY_H = 40;
 export const ROW_SEPARATOR_H = 2;
 
 /** Centre point of a digit cell in the column grid (px, top-left origin). */
 export function cellCenter(
   row: number,
   col: number,
-  maxCols: number,
+  _maxCols: number,
   cellW = DEFAULT_CELL_W,
   cellH = DEFAULT_CELL_H,
   carryH = DEFAULT_CARRY_H
 ): { x: number; y: number } {
   const x = col * cellW + cellW / 2;
   const y = row * (carryH + cellH + ROW_SEPARATOR_H) + carryH + cellH / 2;
+  return { x, y };
+}
+
+/** Centre of the carry band above a row (where carry digits are written). */
+export function carrySlotCenter(
+  row: number,
+  col: number,
+  cellW = DEFAULT_CELL_W,
+  cellH = DEFAULT_CELL_H,
+  carryH = DEFAULT_CARRY_H
+): { x: number; y: number } {
+  const x = col * cellW + cellW / 2;
+  const y = row * (carryH + cellH + ROW_SEPARATOR_H) + carryH / 2;
   return { x, y };
 }
 
@@ -57,25 +70,33 @@ export function inferCarryMoves(
   });
 }
 
-/** Build a curved SVG path between two cell centres. */
+/** Sort moves right-to-left and assign staggered lane indices for arrow routing. */
+export function movesWithLanes(moves: ColumnMethodMove[]): Array<ColumnMethodMove & { laneIndex: number }> {
+  const sorted = [...moves].sort((a, b) => b.fromCol - a.fromCol);
+  return sorted.map((move, laneIndex) => ({ ...move, laneIndex }));
+}
+
+/** Build a curved SVG path between two points. */
 export function buildArrowPath(
   x1: number,
   y1: number,
   x2: number,
   y2: number,
-  kind: "carry" | "borrow" = "carry"
+  kind: "carry" | "borrow" = "carry",
+  laneIndex = 0
 ): string {
   const dx = x2 - x1;
   const dy = y2 - y1;
 
   if (kind === "borrow") {
-    const midX = x1 + dx * 0.5;
-    const midY = y1 + dy * 0.15;
+    const midX = x1 + dx * 0.5 + laneIndex * 6;
+    const midY = y1 + dy * 0.15 - laneIndex * 4;
     return `M ${x1},${y1} Q ${midX},${midY} ${x2},${y2}`;
   }
 
-  const cx = x1 + dx * 0.35;
-  const cy = y1 + dy * 0.5 - 8;
+  const lift = 14 + laneIndex * 12;
+  const cx = (x1 + x2) / 2;
+  const cy = Math.min(y1, y2) - lift;
   return `M ${x1},${y1} Q ${cx},${cy} ${x2},${y2}`;
 }
 
@@ -85,7 +106,7 @@ export function arrowheadPoints(
   y1: number,
   x2: number,
   y2: number,
-  size = 6
+  size = 8
 ): string {
   const angle = Math.atan2(y2 - y1, x2 - x1);
   const ax = x2 - size * Math.cos(angle - Math.PI / 6);
@@ -101,10 +122,11 @@ export function arrowLabelPosition(
   y1: number,
   x2: number,
   y2: number,
-  kind: "carry" | "borrow" = "carry"
+  kind: "carry" | "borrow" = "carry",
+  laneIndex = 0
 ): { x: number; y: number } {
   if (kind === "borrow") {
-    return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 10 };
+    return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 10 - laneIndex * 4 };
   }
-  return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 6 };
+  return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 14 - laneIndex * 12 };
 }

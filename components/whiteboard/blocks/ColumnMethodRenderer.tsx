@@ -5,8 +5,8 @@ import { motion } from "framer-motion";
 import type { ColumnMethodBlock, ColumnMethodCellNote } from "@/types/whiteboard";
 import {
   arrowheadPoints,
-  arrowLabelPosition,
   buildArrowPath,
+  carrySlotCenter,
   cellCenter,
   DEFAULT_CARRY_H,
   DEFAULT_CELL_H,
@@ -14,6 +14,7 @@ import {
   gridHeight,
   gridWidth,
   inferCarryMoves,
+  movesWithLanes,
   ROW_SEPARATOR_H,
 } from "@/lib/column-method-layout";
 
@@ -22,8 +23,8 @@ interface Props {
   baseDelay: number;
 }
 
-const CARRY_COLOR = "#fbbf24";
-const BORROW_COLOR = "#38bdf8";
+const CARRY_COLOR = "#f59e0b";
+const BORROW_COLOR = "#0ea5e9";
 
 function noteKey(n: ColumnMethodCellNote): string {
   return `${n.row}-${n.col}`;
@@ -51,8 +52,8 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
   }, [cellNotes]);
 
   const resolvedMoves = useMemo(() => {
-    if (moves?.length) return moves;
-    return inferCarryMoves(method, carries, maxCols);
+    const raw = moves?.length ? moves : inferCarryMoves(method, carries, maxCols);
+    return movesWithLanes(raw);
   }, [moves, method, carries, maxCols]);
 
   const svgW = gridWidth(maxCols, cellW);
@@ -66,20 +67,16 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
     method === "column_addition" ? "+" : method === "column_subtraction" ? "−" : "";
 
   return (
-    <div
-      className="rounded-xl p-4"
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-      }}
-    >
-      <p className="text-xs text-gray-400 mb-3 text-center font-[family-name:var(--font-caveat)] text-base">
+    <div className="rounded-xl p-5 bg-gray-50/80 border border-gray-200">
+      <p className="text-lg text-gray-600 mb-4 text-center font-[family-name:var(--font-caveat)]">
         {question}
       </p>
 
       <div className="flex justify-center">
-        <div className="relative inline-block" style={{ width: svgW, minHeight: svgH }}>
-          {/* Arrow overlay */}
+        <div
+          className="relative inline-block pt-2"
+          style={{ width: svgW, minHeight: svgH }}
+        >
           {resolvedMoves.length > 0 && (
             <svg
               className="absolute inset-0 pointer-events-none overflow-visible"
@@ -88,13 +85,15 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
               style={{ zIndex: 2 }}
             >
               {resolvedMoves.map((move, mi) => {
-                const from = cellCenter(move.fromRow, move.fromCol, maxCols, cellW, cellH, carryH);
-                const to = cellCenter(move.toRow, move.toCol, maxCols, cellW, cellH, carryH);
                 const kind = move.kind ?? "carry";
+                const from = cellCenter(move.fromRow, move.fromCol, maxCols, cellW, cellH, carryH);
+                const to =
+                  kind === "carry"
+                    ? carrySlotCenter(move.toRow, move.toCol, cellW, cellH, carryH)
+                    : cellCenter(move.toRow, move.toCol, maxCols, cellW, cellH, carryH);
                 const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
-                const pathD = buildArrowPath(from.x, from.y, to.x, to.y, kind);
+                const pathD = buildArrowPath(from.x, from.y, to.x, to.y, kind, move.laneIndex);
                 const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
-                const labelPos = arrowLabelPosition(from.x, from.y, to.x, to.y, kind);
                 const delay = baseDelay + Math.max(move.fromRow, move.toRow) * 0.15 + 0.25 + mi * 0.1;
 
                 return (
@@ -102,7 +101,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                     <motion.path
                       d={pathD}
                       stroke={color}
-                      strokeWidth={2}
+                      strokeWidth={3}
                       strokeLinecap="round"
                       fill="none"
                       initial={{ pathLength: 0, opacity: 0 }}
@@ -112,7 +111,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                     <motion.path
                       d={headD}
                       stroke={color}
-                      strokeWidth={2}
+                      strokeWidth={3}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       fill="none"
@@ -120,35 +119,18 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                       animate={{ opacity: 1 }}
                       transition={{ delay: delay + 0.35, duration: 0.15 }}
                     />
-                    {move.label && (
-                      <motion.text
-                        x={labelPos.x}
-                        y={labelPos.y}
-                        textAnchor="middle"
-                        fill={color}
-                        fontSize={9}
-                        fontFamily="var(--font-caveat), cursive"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: delay + 0.2, duration: 0.2 }}
-                      >
-                        {move.label}
-                      </motion.text>
-                    )}
                   </g>
                 );
               })}
             </svg>
           )}
 
-          {/* Digit grid */}
           {rows.map((row, ri) => {
             const cleaned = row.replace(/^[+\-]\s*/, "").trim();
             const showOperator = ri === operatorRow && operatorChar;
 
             return (
               <div key={ri}>
-                {/* Carry digits above this row */}
                 <div className="flex justify-end items-end" style={{ height: carryH, marginRight: 2 }}>
                   {Array.from({ length: maxCols }, (_, ci) => {
                     const carry = carryMap.get(`${ri}-${ci}`);
@@ -162,7 +144,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                         transition={{ delay: baseDelay + ri * 0.15 + 0.1 }}
                       >
                         {carry && (
-                          <span className="text-[10px] text-amber-400 font-[family-name:var(--font-caveat)]">
+                          <span className="text-base font-semibold text-amber-600 font-[family-name:var(--font-caveat)]">
                             {carry}
                           </span>
                         )}
@@ -171,7 +153,6 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                   })}
                 </div>
 
-                {/* Row digits */}
                 <motion.div
                   className="flex justify-end items-center"
                   initial={{ opacity: 0, x: -8 }}
@@ -180,12 +161,12 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                 >
                   {showOperator && (
                     <div
-                      className="flex items-center justify-center shrink-0 text-indigo-400 font-bold"
+                      className="flex items-center justify-center shrink-0 text-indigo-600 font-bold"
                       style={{
                         width: cellW,
                         height: cellH,
                         fontFamily: "var(--font-caveat), cursive",
-                        fontSize: "20px",
+                        fontSize: "28px",
                       }}
                     >
                       {operatorChar}
@@ -200,19 +181,18 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                     return (
                       <div
                         key={`cell-${ri}-${ci}`}
-                        className="relative flex items-center justify-center"
+                        className="relative flex items-center justify-center text-gray-900"
                         style={{
                           width: cellW,
                           height: cellH,
                           fontFamily: "var(--font-caveat), cursive",
-                          fontSize: "18px",
-                          color: "#e8e8f0",
+                          fontSize: "28px",
                         }}
                       >
                         {note?.rewrite && (
                           <span
-                            className="absolute text-[10px] text-sky-300 font-[family-name:var(--font-caveat)]"
-                            style={{ top: 2, right: 4 }}
+                            className="absolute text-sm font-semibold text-sky-600 font-[family-name:var(--font-caveat)]"
+                            style={{ top: 4, right: 6 }}
                           >
                             {note.rewrite}
                           </span>
@@ -220,8 +200,8 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
                         <span
                           style={{
                             textDecoration: note?.strike ? "line-through" : undefined,
-                            textDecorationColor: note?.strike ? "#f87171" : undefined,
-                            opacity: note?.strike ? 0.55 : 1,
+                            textDecorationColor: note?.strike ? "#ef4444" : undefined,
+                            opacity: note?.strike ? 0.5 : 1,
                           }}
                         >
                           {char}
@@ -255,9 +235,9 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: baseDelay + rows.length * 0.15 + 0.2 }}
-          className="mt-3 text-center"
+          className="mt-4 text-center"
         >
-          <span className="text-emerald-400 font-bold font-[family-name:var(--font-caveat)] text-xl">
+          <span className="text-emerald-600 font-bold font-[family-name:var(--font-caveat)] text-2xl">
             = {answer}
           </span>
         </motion.div>

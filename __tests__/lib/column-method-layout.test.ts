@@ -2,21 +2,33 @@ import {
   arrowheadPoints,
   arrowLabelPosition,
   buildArrowPath,
+  carrySlotCenter,
   cellCenter,
   inferCarryMoves,
+  movesWithLanes,
 } from "@/lib/column-method-layout";
 
 describe("cellCenter", () => {
   it("returns centre of a cell in the grid", () => {
     const c = cellCenter(0, 2, 3);
-    expect(c.x).toBe(80);
-    expect(c.y).toBe(34);
+    expect(c.x).toBe(120);
+    expect(c.y).toBe(66);
   });
 
   it("offsets y by row index", () => {
     const row0 = cellCenter(0, 0, 3);
     const row1 = cellCenter(1, 0, 3);
     expect(row1.y).toBeGreaterThan(row0.y);
+  });
+});
+
+describe("carrySlotCenter", () => {
+  it("places y in the carry band above a row", () => {
+    const cell = cellCenter(0, 1, 3);
+    const carry = carrySlotCenter(0, 1);
+    expect(carry.x).toBe(cell.x);
+    expect(carry.y).toBeLessThan(cell.y);
+    expect(carry.y).toBe(20);
   });
 });
 
@@ -43,6 +55,18 @@ describe("inferCarryMoves", () => {
   });
 });
 
+describe("movesWithLanes", () => {
+  it("sorts moves right-to-left and assigns lane indices", () => {
+    const lanes = movesWithLanes([
+      { fromRow: 0, fromCol: 0, toRow: 0, toCol: 0, kind: "carry" },
+      { fromRow: 0, fromCol: 2, toRow: 0, toCol: 1, kind: "carry" },
+      { fromRow: 0, fromCol: 1, toRow: 0, toCol: 0, kind: "carry" },
+    ]);
+    expect(lanes.map((m) => m.fromCol)).toEqual([2, 1, 0]);
+    expect(lanes.map((m) => m.laneIndex)).toEqual([0, 1, 2]);
+  });
+});
+
 describe("buildArrowPath", () => {
   it("returns a valid SVG path string", () => {
     const d = buildArrowPath(10, 20, 50, 10, "carry");
@@ -54,6 +78,12 @@ describe("buildArrowPath", () => {
     const carry = buildArrowPath(10, 20, 50, 20, "carry");
     const borrow = buildArrowPath(10, 20, 50, 20, "borrow");
     expect(carry).not.toEqual(borrow);
+  });
+
+  it("staggers carry arcs by lane index", () => {
+    const lane0 = buildArrowPath(100, 80, 50, 20, "carry", 0);
+    const lane1 = buildArrowPath(100, 80, 50, 20, "carry", 1);
+    expect(lane0).not.toEqual(lane1);
   });
 });
 
@@ -69,5 +99,11 @@ describe("arrowLabelPosition", () => {
     const pos = arrowLabelPosition(0, 40, 60, 20, "carry");
     expect(pos.x).toBe(30);
     expect(pos.y).toBeLessThan(20);
+  });
+
+  it("staggers label height by lane", () => {
+    const lane0 = arrowLabelPosition(0, 40, 60, 20, "carry", 0);
+    const lane1 = arrowLabelPosition(0, 40, 60, 20, "carry", 1);
+    expect(lane1.y).toBeLessThan(lane0.y);
   });
 });
