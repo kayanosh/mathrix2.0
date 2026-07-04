@@ -468,3 +468,44 @@ body {
     margin: 14mm;
   }
 }
+
+/* ── Tuition Centre portal printing ──────────────────────────────
+   A container marked `.tutor-print-root` prints on its own; everything
+   else on the page is hidden. Elements inside it with `.print-hide` are
+   omitted from print (e.g. interactive controls), and `.print-only`
+   elements appear only when printing. Works on screen too (not hidden). */
+@media print {
+  .tutor-print-root,
+  .tutor-print-root * {
+    visibility: visible !important;
+  }
+  .tutor-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 6mm;
+    color: #000;
+    background: #fff;
+  }
+  .tutor-print-root .print-hide {
+    display: none !important;
+  }
+  .print-break {
+    break-before: page;
+    page-break-before: always;
+  }
+  .print-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+.print-only {
+  display: none;
+}
+@media print {
+  .print-only {
+    display: block !important;
+  }
+}
