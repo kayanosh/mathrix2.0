@@ -138,3 +138,49 @@ export interface TeacherWorksheetData {
   questions: TeacherQuestion[];
   generatedAt: string;
 }
+
+// ── Tuition Centre — tutor worksheets with full step-by-step solutions ────────
+
+export interface TutorSolutionQuestion {
+  id: number;
+  questionText: string;
+  answer: string;
+  /** Full worked solution, one line/step per array item. */
+  solutionSteps: string[];
+  difficulty: TeacherQuestionDifficulty;
+  marks?: number;
+}
+
+export interface TutorWorksheet {
+  stageId: string;
+  stageLabel: string;
+  subjectId: string;
+  subjectName: string;
+  examBoard?: string;
+  topicId: string;
+  topicName: string;
+  level?: string;
+  questions: TutorSolutionQuestion[];
+  generatedAt: string;
+}
+
+export interface TutorLessonSection {
+  heading: string;
+  body: string;
+}
+
+export interface TutorLessonExample {
+  question: string;
+  steps: string[];
+  answer: string;
+}
+
+export interface TutorLesson {
+  intro: string;
+  objectives: string[];
+  sections: TutorLessonSection[];
+  workedExamples: TutorLessonExample[];
+  keyPoints: string[];
+  commonMistakes: string[];
+  examTip?: string;
+}
