@@ -1,14 +1,15 @@
 import { supabaseAdmin } from "./supabase/admin";
-import type { TutorLesson } from "@/types";
+import type { TutorLesson, TutorWorksheet } from "@/types";
 
-/** Stable cache key: one shared lesson per topic + board + level + kind. */
+/** Stable cache key: one shared entry per topic + board + level + kind + science track. */
 export function tutorLessonCacheKey(
   topicId: string,
   examBoard: string | null | undefined,
   level: string | null | undefined,
   kind: string,
+  scienceTrack?: string | null,
 ): string {
-  return `${topicId}|${examBoard || "any"}|${level || "std"}|${kind}`;
+  return `${topicId}|${examBoard || "any"}|${level || "std"}|${scienceTrack || "any"}|${kind}`;
 }
 
 export async function lookupTutorLessonCache(cacheKey: string): Promise<TutorLesson | null> {
@@ -27,6 +28,24 @@ export async function lookupTutorLessonCache(cacheKey: string): Promise<TutorLes
     .then(() => {});
 
   return data.lesson_json as TutorLesson;
+}
+
+export async function lookupTutorWorksheetCache(cacheKey: string): Promise<TutorWorksheet | null> {
+  const { data, error } = await supabaseAdmin
+    .from("tutor_lesson_cache")
+    .select("lesson_json, hit_count")
+    .eq("cache_key", cacheKey)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  supabaseAdmin
+    .from("tutor_lesson_cache")
+    .update({ hit_count: ((data.hit_count as number) || 0) + 1 })
+    .eq("cache_key", cacheKey)
+    .then(() => {});
+
+  return data.lesson_json as TutorWorksheet;
 }
 
 export async function writeTutorLessonCache(entry: {
@@ -58,5 +77,36 @@ export async function writeTutorLessonCache(entry: {
 
   if (error) {
     console.error("[TutorLessonCache] Write failed:", error.message);
+  }
+}
+
+export async function writeTutorWorksheetCache(entry: {
+  cacheKey: string;
+  stageId: string;
+  subject: string;
+  examBoard?: string | null;
+  topicId: string;
+  topicName: string;
+  level?: string | null;
+  worksheet: TutorWorksheet;
+}): Promise<void> {
+  const { error } = await supabaseAdmin.from("tutor_lesson_cache").upsert(
+    {
+      cache_key: entry.cacheKey,
+      stage_id: entry.stageId,
+      subject: entry.subject,
+      exam_board: entry.examBoard || null,
+      topic_id: entry.topicId,
+      topic_name: entry.topicName,
+      level: entry.level || null,
+      kind: "worksheet",
+      lesson_json: entry.worksheet,
+      hit_count: 0,
+    },
+    { onConflict: "cache_key" },
+  );
+
+  if (error) {
+    console.error("[TutorWorksheetCache] Write failed:", error.message);
   }
 }

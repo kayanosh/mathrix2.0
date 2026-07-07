@@ -12,7 +12,9 @@ import {
   getTopicById,
   getStage,
   getSubject,
+  getSubtopicsForTopic,
   type ExamBoardId,
+  type GcseTier,
 } from "@/lib/curriculum";
 import type { TutorLesson, TutorWorksheet } from "@/types";
 
@@ -20,6 +22,13 @@ function levelOptions(stageId: string): string[] {
   if (stageId === "gcse") return ["Foundation", "Higher"];
   if (stageId === "a-level") return ["AS", "A2"];
   return ["Working towards", "Expected", "Greater depth"];
+}
+
+function tierFromLevel(stageId: string, level: string): GcseTier | null {
+  if (stageId !== "gcse" || !level) return null;
+  if (level.toLowerCase() === "foundation") return "foundation";
+  if (level.toLowerCase() === "higher") return "higher";
+  return null;
 }
 
 function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | null }) {
@@ -30,6 +39,11 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
   const levels = useMemo(() => (topic ? levelOptions(topic.stageId) : []), [topic]);
   const [level, setLevel] = useState<string>("");
   const [count, setCount] = useState(8);
+
+  const activeSubtopics = useMemo(() => {
+    if (!topic) return [];
+    return getSubtopicsForTopic(topic, tierFromLevel(topic.stageId, level));
+  }, [topic, level]);
 
   const [lesson, setLesson] = useState<TutorLesson | null>(null);
   const [worksheet, setWorksheet] = useState<TutorWorksheet | null>(null);
@@ -49,16 +63,25 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
   }
 
   const isMaths = subject.id === "maths";
-  const meta = [stage.label, subject.name, board].filter(Boolean).join(" · ");
+  const meta = [
+    stage.label,
+    subject.name,
+    board,
+    topic.scienceTrack === "combined" ? "Combined Science" : topic.scienceTrack === "triple" ? "Triple Science" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const genBody = {
     stageId: stage.id,
     stageLabel: stage.label,
     subjectId: subject.id,
     subjectName: subject.name,
     examBoard: board,
+    scienceTrack: topic.scienceTrack || null,
     topicId: topic.id,
     topicName: topic.name,
-    subtopics: topic.subtopics,
+    subtopics: activeSubtopics,
     level: level || null,
   };
 
@@ -122,12 +145,18 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
         </div>
 
         {/* Subtopics */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {topic.subtopics.map((st) => (
-            <span key={st} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
-              {st}
-            </span>
-          ))}
+        <div className="mt-3">
+          <p className="text-xs font-medium text-gray-400 mb-1.5">
+            Objectives covered ({activeSubtopics.length})
+            {level && stage.id === "gcse" && subject.id === "maths" ? ` · ${level} tier` : ""}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {activeSubtopics.map((st) => (
+              <span key={st} className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+                {st}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Controls */}

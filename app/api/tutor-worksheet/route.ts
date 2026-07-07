@@ -1,5 +1,11 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  tutorLessonCacheKey,
+  lookupTutorWorksheetCache,
+  writeTutorWorksheetCache,
+} from "@/lib/tutor-lesson-cache";
+import { buildTutorWorksheetPrompt } from "@/lib/prompts/tutor";
 import type { TutorSolutionQuestion, TutorWorksheet } from "@/types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -10,9 +16,6 @@ const DIFFICULTIES = ["easy", "medium", "hard", "exam"] as const;
 
 /**
  * POST /api/tutor-worksheet
- * Body: { stageId, stageLabel, subjectId, subjectName, examBoard?, topicId,
- *         topicName, subtopics?, level?, count? }
- * Returns a printable worksheet: each question has a full step-by-step solution.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,50 +25,32 @@ export async function POST(req: NextRequest) {
     const subjectId: string = body.subjectId || "maths";
     const subjectName: string = body.subjectName || "Maths";
     const examBoard: string | null = body.examBoard || null;
+    const scienceTrack: string | null = body.scienceTrack || null;
     const topicId: string = (body.topicId || "").toString();
     const topicName: string = body.topicName || "the topic";
     const subtopics: string[] = Array.isArray(body.subtopics) ? body.subtopics : [];
     const level: string | null = body.level || null;
     const count: number = Math.min(Math.max(Number(body.count) || 8, 4), 16);
+    const force: boolean = body.force === true;
 
-    const isMaths = /math/i.test(subjectName) || subjectId === "maths";
-    const mathsRule = isMaths
-      ? "Wrap every number, calculation, fraction, equation or symbol in $...$ (for example $x = 4$, $\\frac{3}{4}$). Use double backslashes for LaTeX commands in JSON."
-      : "Write in plain prose. For English, a 'solution' is a model answer / mark scheme with the key success criteria; for Science, show the reasoning and correct working.";
-
-    const boardLine = examBoard
-      ? `Model the questions on the ${examBoard} ${stageLabel} specification and its exam style.`
-      : "";
-    const subtopicLine = subtopics.length ? `Focus on these objectives: ${subtopics.join("; ")}.` : "";
-    const levelLine = level ? `Overall difficulty target: ${level}.` : "";
-
-    const sys = `You are Mathrix, an expert UK ${stageLabel} ${subjectName} question writer creating a tuition worksheet on "${topicName}".
-${boardLine}
-${subtopicLine}
-${levelLine}
-
-Write exactly ${count} questions, spread across increasing difficulty:
-- roughly a quarter "easy" (single-step, builds confidence)
-- roughly a quarter "medium" (typical ${stageLabel} difficulty)
-- roughly a quarter "hard" (multi-step, combines ideas)
-- roughly a quarter "exam" (full exam-style, allocate marks)
-
-For EACH question, provide a COMPLETE step-by-step worked solution (not just the final answer) that a tutor can use to teach the method. ${mathsRule}
-
-Return ONLY valid JSON in exactly this shape (no markdown fences):
-{
-  "questions": [
-    {
-      "id": 1,
-      "questionText": "the question",
-      "answer": "the concise final answer",
-      "solutionSteps": ["step 1 of the working", "step 2", "..."],
-      "difficulty": "easy",
-      "marks": 2
+    if (topicId && !force) {
+      const cached = await lookupTutorWorksheetCache(
+        tutorLessonCacheKey(topicId, examBoard, level, "worksheet", scienceTrack),
+      );
+      if (cached) return NextResponse.json({ ...cached, cached: true });
     }
-  ]
-}
-Every question needs 2-6 solutionSteps. Set "marks" for exam-style questions. Make every question distinct.`;
+
+    const sys = buildTutorWorksheetPrompt({
+      stageLabel,
+      subjectId,
+      subjectName,
+      topicName,
+      subtopics,
+      examBoard,
+      level,
+      scienceTrack,
+      count,
+    });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -94,7 +79,7 @@ Every question needs 2-6 solutionSteps. Set "marks" for exam-style questions. Ma
             : [];
           return {
             id: typeof q.id === "number" ? q.id : i + 1,
-            questionText: (q.questionText || "").toString(),
+            questionText: (q.questionText || q.question || "").toString(),
             answer: (q.answer || "").toString(),
             solutionSteps: steps,
             difficulty: diff,
@@ -123,7 +108,20 @@ Every question needs 2-6 solutionSteps. Set "marks" for exam-style questions. Ma
       generatedAt: new Date().toISOString(),
     };
 
-    return NextResponse.json(worksheet);
+    if (topicId) {
+      await writeTutorWorksheetCache({
+        cacheKey: tutorLessonCacheKey(topicId, examBoard, level, "worksheet", scienceTrack),
+        stageId,
+        subject: subjectName,
+        examBoard,
+        topicId,
+        topicName,
+        level,
+        worksheet,
+      });
+    }
+
+    return NextResponse.json({ ...worksheet, cached: false });
   } catch (err) {
     console.error("tutor-worksheet error:", err);
     return NextResponse.json({ error: "Failed to generate worksheet" }, { status: 500 });

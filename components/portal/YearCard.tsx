@@ -1,6 +1,7 @@
 "use client";
 
 import type { CurriculumStage } from "@/lib/curriculum";
+import { topicCount } from "@/lib/curriculum";
 
 const KS_STYLES: Record<string, string> = {
   KS2: "from-sky-500 to-blue-600",
@@ -19,6 +20,14 @@ export default function YearCard({
   onClick: () => void;
 }) {
   const gradient = KS_STYLES[stage.keyStage] || "from-gray-500 to-gray-700";
+  const maths = topicCount(stage.id, "maths");
+  const english = topicCount(stage.id, "english");
+  const science =
+    stage.id === "gcse"
+      ? topicCount(stage.id, "science", { scienceTrack: "combined" }) +
+        topicCount(stage.id, "science", { scienceTrack: "triple" })
+      : topicCount(stage.id, "science");
+
   return (
     <button
       onClick={onClick}
@@ -34,6 +43,11 @@ export default function YearCard({
       <div className="mt-2 font-semibold text-gray-900">{stage.label}</div>
       <div className="text-xs text-gray-400">{stage.ages}</div>
       <div className="text-[11px] text-gray-400 mt-1">{stage.blurb}</div>
+      <div className="text-[10px] text-gray-400 mt-2 flex flex-wrap gap-x-2">
+        <span>🔢 {maths}</span>
+        <span>📖 {english}</span>
+        <span>🔬 {science}</span>
+      </div>
       {stage.hasExamBoards && (
         <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wide text-indigo-500 bg-indigo-50 rounded-full px-2 py-0.5">
           Boards

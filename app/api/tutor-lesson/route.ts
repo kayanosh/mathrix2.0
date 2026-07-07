@@ -5,16 +5,13 @@ import {
   lookupTutorLessonCache,
   writeTutorLessonCache,
 } from "@/lib/tutor-lesson-cache";
+import { buildTutorLessonPrompt } from "@/lib/prompts/tutor";
 import type { TutorLesson } from "@/types";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * POST /api/tutor-lesson
- * Body: { stageId, stageLabel, subjectId, subjectName, examBoard?, topicId,
- *         topicName, subtopics?, level?, force? }
- * Returns a structured, printable teaching lesson for the tutor to teach from.
- * Cached per topic + board + level so a lesson is generated once and shared.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +21,7 @@ export async function POST(req: NextRequest) {
     const subjectId: string = body.subjectId || "maths";
     const subjectName: string = body.subjectName || "Maths";
     const examBoard: string | null = body.examBoard || null;
+    const scienceTrack: string | null = body.scienceTrack || null;
     const topicId: string = (body.topicId || "").toString();
     const topicName: string = body.topicName || "the topic";
     const subtopics: string[] = Array.isArray(body.subtopics) ? body.subtopics : [];
@@ -32,39 +30,21 @@ export async function POST(req: NextRequest) {
 
     if (topicId && !force) {
       const cached = await lookupTutorLessonCache(
-        tutorLessonCacheKey(topicId, examBoard, level, "lesson"),
+        tutorLessonCacheKey(topicId, examBoard, level, "lesson", scienceTrack),
       );
       if (cached) return NextResponse.json({ lesson: cached, cached: true });
     }
 
-    const isMaths = /math/i.test(subjectName) || subjectId === "maths";
-    const mathsRule = isMaths
-      ? "Wrap every number, calculation, fraction, equation, or symbol in $...$ so it renders (for example $\\frac{3}{4}$, $2x + 5 = 11$). Use double backslashes for LaTeX commands."
-      : "Do not use LaTeX or $ symbols; write formulae and terms in plain words.";
-
-    const boardLine = examBoard
-      ? `This lesson is for the ${examBoard} specification — use its terminology and question style.`
-      : "";
-    const subtopicLine = subtopics.length ? `Cover these objectives: ${subtopics.join("; ")}.` : "";
-    const levelLine = level ? `Pitch the difficulty at: ${level}.` : "";
-
-    const sys = `You are Mathrix, an outstanding UK tutor preparing a ${stageLabel} ${subjectName} lesson on "${topicName}" for a private tuition session.
-${boardLine}
-${subtopicLine}
-${levelLine}
-Write a clear, well-structured lesson the tutor can teach from and print. Be precise and correct. ${mathsRule}
-
-Return ONLY valid JSON in exactly this shape (no markdown fences):
-{
-  "intro": "1-2 sentence introduction to the topic and why it matters",
-  "objectives": ["what the student will be able to do", "..."],
-  "sections": [{ "heading": "short heading", "body": "1-4 sentences of clear teaching" }],
-  "workedExamples": [{ "question": "an example question", "steps": ["step 1", "step 2"], "answer": "final answer" }],
-  "keyPoints": ["a fact/rule to remember", "..."],
-  "commonMistakes": ["a common error and how to avoid it", "..."],
-  "examTip": "one exam-technique tip"
-}
-Use 3-5 sections, 2-3 worked examples (each with 3-6 steps), 3-5 key points, and 2-3 common mistakes.`;
+    const sys = buildTutorLessonPrompt({
+      stageLabel,
+      subjectId,
+      subjectName,
+      topicName,
+      subtopics,
+      examBoard,
+      level,
+      scienceTrack,
+    });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -119,7 +99,7 @@ Use 3-5 sections, 2-3 worked examples (each with 3-6 steps), 3-5 key points, and
 
     if (topicId) {
       await writeTutorLessonCache({
-        cacheKey: tutorLessonCacheKey(topicId, examBoard, level, "lesson"),
+        cacheKey: tutorLessonCacheKey(topicId, examBoard, level, "lesson", scienceTrack),
         stageId,
         subject: subjectName,
         examBoard,
