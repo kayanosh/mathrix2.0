@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Loader2, Building2, GraduationCap } from "lucide-react";
+import { Loader2, Building2, GraduationCap, AlertTriangle } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
 import { createClient } from "@/lib/supabase/client";
 import PortalNav from "./PortalNav";
@@ -29,7 +29,7 @@ export interface PortalContext {
   reload: () => void;
 }
 
-type Status = "loading" | "unauth" | "no-centre" | "ready";
+type Status = "loading" | "unauth" | "no-centre" | "ready" | "error";
 
 export default function PortalShell({ children }: { children: (ctx: PortalContext) => React.ReactNode }) {
   const [status, setStatus] = useState<Status>("loading");
@@ -38,6 +38,7 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
   const [role, setRole] = useState("student");
   const [isOwner, setIsOwner] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -49,12 +50,34 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
       return;
     }
     try {
-      const res = await fetch("/api/centre");
-      if (res.status === 401) {
-        setStatus("unauth");
+      const res = await fetch("/api/centre", { cache: "no-store" });
+      let data: {
+        centre?: CentreInfo | null;
+        tutors?: TutorInfo[];
+        role?: string;
+        isOwner?: boolean;
+        error?: string;
+      } = {};
+      try {
+        data = await res.json();
+      } catch {
+        /* non-JSON response */
+      }
+
+      if (!res.ok) {
+        // The user IS signed in on the client, but the server rejected the
+        // request. Don't bounce back to the sign-in gate (that causes a loop) —
+        // show what went wrong instead.
+        setErrorMsg(
+          res.status === 401
+            ? "We couldn't verify your session on the server. Please refresh the page and try again."
+            : data.error ||
+                "We couldn't load your centre. If you're setting this up, make sure the tuition-centre database migration has been applied.",
+        );
+        setStatus("error");
         return;
       }
-      const data = await res.json();
+
       setRole(data.role || "student");
       if (!data.centre) {
         setStatus("no-centre");
@@ -65,12 +88,27 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
       setIsOwner(!!data.isOwner);
       setStatus("ready");
     } catch {
-      setStatus("unauth");
+      setErrorMsg("Network error while loading your centre. Please check your connection and refresh.");
+      setStatus("error");
     }
   }, []);
 
   useEffect(() => {
+    // load() only updates state after awaiting the network, so this is safe.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+    // React to sign-in / sign-out happening in the auth modal (or elsewhere)
+    // so the gate updates reliably instead of getting stuck.
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        setStatus("loading");
+        load();
+      }
+    });
+    return () => subscription.unsubscribe();
   }, [load]);
 
   if (status === "loading") {
@@ -111,6 +149,40 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
             />
           )}
         </AnimatePresence>
+      </div>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <div className="min-h-screen grid place-items-center px-6">
+        <div className="max-w-md w-full text-center rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+          <span className="grid place-items-center w-12 h-12 mx-auto rounded-xl bg-amber-100 text-amber-600 mb-4">
+            <AlertTriangle size={24} />
+          </span>
+          <h1 className="text-lg font-bold text-gray-900">Couldn&apos;t open the portal</h1>
+          <p className="text-gray-500 text-sm mt-1 mb-5">{errorMsg}</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setStatus("loading");
+                load();
+              }}
+              className="flex-1 rounded-xl bg-indigo-600 text-white py-2.5 font-semibold hover:bg-indigo-700"
+            >
+              Try again
+            </button>
+            <button
+              onClick={async () => {
+                await createClient().auth.signOut();
+                setStatus("unauth");
+              }}
+              className="flex-1 rounded-xl border border-gray-200 text-gray-700 py-2.5 font-semibold hover:bg-gray-50"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

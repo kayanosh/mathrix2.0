@@ -23,7 +23,14 @@ interface AuthErr {
 
 const TUTOR_ROLES: CentreRole[] = ["tutor", "centre_owner", "admin"];
 
-/** Fetch the caller's profile (role + centre_id). Returns null if not signed in. */
+/**
+ * Fetch the caller's profile (role + centre_id).
+ * Returns null ONLY when there is no authenticated user. If the user is signed
+ * in but their profile row can't be read (missing row, or the tuition-centre
+ * migration hasn't been applied yet), we return a safe default so an
+ * authenticated user is never mistaken for a logged-out one (which would loop
+ * them back to the sign-in screen).
+ */
 export async function getCallerProfile(): Promise<CentreProfile | null> {
   const supabase = await createClient();
   const {
@@ -31,13 +38,27 @@ export async function getCallerProfile(): Promise<CentreProfile | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabaseAdmin
+  const fallback: CentreProfile = {
+    id: user.id,
+    email: user.email ?? null,
+    full_name: (user.user_metadata?.full_name as string) ?? null,
+    role: "student",
+    centre_id: null,
+  };
+
+  const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select("id, email, full_name, role, centre_id")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  if (!profile) return null;
+  if (error) {
+    // e.g. the `centre_id` column doesn't exist yet — surface via logs but keep
+    // the user authenticated so they reach onboarding / a clear error, not a loop.
+    console.error("getCallerProfile: profile fetch failed:", error.message);
+    return fallback;
+  }
+  if (!profile) return fallback;
   return profile as CentreProfile;
 }
 
