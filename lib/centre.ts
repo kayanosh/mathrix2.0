@@ -117,3 +117,15 @@ export async function studentInCentre(studentId: string, centreId: string): Prom
     .maybeSingle();
   return !!data;
 }
+
+/** Verify a profile is a tutor/owner in the caller's centre. */
+export async function tutorInCentre(tutorId: string, centreId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("id", tutorId)
+    .eq("centre_id", centreId)
+    .in("role", TUTOR_ROLES)
+    .maybeSingle();
+  return !!data;
+}

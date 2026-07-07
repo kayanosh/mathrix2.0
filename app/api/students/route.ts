@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { requireTutor, isAuthErr, studentInCentre } from "@/lib/centre";
+import { requireTutor, isAuthErr, studentInCentre, tutorInCentre } from "@/lib/centre";
+import { isValidEmail } from "@/lib/email";
+import { sendProgressReportToParent } from "@/lib/portal-student-notify";
 
 interface StudentLevelRow {
   student_id: string;
@@ -12,6 +14,39 @@ interface StudentTopicRow {
   student_id: string;
   status: string;
   studied_at: string;
+}
+
+const STUDENT_SELECT =
+  "id, full_name, year_group, notes, archived, created_at, assigned_tutor_id, parent_email, parent_name";
+
+async function resolveTutorNames(
+  tutorIds: string[],
+): Promise<Map<string, string>> {
+  if (tutorIds.length === 0) return new Map();
+  const { data: tutors } = await supabaseAdmin
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", tutorIds);
+  return new Map((tutors || []).map((t) => [t.id, t.full_name || t.email || "Tutor"]));
+}
+
+async function validateTutorAssignment(
+  tutorId: string | null | undefined,
+  centreId: string,
+): Promise<string | null> {
+  if (tutorId === undefined) return null;
+  if (tutorId === null || tutorId === "") return null;
+  if (!(await tutorInCentre(tutorId, centreId))) {
+    return "Tutor must belong to your centre";
+  }
+  return null;
+}
+
+function validateParentEmail(email: string | null | undefined): string | null {
+  if (email === undefined || email === null || email === "") return null;
+  const trimmed = email.trim();
+  if (trimmed && !isValidEmail(trimmed)) return "Invalid parent email address";
+  return null;
 }
 
 /**
@@ -26,7 +61,7 @@ export async function GET() {
 
   const { data: students, error } = await supabaseAdmin
     .from("students")
-    .select("id, full_name, year_group, notes, archived, created_at")
+    .select(STUDENT_SELECT)
     .eq("centre_id", centreId)
     .order("full_name", { ascending: true });
 
@@ -36,6 +71,10 @@ export async function GET() {
   }
 
   const ids = (students || []).map((s) => s.id);
+  const tutorIds = Array.from(
+    new Set((students || []).map((s) => s.assigned_tutor_id).filter(Boolean)),
+  ) as string[];
+  const tutorById = await resolveTutorNames(tutorIds);
 
   const { data: levels } = ids.length
     ? await supabaseAdmin
@@ -69,6 +108,7 @@ export async function GET() {
 
   const shaped = (students || []).map((s) => ({
     ...s,
+    assigned_tutor_name: s.assigned_tutor_id ? tutorById.get(s.assigned_tutor_id) || null : null,
     levels: levelsByStudent.get(s.id) || [],
     summary: summaryByStudent.get(s.id) || { taught: 0, mastered: 0, lastSession: null },
   }));
@@ -79,9 +119,10 @@ export async function GET() {
 /**
  * POST /api/students
  * Actions:
- *   { action: "create", fullName, yearGroup? }
- *   { action: "update", studentId, fullName?, yearGroup?, notes?, archived? }
+ *   { action: "create", fullName, yearGroup?, assignedTutorId?, parentEmail?, parentName? }
+ *   { action: "update", studentId, fullName?, yearGroup?, notes?, archived?, assignedTutorId?, parentEmail?, parentName? }
  *   { action: "setLevel", studentId, subjectId, currentStage, examBoard? }
+ *   { action: "notifyParent", studentId }
  *   { action: "delete", studentId }
  */
 export async function POST(req: NextRequest) {
@@ -95,20 +136,36 @@ export async function POST(req: NextRequest) {
   if (action === "create") {
     const fullName = (body.fullName || "").trim();
     if (!fullName) return NextResponse.json({ error: "Student name required" }, { status: 400 });
+
+    const tutorErr = await validateTutorAssignment(body.assignedTutorId, centreId);
+    if (tutorErr) return NextResponse.json({ error: tutorErr }, { status: 400 });
+    const emailErr = validateParentEmail(body.parentEmail);
+    if (emailErr) return NextResponse.json({ error: emailErr }, { status: 400 });
+
     const { data, error } = await supabaseAdmin
       .from("students")
       .insert({
         centre_id: centreId,
         full_name: fullName,
         year_group: (body.yearGroup || "").trim() || null,
+        assigned_tutor_id: body.assignedTutorId || null,
+        parent_email: (body.parentEmail || "").trim().toLowerCase() || null,
+        parent_name: (body.parentName || "").trim() || null,
       })
-      .select("id, full_name, year_group, notes, archived, created_at")
+      .select(STUDENT_SELECT)
       .single();
     if (error) {
       console.error("create student error:", error);
       return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
-    return NextResponse.json({ student: { ...data, levels: [], summary: { taught: 0, mastered: 0, lastSession: null } } });
+    return NextResponse.json({
+      student: {
+        ...data,
+        assigned_tutor_name: null,
+        levels: [],
+        summary: { taught: 0, mastered: 0, lastSession: null },
+      },
+    });
   }
 
   // All remaining actions operate on a specific student in this centre.
@@ -119,13 +176,32 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "update") {
+    const tutorErr = await validateTutorAssignment(body.assignedTutorId, centreId);
+    if (tutorErr) return NextResponse.json({ error: tutorErr }, { status: 400 });
+    const emailErr = validateParentEmail(body.parentEmail);
+    if (emailErr) return NextResponse.json({ error: emailErr }, { status: 400 });
+
     const patch: Record<string, unknown> = {};
     if (typeof body.fullName === "string" && body.fullName.trim()) patch.full_name = body.fullName.trim();
     if (typeof body.yearGroup === "string") patch.year_group = body.yearGroup.trim() || null;
     if (typeof body.notes === "string") patch.notes = body.notes;
     if (typeof body.archived === "boolean") patch.archived = body.archived;
+    if (body.assignedTutorId !== undefined) patch.assigned_tutor_id = body.assignedTutorId || null;
+    if (typeof body.parentEmail === "string") {
+      patch.parent_email = body.parentEmail.trim().toLowerCase() || null;
+    }
+    if (typeof body.parentName === "string") patch.parent_name = body.parentName.trim() || null;
     if (Object.keys(patch).length === 0) return NextResponse.json({ ok: true });
     await supabaseAdmin.from("students").update(patch).eq("id", studentId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "notifyParent") {
+    const result = await sendProgressReportToParent(studentId, centreId);
+    if (!result.ok) {
+      const status = result.error.includes("not configured") ? 503 : 400;
+      return NextResponse.json({ error: result.error }, { status });
+    }
     return NextResponse.json({ ok: true });
   }
 

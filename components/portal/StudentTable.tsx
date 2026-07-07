@@ -31,6 +31,7 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
         <thead>
           <tr className="text-left text-gray-500 border-b border-gray-100">
             <th className="px-4 py-3 font-medium">Student</th>
+            <th className="px-4 py-3 font-medium">Tutor</th>
             <th className="px-4 py-3 font-medium">Levels</th>
             <th className="px-4 py-3 font-medium text-center">Topics</th>
             <th className="px-4 py-3 font-medium text-center">Mastered</th>
@@ -46,6 +47,9 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
                   {s.full_name}
                 </Link>
                 {s.year_group && <div className="text-xs text-gray-400">{s.year_group}</div>}
+              </td>
+              <td className="px-4 py-3 text-gray-600">
+                {s.assigned_tutor_name || <span className="text-xs text-gray-400">—</span>}
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-wrap gap-1">

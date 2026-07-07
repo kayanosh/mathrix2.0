@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireTutor, isAuthErr, studentInCentre } from "@/lib/centre";
+import { sendSessionUpdateToParent } from "@/lib/portal-student-notify";
 
 /**
  * GET /api/student-topics?studentId=...
@@ -100,7 +101,33 @@ export async function POST(req: NextRequest) {
       console.error("student-topics log error:", error);
       return NextResponse.json({ error: "Internal error" }, { status: 500 });
     }
-    return NextResponse.json({ topic: data });
+
+    let parentNotified = false;
+    let parentNotifyError: string | null = null;
+    if (body.notifyParent) {
+      const { data: tutorProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+      const tutorName = tutorProfile?.full_name || tutorProfile?.email || "Your tutor";
+      const notifyResult = await sendSessionUpdateToParent({
+        studentId,
+        centreId,
+        topicName: body.topicName,
+        subjectId: body.subjectId,
+        status,
+        tutorName,
+        notes: (body.notes || "").toString().slice(0, 2000) || null,
+      });
+      if (notifyResult.ok) {
+        parentNotified = true;
+      } else {
+        parentNotifyError = notifyResult.error;
+      }
+    }
+
+    return NextResponse.json({ topic: data, parentNotified, parentNotifyError });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

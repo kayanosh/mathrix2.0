@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, Printer, Trash2, Star, Save } from "lucide-react";
 import PortalShell, { type PortalContext } from "@/components/portal/PortalShell";
 import ProgressReport from "@/components/portal/ProgressReport";
+import StudentContactEditor from "@/components/portal/StudentContactEditor";
 import {
   getStages,
   getSubjects,
@@ -84,7 +85,9 @@ function StudentDetail({ ctx, studentId }: { ctx: PortalContext; studentId: stri
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{student.full_name}</h1>
             <p className="text-sm text-gray-500">
-              {student.year_group || "No year group"} · {student.summary.taught} topics ·{" "}
+              {student.year_group || "No year group"}
+              {student.assigned_tutor_name ? ` · Tutor: ${student.assigned_tutor_name}` : ""}
+              {" · "}{student.summary.taught} topics ·{" "}
               <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
                 <Star size={12} className="fill-amber-400 text-amber-400" /> {student.summary.mastered} mastered
               </span>
@@ -97,6 +100,9 @@ function StudentDetail({ ctx, studentId }: { ctx: PortalContext; studentId: stri
             <Printer size={16} /> Print report
           </button>
         </div>
+
+        {/* Tutor & parent contact */}
+        <StudentContactEditor student={student} tutors={ctx.tutors} onSaved={load} />
 
         {/* Levels editor */}
         <LevelsEditor student={student} onSaved={load} />

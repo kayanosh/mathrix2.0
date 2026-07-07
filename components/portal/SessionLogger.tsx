@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ClipboardCheck, Check, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ClipboardCheck, Check, Loader2, Mail } from "lucide-react";
 import type { StudentRow } from "./types";
 
 interface LogPayload {
@@ -24,8 +24,15 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
   const [studentId, setStudentId] = useState("");
   const [status, setStatus] = useState<string>("taught");
   const [notes, setNotes] = useState("");
+  const [notifyParent, setNotifyParent] = useState(true);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const [feedback, setFeedback] = useState("");
+
+  const selectedStudent = useMemo(
+    () => students.find((s) => s.id === studentId) || null,
+    [students, studentId],
+  );
 
   useEffect(() => {
     fetch("/api/students")
@@ -34,10 +41,15 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setNotifyParent(Boolean(selectedStudent?.parent_email));
+  }, [selectedStudent]);
+
   async function log() {
     if (!studentId) return;
     setSaving(true);
     setDone(false);
+    setFeedback("");
     const res = await fetch("/api/student-topics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -52,13 +64,23 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
         level: payload.level || null,
         status,
         notes,
+        notifyParent: notifyParent && Boolean(selectedStudent?.parent_email),
       }),
     });
     setSaving(false);
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
       setDone(true);
       setNotes("");
-      setTimeout(() => setDone(false), 2500);
+      if (data.parentNotified) {
+        setFeedback("Parent notified by email");
+      } else if (data.parentNotifyError && notifyParent) {
+        setFeedback(data.parentNotifyError);
+      }
+      setTimeout(() => {
+        setDone(false);
+        setFeedback("");
+      }, 3500);
     }
   }
 
@@ -84,9 +106,21 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
               <option key={s.id} value={s.id}>
                 {s.full_name}
                 {s.year_group ? ` (${s.year_group})` : ""}
+                {s.assigned_tutor_name ? ` · ${s.assigned_tutor_name}` : ""}
               </option>
             ))}
           </select>
+
+          {selectedStudent && (
+            <p className="text-xs text-gray-500">
+              {selectedStudent.assigned_tutor_name
+                ? `Assigned tutor: ${selectedStudent.assigned_tutor_name}`
+                : "No tutor assigned yet"}
+              {selectedStudent.parent_email
+                ? ` · Parent: ${selectedStudent.parent_email}`
+                : " · No parent email on file"}
+            </p>
+          )}
 
           <div className="flex gap-1">
             {STATUSES.map((st) => (
@@ -112,6 +146,21 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
 
+          {selectedStudent?.parent_email && (
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={notifyParent}
+                onChange={(e) => setNotifyParent(e.target.checked)}
+                className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-300"
+              />
+              <span className="flex items-center gap-1.5">
+                <Mail size={14} className="text-gray-400" />
+                Email session update to parent
+              </span>
+            </label>
+          )}
+
           <button
             onClick={log}
             disabled={!studentId || saving}
@@ -127,6 +176,12 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
               "Log topic"
             )}
           </button>
+
+          {feedback && (
+            <p className={`text-xs ${feedback.includes("notified") ? "text-emerald-600" : "text-amber-600"}`}>
+              {feedback}
+            </p>
+          )}
         </div>
       )}
     </div>

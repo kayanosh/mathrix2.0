@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, UserPlus, BookOpenCheck, Users, Star } from "lucide-react";
-import PortalShell from "@/components/portal/PortalShell";
+import PortalShell, { type PortalContext } from "@/components/portal/PortalShell";
 import StudentTable from "@/components/portal/StudentTable";
 import type { StudentRow } from "@/components/portal/types";
 
-function Dashboard() {
+function Dashboard({ ctx }: { ctx: PortalContext }) {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [yearGroup, setYearGroup] = useState("");
+  const [assignedTutorId, setAssignedTutorId] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -33,14 +37,30 @@ function Dashboard() {
     e.preventDefault();
     if (!name.trim()) return;
     setCreating(true);
-    await fetch("/api/students", {
+    setCreateError("");
+    const res = await fetch("/api/students", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", fullName: name.trim(), yearGroup: yearGroup.trim() }),
+      body: JSON.stringify({
+        action: "create",
+        fullName: name.trim(),
+        yearGroup: yearGroup.trim(),
+        assignedTutorId: assignedTutorId || null,
+        parentName: parentName.trim(),
+        parentEmail: parentEmail.trim(),
+      }),
     });
+    setCreating(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setCreateError(d.error || "Could not add student");
+      return;
+    }
     setName("");
     setYearGroup("");
-    setCreating(false);
+    setAssignedTutorId("");
+    setParentName("");
+    setParentEmail("");
     load();
   }
 
@@ -74,27 +94,53 @@ function Dashboard() {
         <p className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <UserPlus size={16} /> Add a student
         </p>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Full name"
-            className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
           <input
             value={yearGroup}
             onChange={(e) => setYearGroup(e.target.value)}
             placeholder="Year group (optional)"
-            className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
-          <button
-            type="submit"
-            disabled={creating || !name.trim()}
-            className="rounded-xl bg-indigo-600 text-white px-5 py-2 text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+          <select
+            value={assignedTutorId}
+            onChange={(e) => setAssignedTutorId(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           >
-            {creating ? "Adding…" : "Add"}
-          </button>
+            <option value="">Assign tutor (optional)</option>
+            {ctx.tutors.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.full_name || t.email}
+              </option>
+            ))}
+          </select>
+          <input
+            value={parentName}
+            onChange={(e) => setParentName(e.target.value)}
+            placeholder="Parent name (optional)"
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          <input
+            type="email"
+            value={parentEmail}
+            onChange={(e) => setParentEmail(e.target.value)}
+            placeholder="Parent email (optional)"
+            className="sm:col-span-2 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
         </div>
+        {createError && <p className="text-sm text-rose-600 mt-2">{createError}</p>}
+        <button
+          type="submit"
+          disabled={creating || !name.trim()}
+          className="mt-3 rounded-xl bg-indigo-600 text-white px-5 py-2 text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {creating ? "Adding…" : "Add student"}
+        </button>
       </form>
 
       {loading ? (
@@ -118,5 +164,5 @@ function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; va
 }
 
 export default function PortalDashboardPage() {
-  return <PortalShell>{() => <Dashboard />}</PortalShell>;
+  return <PortalShell>{(ctx) => <Dashboard ctx={ctx} />}</PortalShell>;
 }

@@ -32,6 +32,9 @@ export default function ProgressReport({
           <div className="text-right text-sm text-gray-600">
             <p className="font-semibold text-gray-900">{student.full_name}</p>
             {student.year_group && <p>{student.year_group}</p>}
+            {"assigned_tutor_name" in student && student.assigned_tutor_name && (
+              <p>Tutor: {student.assigned_tutor_name}</p>
+            )}
             <p>{date}</p>
           </div>
         </div>

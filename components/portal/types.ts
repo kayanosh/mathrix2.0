@@ -18,6 +18,10 @@ export interface StudentRow {
   notes: string | null;
   archived: boolean;
   created_at: string;
+  assigned_tutor_id: string | null;
+  assigned_tutor_name: string | null;
+  parent_email: string | null;
+  parent_name: string | null;
   levels: StudentLevel[];
   summary: StudentSummary;
 }
