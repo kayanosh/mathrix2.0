@@ -305,6 +305,12 @@ export default function TeacherModePage() {
             <Link href="/teacher/assign" className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors">
               Assignments
             </Link>
+            <Link
+              href="/portal"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+            >
+              <GraduationCap size={15} /> Tutor Portal
+            </Link>
             {phase !== "browse" && (
               <button
                 onClick={handleReset}

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -592,7 +592,7 @@ export default function ChatInterface() {
       </AnimatePresence>
 
       {/* ── Top bar ───────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3 flex-shrink-0 z-10">
+      <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 flex-shrink-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         {/* Logo */}
         <div className="flex items-center flex-shrink-0 gap-2">
           {fromPractice && (
@@ -615,16 +615,32 @@ export default function ChatInterface() {
               <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
           )}
-          <Link href="/ks2" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">KS2</Link>
-          <Link href="/subjects" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Practice</Link>
-          <Link href="/progress" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Progress</Link>
-          <Link href="/revision" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Revision</Link>
-          <Link href="/syllabus" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Syllabus</Link>
-          <Link href="/exam-papers" className="hidden sm:inline text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium">Papers</Link>
-          <Link href="/teacher" className="hidden sm:inline text-xs sm:text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium">Teacher</Link>
+          {/* Primary navigation */}
+          <nav className="hidden lg:flex items-center gap-0.5">
+            <Link href="/ks2" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">KS2</Link>
+            <Link href="/subjects" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Practice</Link>
+            <Link href="/progress" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Progress</Link>
+            <Link href="/revision" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Revision</Link>
+            <Link href="/syllabus" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Syllabus</Link>
+            <Link href="/exam-papers" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Papers</Link>
+          </nav>
+
+          <span className="hidden lg:block h-5 w-px bg-gray-200 mx-1" aria-hidden />
+
+          {/* Pro / tutor tools */}
+          <Link href="/teacher" className="hidden md:inline-flex px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Teacher</Link>
+          <Link
+            href="/portal"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+          >
+            <GraduationCap size={15} /> Tutor Portal
+          </Link>
+
+          <span className="hidden sm:block h-5 w-px bg-gray-200 mx-1" aria-hidden />
+
           <button
             onClick={() => setShowPricing(true)}
-            className="text-xs sm:text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium"
+            className="hidden sm:inline-flex px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
           >
             Pricing
           </button>
