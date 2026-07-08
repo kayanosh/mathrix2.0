@@ -7,7 +7,7 @@ import { ArrowLeft, Printer, Sparkles, Loader2, FileText, NotebookPen } from "lu
 import PortalShell from "@/components/portal/PortalShell";
 import TutorLessonView from "@/components/portal/TutorLessonView";
 import TutorWorksheetView from "@/components/portal/TutorWorksheetView";
-import SessionLogger from "@/components/portal/SessionLogger";
+import MultiStudentSessionPanel from "@/components/portal/MultiStudentSessionPanel";
 import {
   getTopicById,
   getStage,
@@ -222,7 +222,7 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
             )}
           </div>
 
-          <SessionLogger
+          <MultiStudentSessionPanel
             payload={{
               stageId: stage.id,
               subjectId: subject.id,

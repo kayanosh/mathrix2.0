@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { Loader2, Building2, GraduationCap, AlertTriangle } from "lucide-react";
 import AuthModal from "@/components/AuthModal";
 import { createClient } from "@/lib/supabase/client";
 import PortalNav from "./PortalNav";
+import { PortalStudentProvider } from "./PortalStudentContext";
 
 export interface CentreInfo {
   id: string;
@@ -26,6 +27,7 @@ export interface PortalContext {
   tutors: TutorInfo[];
   role: string;
   isOwner: boolean;
+  userId: string;
   reload: () => void;
 }
 
@@ -37,6 +39,7 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
   const [tutors, setTutors] = useState<TutorInfo[]>([]);
   const [role, setRole] = useState("student");
   const [isOwner, setIsOwner] = useState(false);
+  const [userId, setUserId] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -56,6 +59,7 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
         tutors?: TutorInfo[];
         role?: string;
         isOwner?: boolean;
+        userId?: string;
         error?: string;
       } = {};
       try {
@@ -86,6 +90,7 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
       setCentre(data.centre);
       setTutors(data.tutors || []);
       setIsOwner(!!data.isOwner);
+      setUserId(data.userId || user.id);
       setStatus("ready");
     } catch {
       setErrorMsg("Network error while loading your centre. Please check your connection and refresh.");
@@ -192,17 +197,26 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
   }
 
   return (
-    <>
-      <PortalNav centreName={centre?.name} />
-      {centre &&
-        children({
-          centre,
-          tutors,
-          role,
-          isOwner,
-          reload: load,
-        })}
-    </>
+    <Suspense
+      fallback={
+        <div className="min-h-screen grid place-items-center">
+          <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+        </div>
+      }
+    >
+      <PortalStudentProvider userId={userId}>
+        <PortalNav centreName={centre?.name} />
+        {centre &&
+          children({
+            centre,
+            tutors,
+            role,
+            isOwner,
+            userId,
+            reload: load,
+          })}
+      </PortalStudentProvider>
+    </Suspense>
   );
 }
 

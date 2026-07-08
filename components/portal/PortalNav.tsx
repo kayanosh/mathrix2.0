@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import { LayoutDashboard, GraduationCap, Settings, BookOpenCheck, Home } from "lucide-react";
+import StudentSwitcher from "./StudentSwitcher";
 
 const LINKS = [
   { href: "/portal", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -33,6 +35,12 @@ export default function PortalNav({ centreName }: { centreName?: string | null }
 
         {/* Nav */}
         <div className="flex items-center gap-1">
+          <Suspense fallback={null}>
+            <StudentSwitcher />
+          </Suspense>
+
+          <span className="hidden md:block h-5 w-px bg-gray-200 mx-1" aria-hidden />
+
           {LINKS.map((l) => {
             const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
             const Icon = l.icon;

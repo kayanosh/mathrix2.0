@@ -18,7 +18,12 @@ export async function GET() {
   if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (!profile.centre_id) {
-    return NextResponse.json({ centre: null, tutors: [], role: profile.role });
+    return NextResponse.json({
+      centre: null,
+      tutors: [],
+      role: profile.role,
+      userId: profile.id,
+    });
   }
 
   const { data: centre } = await supabaseAdmin
@@ -39,6 +44,7 @@ export async function GET() {
     tutors: tutors || [],
     role: profile.role,
     isOwner: centre?.owner_id === profile.id,
+    userId: profile.id,
   });
 }
 
