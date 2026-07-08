@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, BookOpen, Search } from "lucide-react";
-import PortalShell from "@/components/portal/PortalShell";
 import YearCard from "@/components/portal/YearCard";
+import { useTeachSession } from "@/components/portal/TeachSessionProvider";
+import { getStudentTeachDefaults } from "@/lib/portal-student-curriculum";
 import {
   getStages,
   getSubjectsForStage,
@@ -17,14 +18,28 @@ import {
   type ScienceTrack,
 } from "@/lib/curriculum";
 
+function topicHref(
+  topicId: string,
+  board: ExamBoardId | null,
+  studentId: string | null,
+): string {
+  const params = new URLSearchParams();
+  if (board) params.set("board", board);
+  if (studentId) params.set("student", studentId);
+  const qs = params.toString();
+  return `/portal/teach/${topicId}${qs ? `?${qs}` : ""}`;
+}
+
 function StrandGroup({
   strand,
   topics,
   board,
+  studentId,
 }: {
   strand: string;
   topics: { id: string; name: string; subtopics: string[] }[];
   board: ExamBoardId | null;
+  studentId: string | null;
 }) {
   const [open, setOpen] = useState(true);
   return (
@@ -45,7 +60,7 @@ function StrandGroup({
           {topics.map((t) => (
             <Link
               key={t.id}
-              href={`/portal/teach/${t.id}${board ? `?board=${board}` : ""}`}
+              href={topicHref(t.id, board, studentId)}
               className="group flex items-start justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3 hover:border-indigo-300 hover:bg-white transition-all"
             >
               <div className="min-w-0">
@@ -67,13 +82,38 @@ function StrandGroup({
   );
 }
 
-function TeachHub() {
+export default function TeachHubPage() {
   const stages = getStages();
+  const { activeStudent, activeStudentId, rosterStudents, getPrefs, savePrefs } = useTeachSession();
+
   const [stageId, setStageId] = useState<CurriculumStageId | null>(null);
   const [subjectId, setSubjectId] = useState<CurriculumSubjectId | null>(null);
   const [board, setBoard] = useState<ExamBoardId | null>(null);
   const [scienceTrack, setScienceTrack] = useState<ScienceTrack | null>(null);
   const [search, setSearch] = useState("");
+  const skipSaveRef = useRef(false);
+
+  useEffect(() => {
+    if (!activeStudentId || !activeStudent) return;
+    skipSaveRef.current = true;
+    const saved = getPrefs(activeStudentId);
+    const defaults = getStudentTeachDefaults(activeStudent);
+    const prefs = saved ?? defaults;
+    setStageId(prefs.stageId);
+    setSubjectId(prefs.subjectId);
+    setBoard(prefs.board);
+    setScienceTrack(prefs.scienceTrack);
+    setSearch("");
+  }, [activeStudentId, activeStudent, getPrefs]);
+
+  useEffect(() => {
+    if (!activeStudentId) return;
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
+    savePrefs(activeStudentId, { stageId, subjectId, board, scienceTrack });
+  }, [activeStudentId, stageId, subjectId, board, scienceTrack, savePrefs]);
 
   const subjects = useMemo(() => (stageId ? getSubjectsForStage(stageId) : []), [stageId]);
   const boards = useMemo(
@@ -135,6 +175,29 @@ function TeachHub() {
           View full curriculum →
         </Link>
       </div>
+
+      {activeStudent && (
+        <div className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-indigo-900">
+            Teaching:{" "}
+            <strong>{activeStudent.full_name}</strong>
+            {activeStudent.year_group ? ` · ${activeStudent.year_group}` : ""}
+          </p>
+          <Link
+            href={`/portal/students/${activeStudent.id}`}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+          >
+            View student record →
+          </Link>
+        </div>
+      )}
+
+      {rosterStudents.length === 0 && (
+        <div className="mb-6 rounded-xl border border-dashed border-indigo-200 bg-white px-4 py-3 text-sm text-indigo-700">
+          Use <strong>+ Add</strong> in the session bar above to roster students for this hour. Tabs
+          switch curriculum and logging per student.
+        </div>
+      )}
 
       <section className="mb-8">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">1 · Choose a year</h2>
@@ -231,7 +294,13 @@ function TeachHub() {
           ) : (
             <div className="space-y-3">
               {strands.map((group) => (
-                <StrandGroup key={group.strand} strand={group.strand} topics={group.topics} board={board} />
+                <StrandGroup
+                  key={group.strand}
+                  strand={group.strand}
+                  topics={group.topics}
+                  board={board}
+                  studentId={activeStudentId}
+                />
               ))}
             </div>
           )}
@@ -239,8 +308,4 @@ function TeachHub() {
       )}
     </main>
   );
-}
-
-export default function TeachHubPage() {
-  return <PortalShell>{() => <TeachHub />}</PortalShell>;
 }

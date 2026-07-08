@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, Star, UserPlus } from "lucide-react";
 import { getStage, getSubject } from "@/lib/curriculum";
+import { addStudentToSession } from "@/lib/portal-teach-session";
 import type { StudentRow } from "./types";
 
 function timeAgo(iso: string | null): string {
@@ -16,7 +18,23 @@ function timeAgo(iso: string | null): string {
   return `${months}mo ago`;
 }
 
-export default function StudentTable({ students }: { students: StudentRow[] }) {
+export default function StudentTable({
+  students,
+  centreId,
+  tutorId,
+}: {
+  students: StudentRow[];
+  centreId?: string;
+  tutorId?: string;
+}) {
+  const router = useRouter();
+
+  function addToSession(studentId: string) {
+    if (!centreId || !tutorId) return;
+    addStudentToSession(centreId, tutorId, studentId);
+    router.push("/portal/teach");
+  }
+
   if (students.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center text-gray-500">
@@ -81,9 +99,21 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
               </td>
               <td className="px-4 py-3 text-gray-500">{timeAgo(s.summary.lastSession)}</td>
               <td className="px-4 py-3 text-right">
-                <Link href={`/portal/students/${s.id}`} className="text-gray-300 hover:text-indigo-600">
-                  <ChevronRight size={18} />
-                </Link>
+                <div className="flex items-center justify-end gap-1">
+                  {centreId && tutorId && (
+                    <button
+                      type="button"
+                      onClick={() => addToSession(s.id)}
+                      title="Add to teaching session"
+                      className="p-1 text-gray-300 hover:text-indigo-600"
+                    >
+                      <UserPlus size={16} />
+                    </button>
+                  )}
+                  <Link href={`/portal/students/${s.id}`} className="text-gray-300 hover:text-indigo-600">
+                    <ChevronRight size={18} />
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}

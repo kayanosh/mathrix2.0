@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Printer, Sparkles, Loader2, FileText, NotebookPen } from "lucide-react";
-import PortalShell from "@/components/portal/PortalShell";
 import TutorLessonView from "@/components/portal/TutorLessonView";
 import TutorWorksheetView from "@/components/portal/TutorWorksheetView";
-import MultiStudentSessionPanel from "@/components/portal/MultiStudentSessionPanel";
+import SessionLogger from "@/components/portal/SessionLogger";
+import { useTeachSession } from "@/components/portal/TeachSessionProvider";
 import {
   getTopicById,
   getStage,
@@ -32,6 +32,38 @@ function tierFromLevel(stageId: string, level: string): GcseTier | null {
 }
 
 function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | null }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { activeStudent, activeStudentId, setActiveStudent } = useTeachSession();
+  const urlStudent = searchParams.get("student");
+  const initialSyncDone = useRef(false);
+  const ignoreNextNav = useRef(false);
+  const prevActiveRef = useRef<string | null>(activeStudentId);
+
+  useEffect(() => {
+    if (!initialSyncDone.current && urlStudent && urlStudent !== activeStudentId) {
+      initialSyncDone.current = true;
+      ignoreNextNav.current = true;
+      setActiveStudent(urlStudent);
+    }
+  }, [urlStudent, activeStudentId, setActiveStudent]);
+
+  useEffect(() => {
+    if (ignoreNextNav.current) {
+      ignoreNextNav.current = false;
+      prevActiveRef.current = activeStudentId;
+      return;
+    }
+    if (
+      prevActiveRef.current !== null &&
+      prevActiveRef.current !== activeStudentId &&
+      activeStudentId !== null
+    ) {
+      router.push("/portal/teach");
+    }
+    prevActiveRef.current = activeStudentId;
+  }, [activeStudentId, router]);
+
   const topic = getTopicById(topicId);
   const stage = topic ? getStage(topic.stageId) : undefined;
   const subject = topic ? getSubject(topic.subjectId) : undefined;
@@ -123,7 +155,6 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-      {/* Header */}
       <div className="print-hide">
         <Link href="/portal/teach" className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 mb-3">
           <ArrowLeft size={15} /> Teach
@@ -144,7 +175,13 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
           </button>
         </div>
 
-        {/* Subtopics */}
+        {activeStudent && (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">
+            Logging for <strong>{activeStudent.full_name.split(/\s+/)[0]}</strong>
+            {activeStudent.year_group ? ` · ${activeStudent.year_group}` : ""}
+          </div>
+        )}
+
         <div className="mt-3">
           <p className="text-xs font-medium text-gray-400 mb-1.5">
             Objectives covered ({activeSubtopics.length})
@@ -159,7 +196,6 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
           </div>
         </div>
 
-        {/* Controls */}
         <div className="mt-5 grid gap-4 md:grid-cols-[1fr_320px]">
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -222,7 +258,9 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
             )}
           </div>
 
-          <MultiStudentSessionPanel
+          <SessionLogger
+            studentId={activeStudentId}
+            student={activeStudent}
             payload={{
               stageId: stage.id,
               subjectId: subject.id,
@@ -235,7 +273,6 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
         </div>
       </div>
 
-      {/* Printable pack */}
       {(lesson || worksheet) && (
         <div className="tutor-print-root mt-6 space-y-6">
           {lesson && (
@@ -261,5 +298,5 @@ export default function TeachTopicPage() {
   const topicId = String(params.topicId || "");
   const board = (searchParams.get("board") as ExamBoardId | null) || null;
 
-  return <PortalShell>{() => <TeachTopic topicId={topicId} board={board} />}</PortalShell>;
+  return <TeachTopic topicId={topicId} board={board} />;
 }

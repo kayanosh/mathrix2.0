@@ -52,6 +52,7 @@ export default function PortalShell({ children }: { children: (ctx: PortalContex
       setStatus("unauth");
       return;
     }
+    setUserId(user.id);
     try {
       const res = await fetch("/api/centre", { cache: "no-store" });
       let data: {

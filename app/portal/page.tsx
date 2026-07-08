@@ -148,7 +148,7 @@ function Dashboard({ ctx }: { ctx: PortalContext }) {
           <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
         </div>
       ) : (
-        <StudentTable students={students} />
+        <StudentTable students={students} centreId={ctx.centre.id} tutorId={ctx.userId} />
       )}
     </main>
   );

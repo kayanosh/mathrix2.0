@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardCheck, Check, Loader2, Mail } from "lucide-react";
 import type { StudentRow } from "./types";
 
@@ -19,9 +19,15 @@ const STATUSES = [
   { id: "mastered", label: "Mastered" },
 ] as const;
 
-export default function SessionLogger({ payload }: { payload: LogPayload }) {
-  const [students, setStudents] = useState<StudentRow[]>([]);
-  const [studentId, setStudentId] = useState("");
+export default function SessionLogger({
+  payload,
+  studentId = null,
+  student = null,
+}: {
+  payload: LogPayload;
+  studentId?: string | null;
+  student?: StudentRow | null;
+}) {
   const [status, setStatus] = useState<string>("taught");
   const [notes, setNotes] = useState("");
   const [notifyParent, setNotifyParent] = useState(true);
@@ -29,21 +35,9 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
   const [done, setDone] = useState(false);
   const [feedback, setFeedback] = useState("");
 
-  const selectedStudent = useMemo(
-    () => students.find((s) => s.id === studentId) || null,
-    [students, studentId],
-  );
-
   useEffect(() => {
-    fetch("/api/students")
-      .then((r) => r.json())
-      .then((d) => setStudents(d.students || []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    setNotifyParent(Boolean(selectedStudent?.parent_email));
-  }, [selectedStudent]);
+    setNotifyParent(Boolean(student?.parent_email));
+  }, [student]);
 
   async function log() {
     if (!studentId) return;
@@ -64,7 +58,7 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
         level: payload.level || null,
         status,
         notes,
-        notifyParent: notifyParent && Boolean(selectedStudent?.parent_email),
+        notifyParent: notifyParent && Boolean(student?.parent_email),
       }),
     });
     setSaving(false);
@@ -87,40 +81,23 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 print-hide">
       <p className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-        <ClipboardCheck size={16} /> Log this topic for a student
+        <ClipboardCheck size={16} /> Log this topic
       </p>
 
-      {students.length === 0 ? (
+      {!studentId ? (
         <p className="text-sm text-gray-500">
-          No students yet. Add students on the dashboard to record their progress.
+          Select a student tab above to log this topic against their record.
         </p>
       ) : (
         <div className="space-y-3">
-          <select
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          >
-            <option value="">Select a student…</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.full_name}
-                {s.year_group ? ` (${s.year_group})` : ""}
-                {s.assigned_tutor_name ? ` · ${s.assigned_tutor_name}` : ""}
-              </option>
-            ))}
-          </select>
-
-          {selectedStudent && (
-            <p className="text-xs text-gray-500">
-              {selectedStudent.assigned_tutor_name
-                ? `Assigned tutor: ${selectedStudent.assigned_tutor_name}`
-                : "No tutor assigned yet"}
-              {selectedStudent.parent_email
-                ? ` · Parent: ${selectedStudent.parent_email}`
-                : " · No parent email on file"}
-            </p>
-          )}
+          <p className="text-xs text-gray-500">
+            {student?.assigned_tutor_name
+              ? `Assigned tutor: ${student.assigned_tutor_name}`
+              : "No tutor assigned"}
+            {student?.parent_email
+              ? ` · Parent: ${student.parent_email}`
+              : " · No parent email on file"}
+          </p>
 
           <div className="flex gap-1">
             {STATUSES.map((st) => (
@@ -146,7 +123,7 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
 
-          {selectedStudent?.parent_email && (
+          {student?.parent_email && (
             <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
@@ -163,7 +140,7 @@ export default function SessionLogger({ payload }: { payload: LogPayload }) {
 
           <button
             onClick={log}
-            disabled={!studentId || saving}
+            disabled={saving}
             className="w-full rounded-xl bg-indigo-600 text-white py-2 text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (

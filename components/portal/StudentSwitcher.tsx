@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Loader2, Mail, Users } from "lucide-react";
 import { usePortalStudents } from "./PortalStudentContext";
 import type { StudentRow } from "./types";
@@ -10,6 +11,7 @@ function studentLabel(s: StudentRow): string {
 }
 
 export default function StudentSwitcher() {
+  const pathname = usePathname();
   const {
     rosterStudents,
     myStudents,
@@ -27,6 +29,10 @@ export default function StudentSwitcher() {
   const [error, setError] = useState("");
 
   const showFilterToggle = myStudents.length > 0 && students.length > myStudents.length;
+
+  if (pathname.startsWith("/portal/teach")) {
+    return null;
+  }
 
   async function emailParent() {
     if (!activeStudent?.parent_email) return;
