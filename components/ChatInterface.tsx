@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu } from "lucide-react";
 import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -138,6 +138,7 @@ export default function ChatInterface() {
   const [promptsUsed, setPromptsUsed] = useState(0);
   const [pendingSendText, setPendingSendText] = useState<string | undefined>();
   const [showPricing, setShowPricing] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [fromPractice, setFromPractice] = useState(false);
   const autoSendFired = useRef(false);
 
@@ -592,9 +593,9 @@ export default function ChatInterface() {
       </AnimatePresence>
 
       {/* ── Top bar ───────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-3 flex-shrink-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+      <header className="relative flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 flex-shrink-0 z-20 border-b border-gray-100 bg-white/80 backdrop-blur-md">
         {/* Logo */}
-        <div className="flex items-center flex-shrink-0 gap-2">
+        <div className="flex items-center flex-shrink-0 min-w-0 gap-2">
           {fromPractice && (
             <Link
               href="/subjects"
@@ -606,11 +607,11 @@ export default function ChatInterface() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="Mathrix" className="w-auto h-6 sm:h-9" />
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {messages.length > 0 && (
             <button
               onClick={() => setMessages([])}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="hidden sm:flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
               <RotateCcw size={13} /> <span className="hidden sm:inline">New chat</span>
             </button>
@@ -651,15 +652,24 @@ export default function ChatInterface() {
               localStorage.setItem("mathrix_tier", t);
             }}
           />
+          <button
+            type="button"
+            onClick={() => setShowMobileMenu((open) => !open)}
+            className="lg:hidden grid place-items-center w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label={showMobileMenu ? "Close menu" : "Open menu"}
+            aria-expanded={showMobileMenu}
+          >
+            {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+          </button>
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {subscriptionStatus === "pro" && (
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">PRO</span>
+                <span className="hidden sm:inline text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">PRO</span>
               )}
               {subscriptionStatus === "pro" && (
                 <button
                   onClick={handleManageSubscription}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                  className="hidden sm:grid w-8 h-8 rounded-full place-items-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                   title="Manage subscription"
                 >
                   <CreditCard size={16} />
@@ -667,14 +677,14 @@ export default function ChatInterface() {
               )}
               <button
                 onClick={handleSignOut}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                className="hidden sm:grid w-8 h-8 rounded-full place-items-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                 title="Sign out"
               >
                 <LogOut size={16} />
               </button>
               <Link
                 href="/account"
-                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold"
+                className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
                 title="Account"
               >
                 {(user.user_metadata?.full_name?.[0] || user.email?.[0] || "U").toUpperCase()}
@@ -683,13 +693,87 @@ export default function ChatInterface() {
           ) : (
             <button
               onClick={() => setShowAuthModal(true)}
-              className="text-sm font-medium px-4 py-1.5 rounded-full text-white transition-colors"
+              className="text-xs sm:text-sm font-medium px-3 sm:px-4 py-1.5 rounded-full text-white transition-colors flex-shrink-0 whitespace-nowrap"
               style={{ background: "#2563eb" }}
             >
               Sign in
             </button>
           )}
         </div>
+
+        <AnimatePresence>
+          {showMobileMenu && (
+            <>
+              <button
+                type="button"
+                className="lg:hidden fixed inset-0 top-14 bg-black/20 z-10"
+                aria-label="Close menu"
+                onClick={() => setShowMobileMenu(false)}
+              />
+              <motion.nav
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+                className="lg:hidden absolute left-0 right-0 top-full border-b border-gray-200 bg-white shadow-lg z-20 px-4 py-3"
+              >
+                <div className="flex flex-col gap-1">
+                  {messages.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setMessages([]);
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <RotateCcw size={16} /> New chat
+                    </button>
+                  )}
+                  <Link href="/ks2" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">KS2</Link>
+                  <Link href="/subjects" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Practice</Link>
+                  <Link href="/progress" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Progress</Link>
+                  <Link href="/revision" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Revision</Link>
+                  <Link href="/syllabus" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Syllabus</Link>
+                  <Link href="/exam-papers" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Exam papers</Link>
+                  <div className="my-1 h-px bg-gray-100" />
+                  <Link href="/teacher" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Teacher</Link>
+                  <Link href="/portal" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-indigo-700 hover:bg-indigo-50">Tutor Portal</Link>
+                  <button
+                    onClick={() => {
+                      setShowPricing(true);
+                      setShowMobileMenu(false);
+                    }}
+                    className="text-left px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Pricing
+                  </button>
+                  {user && subscriptionStatus === "pro" && (
+                    <button
+                      onClick={() => {
+                        handleManageSubscription();
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <CreditCard size={16} /> Manage subscription
+                    </button>
+                  )}
+                  {user && (
+                    <button
+                      onClick={() => {
+                        handleSignOut();
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      <LogOut size={16} /> Sign out
+                    </button>
+                  )}
+                </div>
+              </motion.nav>
+            </>
+          )}
+        </AnimatePresence>
       </header>
 
       {/* ── Hero / Chat area ──────────────────────────────── */}
