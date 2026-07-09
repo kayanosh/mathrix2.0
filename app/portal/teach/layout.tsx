@@ -1,13 +1,18 @@
 "use client";
 
+import { Suspense } from "react";
 import PortalShell, { type PortalContext } from "@/components/portal/PortalShell";
 import TeachSessionProvider from "@/components/portal/TeachSessionProvider";
 import StudentSessionBar from "@/components/portal/StudentSessionBar";
+import TeachRouteTracker from "@/components/portal/TeachRouteTracker";
 
 function TeachLayoutInner({ ctx, children }: { ctx: PortalContext; children: React.ReactNode }) {
   return (
     <TeachSessionProvider centreId={ctx.centre.id} tutorId={ctx.userId}>
-      <StudentSessionBar />
+      <Suspense fallback={null}>
+        <StudentSessionBar />
+        <TeachRouteTracker />
+      </Suspense>
       {children}
     </TeachSessionProvider>
   );

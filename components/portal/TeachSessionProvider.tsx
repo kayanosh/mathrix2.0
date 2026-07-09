@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { StudentRow } from "./types";
 import {
   MAX_ROSTER,
@@ -15,10 +16,15 @@ import {
   saveTeachSession,
   loadStudentTeachPrefs,
   saveStudentTeachPrefs,
+  loadStudentTeachRoute,
+  saveStudentTeachRoute,
+  buildStudentTeachRoute,
   type StudentTeachPrefs,
 } from "@/lib/portal-teach-session";
 
 interface TeachSessionContextValue {
+  centreId: string;
+  tutorId: string;
   rosterStudentIds: string[];
   activeStudentId: string | null;
   activeStudent: StudentRow | null;
@@ -28,6 +34,7 @@ interface TeachSessionContextValue {
   addToRoster: (studentId: string) => void;
   removeFromRoster: (studentId: string) => void;
   setActiveStudent: (studentId: string) => void;
+  switchToStudent: (studentId: string, currentRoute?: string) => void;
   clearSession: () => void;
   getPrefs: (studentId: string) => StudentTeachPrefs | null;
   savePrefs: (studentId: string, prefs: StudentTeachPrefs) => void;
@@ -54,6 +61,7 @@ export default function TeachSessionProvider({
   tutorId: string;
   children: React.ReactNode;
 }) {
+  const router = useRouter();
   const [rosterStudentIds, setRosterStudentIds] = useState<string[]>([]);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
   const [allStudents, setAllStudents] = useState<StudentRow[]>([]);
@@ -134,6 +142,23 @@ export default function TeachSessionProvider({
     [rosterStudentIds, persist],
   );
 
+  const switchToStudent = useCallback(
+    (studentId: string, currentRoute?: string) => {
+      if (studentId === activeStudentId) return;
+
+      if (activeStudentId && currentRoute) {
+        saveStudentTeachRoute(centreId, tutorId, activeStudentId, currentRoute);
+      }
+
+      setActiveStudentId(studentId);
+      persist(rosterStudentIds, studentId);
+
+      const saved = loadStudentTeachRoute(centreId, tutorId, studentId) || "/portal/teach";
+      router.push(buildStudentTeachRoute(saved, studentId));
+    },
+    [activeStudentId, centreId, tutorId, rosterStudentIds, persist, router],
+  );
+
   const clearSession = useCallback(() => {
     setRosterStudentIds([]);
     setActiveStudentId(null);
@@ -154,6 +179,8 @@ export default function TeachSessionProvider({
 
   const value = useMemo(
     () => ({
+      centreId,
+      tutorId,
       rosterStudentIds,
       activeStudentId,
       activeStudent,
@@ -163,11 +190,14 @@ export default function TeachSessionProvider({
       addToRoster,
       removeFromRoster,
       setActiveStudent,
+      switchToStudent,
       clearSession,
       getPrefs,
       savePrefs,
     }),
     [
+      centreId,
+      tutorId,
       rosterStudentIds,
       activeStudentId,
       activeStudent,
@@ -178,6 +208,7 @@ export default function TeachSessionProvider({
       addToRoster,
       removeFromRoster,
       setActiveStudent,
+      switchToStudent,
       clearSession,
       getPrefs,
       savePrefs,

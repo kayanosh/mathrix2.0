@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, Printer, Sparkles, Loader2, FileText, NotebookPen } from "lucide-react";
 import TutorLessonView from "@/components/portal/TutorLessonView";
 import TutorWorksheetView from "@/components/portal/TutorWorksheetView";
 import SessionLogger from "@/components/portal/SessionLogger";
 import { useTeachSession } from "@/components/portal/TeachSessionProvider";
+import {
+  loadStudentTopicPack,
+  saveStudentTopicPack,
+} from "@/lib/portal-teach-session";
 import {
   getTopicById,
   getStage,
@@ -32,37 +36,17 @@ function tierFromLevel(stageId: string, level: string): GcseTier | null {
 }
 
 function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | null }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { activeStudent, activeStudentId, setActiveStudent } = useTeachSession();
+  const { activeStudent, activeStudentId, centreId, tutorId, setActiveStudent } = useTeachSession();
   const urlStudent = searchParams.get("student");
   const initialSyncDone = useRef(false);
-  const ignoreNextNav = useRef(false);
-  const prevActiveRef = useRef<string | null>(activeStudentId);
 
   useEffect(() => {
     if (!initialSyncDone.current && urlStudent && urlStudent !== activeStudentId) {
       initialSyncDone.current = true;
-      ignoreNextNav.current = true;
       setActiveStudent(urlStudent);
     }
   }, [urlStudent, activeStudentId, setActiveStudent]);
-
-  useEffect(() => {
-    if (ignoreNextNav.current) {
-      ignoreNextNav.current = false;
-      prevActiveRef.current = activeStudentId;
-      return;
-    }
-    if (
-      prevActiveRef.current !== null &&
-      prevActiveRef.current !== activeStudentId &&
-      activeStudentId !== null
-    ) {
-      router.push("/portal/teach");
-    }
-    prevActiveRef.current = activeStudentId;
-  }, [activeStudentId, router]);
 
   const topic = getTopicById(topicId);
   const stage = topic ? getStage(topic.stageId) : undefined;
@@ -82,6 +66,49 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
   const [loadingLesson, setLoadingLesson] = useState(false);
   const [loadingWorksheet, setLoadingWorksheet] = useState(false);
   const [error, setError] = useState("");
+  const packLoadedRef = useRef<string | null>(null);
+  const skipPackSaveRef = useRef(false);
+
+  useEffect(() => {
+    if (!activeStudentId) {
+      setLesson(null);
+      setWorksheet(null);
+      setLevel("");
+      setCount(8);
+      packLoadedRef.current = null;
+      return;
+    }
+    const key = `${activeStudentId}:${topicId}`;
+    if (packLoadedRef.current === key) return;
+    packLoadedRef.current = key;
+    skipPackSaveRef.current = true;
+    const pack = loadStudentTopicPack(centreId, tutorId, activeStudentId, topicId);
+    if (pack) {
+      setLevel(pack.level);
+      setCount(pack.count);
+      setLesson((pack.lesson as TutorLesson | null) ?? null);
+      setWorksheet((pack.worksheet as TutorWorksheet | null) ?? null);
+    } else {
+      setLesson(null);
+      setWorksheet(null);
+      setLevel("");
+      setCount(8);
+    }
+  }, [activeStudentId, topicId, centreId, tutorId]);
+
+  useEffect(() => {
+    if (!activeStudentId) return;
+    if (skipPackSaveRef.current) {
+      skipPackSaveRef.current = false;
+      return;
+    }
+    saveStudentTopicPack(centreId, tutorId, activeStudentId, topicId, {
+      level,
+      count,
+      lesson,
+      worksheet,
+    });
+  }, [activeStudentId, topicId, level, count, lesson, worksheet, centreId, tutorId]);
 
   if (!topic || !stage || !subject) {
     return (

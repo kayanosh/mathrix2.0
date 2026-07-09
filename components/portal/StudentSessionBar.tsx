@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Plus, RotateCcw, Search, X } from "lucide-react";
 import { useTeachSession } from "./TeachSessionProvider";
-import { MAX_ROSTER, studentTabLabel } from "@/lib/portal-teach-session";
+import { MAX_ROSTER, normalizeTeachRoute, studentTabLabel } from "@/lib/portal-teach-session";
 
 export default function StudentSessionBar() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const {
     rosterStudents,
     activeStudentId,
@@ -13,7 +16,7 @@ export default function StudentSessionBar() {
     loading,
     addToRoster,
     removeFromRoster,
-    setActiveStudent,
+    switchToStudent,
     clearSession,
   } = useTeachSession();
 
@@ -49,6 +52,11 @@ export default function StudentSessionBar() {
     setConfirmClear(false);
   }
 
+  function currentRoute(): string {
+    const search = searchParams.toString();
+    return normalizeTeachRoute(pathname, search);
+  }
+
   return (
     <div className="sticky top-14 z-20 bg-indigo-50/95 backdrop-blur-md border-b border-indigo-100 print-hide">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2">
@@ -70,7 +78,7 @@ export default function StudentSessionBar() {
                 <div key={s.id} className="flex items-center shrink-0">
                   <button
                     type="button"
-                    onClick={() => setActiveStudent(s.id)}
+                    onClick={() => switchToStudent(s.id, currentRoute())}
                     className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                       active
                         ? "bg-indigo-600 text-white shadow-sm"
