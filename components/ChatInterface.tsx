@@ -125,6 +125,7 @@ export default function ChatInterface() {
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [hintMode, setHintMode] = useState(false);
+  const [teachMode, setTeachMode] = useState(false);
   const [showSkillMap, setShowSkillMap] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -364,11 +365,15 @@ export default function ChatInterface() {
     }
 
     const imageUrl = pendingImage || undefined;
+    // Teach-me-a-topic mode: the input is a topic, not a question.
+    const isLesson = teachMode && !imageUrl && !!content;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: content || (imageUrl ? "Solve this question from the photo" : ""),
+      content: isLesson
+        ? `Teach me: ${content}`
+        : content || (imageUrl ? "Solve this question from the photo" : ""),
       imageUrl,
       timestamp: new Date(),
     };
@@ -387,7 +392,16 @@ export default function ChatInterface() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, level, examBoard, tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined, subject: selectedSubject, hintMode }),
+        body: JSON.stringify({
+          messages: history,
+          level,
+          examBoard,
+          tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined,
+          subject: selectedSubject,
+          hintMode: isLesson ? false : hintMode,
+          lessonMode: isLesson,
+          topic: isLesson ? content : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -791,6 +805,8 @@ export default function ChatInterface() {
           sendMessage={sendMessage}
           hintMode={hintMode}
           setHintMode={setHintMode}
+          teachMode={teachMode}
+          setTeachMode={setTeachMode}
           onShowSkillMap={() => setShowSkillMap(true)}
         />
       ) : (
@@ -846,6 +862,8 @@ export default function ChatInterface() {
             sendMessage={sendMessage}
             hintMode={hintMode}
             setHintMode={setHintMode}
+            teachMode={teachMode}
+            setTeachMode={setTeachMode}
           />
         </>
       )}
@@ -899,14 +917,53 @@ interface InputProps {
   sendMessage: (text?: string) => void;
   hintMode: boolean;
   setHintMode: (v: boolean) => void;
+  teachMode: boolean;
+  setTeachMode: (v: boolean) => void;
   onShowSkillMap?: () => void;
+}
+
+/* Segmented mode toggle: Solve it · Hint · Teach me a topic */
+function ModeToggle({
+  hintMode,
+  setHintMode,
+  teachMode,
+  setTeachMode,
+}: {
+  hintMode: boolean;
+  setHintMode: (v: boolean) => void;
+  teachMode: boolean;
+  setTeachMode: (v: boolean) => void;
+}) {
+  const solveActive = !hintMode && !teachMode;
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
+      <button
+        onClick={() => { setHintMode(false); setTeachMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${solveActive ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
+      >
+        Solve it
+      </button>
+      <button
+        onClick={() => { setHintMode(true); setTeachMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode && !teachMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
+      >
+        Hint only
+      </button>
+      <button
+        onClick={() => { setTeachMode(true); setHintMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${teachMode ? "bg-white text-indigo-700 shadow-sm" : "text-gray-400"}`}
+      >
+        Teach me a topic
+      </button>
+    </div>
+  );
 }
 
 function HeroLanding(props: InputProps) {
   const {
     input, setInput, loading, pendingImage, setPendingImage,
     fileInputRef, inputRef, handleKeyDown, sendMessage,
-    hintMode, setHintMode, onShowSkillMap,
+    hintMode, setHintMode, teachMode, setTeachMode, onShowSkillMap,
   } = props;
 
   return (
@@ -966,7 +1023,7 @@ function HeroLanding(props: InputProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a GCSE maths question..."
+            placeholder={teachMode ? "Enter a topic to learn — e.g. Pythagoras' theorem" : "Ask a GCSE maths question..."}
             rows={1}
             className="flex-1 bg-transparent text-gray-900 pl-4 sm:pl-5 pr-2 py-3 sm:py-4 text-sm sm:text-base resize-none focus:outline-none placeholder-gray-400"
             style={{ minHeight: 46, maxHeight: 120, fieldSizing: "content" } as React.CSSProperties}
@@ -1008,11 +1065,13 @@ function HeroLanding(props: InputProps) {
         </div>
 
         {/* Press Enter hint */}
-        <p className="text-gray-400 text-sm mt-3">Press Enter to solve</p>
+        <p className="text-gray-400 text-sm mt-3">{teachMode ? "Press Enter to start the lesson" : "Press Enter to solve"}</p>
 
         {/* Bot helper text */}
         <p className="text-gray-500 text-sm mt-4">
-          I&apos;ll solve it step by step and explain every mark.
+          {teachMode
+            ? "I'll teach the whole topic step by step — from the basics to worked examples."
+            : "I'll solve it step by step and explain every mark."}
         </p>
 
         {/* Suggestion chip */}
@@ -1020,7 +1079,7 @@ function HeroLanding(props: InputProps) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
-          onClick={() => sendMessage("Solve x² − 5x − 6 = 0")}
+          onClick={() => sendMessage(teachMode ? "Pythagoras' theorem" : "Solve x² − 5x − 6 = 0")}
           className="mt-5 group flex items-center gap-2 text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <span className="text-gray-400">Try:</span>
@@ -1032,32 +1091,24 @@ function HeroLanding(props: InputProps) {
               color: "#374151",
             }}
           >
-            Solve x² − 5x − 6 = 0
+            {teachMode ? "Teach me Pythagoras' theorem" : "Solve x² − 5x − 6 = 0"}
             <ArrowRight size={14} className="text-gray-400" />
           </span>
         </motion.button>
 
-        {/* Hint mode + My progress */}
+        {/* Mode toggle + My progress */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5, duration: 0.4 }}
           className="mt-4 flex items-center gap-3"
         >
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
-            <button
-              onClick={() => setHintMode(false)}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
-            >
-              Solve it
-            </button>
-            <button
-              onClick={() => setHintMode(true)}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
-            >
-              Hint only
-            </button>
-          </div>
+          <ModeToggle
+            hintMode={hintMode}
+            setHintMode={setHintMode}
+            teachMode={teachMode}
+            setTeachMode={setTeachMode}
+          />
           {onShowSkillMap && (
             <button
               onClick={onShowSkillMap}
@@ -1110,7 +1161,7 @@ function ChatInputBar(props: InputProps) {
   const {
     input, setInput, loading, pendingImage, setPendingImage,
     fileInputRef, inputRef, handleKeyDown, sendMessage,
-    hintMode, setHintMode,
+    hintMode, setHintMode, teachMode, setTeachMode,
   } = props;
 
   return (
@@ -1158,7 +1209,7 @@ function ChatInputBar(props: InputProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question — e.g. Solve 3x − 7 = 14"
+            placeholder={teachMode ? "Enter a topic to learn — e.g. Fractions" : "Ask a question — e.g. Solve 3x − 7 = 14"}
             rows={1}
             className="flex-1 bg-transparent text-gray-900 px-2 py-3.5 text-base resize-none focus:outline-none placeholder-gray-400"
             style={{ minHeight: 54, maxHeight: 180, fieldSizing: "content" } as React.CSSProperties}
@@ -1185,20 +1236,12 @@ function ChatInputBar(props: InputProps) {
         </div>
       </div>
       <div className="flex items-center justify-center gap-3 mt-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
-          <button
-            onClick={() => setHintMode(false)}
-            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
-          >
-            Solve it
-          </button>
-          <button
-            onClick={() => setHintMode(true)}
-            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
-          >
-            Hint only
-          </button>
-        </div>
+        <ModeToggle
+          hintMode={hintMode}
+          setHintMode={setHintMode}
+          teachMode={teachMode}
+          setTeachMode={setTeachMode}
+        />
         <span className="text-[11px] text-gray-400">Enter to send · 📷 photo</span>
       </div>
     </div>

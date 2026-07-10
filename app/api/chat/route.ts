@@ -7,7 +7,11 @@ export const config = {
 };
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
-import { buildTeacherExplanationPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";
+import { buildTeacherExplanationPrompt, buildLessonPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";
+import {
+  validateLessonContract,
+  buildLessonRetryMessage,
+} from "@/lib/lesson-contract";
 import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
@@ -91,6 +95,7 @@ export async function POST(req: NextRequest) {
       useWhiteboard = true,
       hintMode = false,
       teacherMode = false,
+      lessonMode = false,
       topic: topicContext,
       subtopics: subtopicsContext,
     } = body;
@@ -341,6 +346,119 @@ export async function POST(req: NextRequest) {
       });
 
       // Increment usage for authenticated users
+      if (user) {
+        const today = new Date().toISOString().split("T")[0];
+        try {
+          await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+        } catch { /* ignore */ }
+      }
+
+      controller.close();
+      return;
+    }
+
+    // ── Teach-me-a-topic fast path: full structured lesson ────────────────
+    if (lessonMode) {
+      console.log("[LessonMode] Generating a full topic lesson — skipping CAS/critic");
+
+      // Extract the topic from the message (format: [LESSON MODE] ... "<topic>")
+      const lessonMatch = questionText.match(/\[LESSON MODE\][^"]*"(.+?)"/);
+      const lessonTopic =
+        lessonMatch?.[1] ||
+        (typeof topicContext === "string" && topicContext) ||
+        questionText.replace(/\[LESSON MODE\]/i, "").trim() ||
+        "Maths";
+
+      // Look up any topic-specific visual guidance (reuses the teacher map)
+      const visuals = getTeacherRequiredVisuals(lessonTopic);
+
+      const lessonSystemPrompt = buildLessonPrompt(
+        lessonTopic,
+        level || "GCSE",
+        tier,
+        visuals,
+      );
+
+      const lessonUserMsg = `Teach me a full lesson on: "${lessonTopic}". Follow the lesson contract exactly.`;
+
+      async function runLesson(sys: string, convo: { role: "user" | "assistant"; content: string }[]) {
+        const anthropic = convertToAnthropicMessages(convo);
+        try {
+          const r = await claudeSolve(sys, anthropic);
+          return r.content;
+        } catch {
+          const fb = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 8192,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system" as const, content: sys },
+              ...convo,
+            ],
+          });
+          return fb.choices[0]?.message?.content || "";
+        }
+      }
+
+      let lessonRaw = await runLesson(lessonSystemPrompt, [
+        { role: "user", content: lessonUserMsg },
+      ]);
+      let lessonResult = validateResponse(lessonRaw);
+      let contract = validateLessonContract(
+        lessonResult.data ?? { intro: "", blocks: [], conclusion: "" },
+      );
+
+      // Retry once if the lesson is structurally valid but missing sections
+      if (lessonResult.data && !contract.ok && contract.missing.length > 0) {
+        console.log(`[LessonMode] Retrying — missing sections: ${contract.missing.join(", ")}`);
+        try {
+          const retryRaw = await runLesson(lessonSystemPrompt, [
+            { role: "user", content: lessonUserMsg },
+            { role: "assistant", content: lessonRaw },
+            { role: "user", content: buildLessonRetryMessage(contract.missing) },
+          ]);
+          const retryResult = validateResponse(retryRaw);
+          if (retryResult.data) {
+            const retryContract = validateLessonContract(retryResult.data);
+            // Accept the retry if it covers at least as many sections as before
+            if (retryContract.missing.length <= contract.missing.length) {
+              lessonRaw = retryRaw;
+              lessonResult = retryResult;
+              contract = retryContract;
+            }
+          }
+        } catch {
+          // Keep the first attempt if the retry fails
+        }
+      }
+
+      const lessonData: WhiteboardResponse = lessonResult.data
+        ? lessonResult.data
+        : {
+            intro: "Let's learn this topic together.",
+            blocks: [{ type: "text", content: lessonRaw.replace(/```json|```/g, "").trim() }],
+            conclusion: "That's the lesson — well done for sticking with it!",
+          };
+
+      const lessonWarnings = [
+        ...(lessonResult.errors || []),
+        ...(contract.missing.length > 0
+          ? [`Lesson missing sections: ${contract.missing.join(", ")}`]
+          : []),
+        ...contract.warnings,
+      ];
+
+      send("solver_done", {
+        whiteboard: lessonData,
+        response: { type: "explanation", intro: lessonData.intro, steps: [], conclusion: lessonData.conclusion },
+        category,
+        validationWarnings: lessonWarnings,
+      });
+      send("verification_done", {
+        verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+        whiteboard: lessonData,
+      });
+
       if (user) {
         const today = new Date().toISOString().split("T")[0];
         try {

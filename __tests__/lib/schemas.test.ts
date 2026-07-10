@@ -409,8 +409,8 @@ describe("WhiteboardResponseSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects more than 15 blocks", () => {
-    const blocks = Array.from({ length: 16 }, () => ({
+  it("rejects more than 20 blocks", () => {
+    const blocks = Array.from({ length: 21 }, () => ({
       type: "text",
       content: "x",
     }));
