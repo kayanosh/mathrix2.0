@@ -45,6 +45,31 @@ drop policy if exists "Authenticated users can read topic lesson cache" on topic
 create policy "Authenticated users can read topic lesson cache" on topic_lesson_cache
   for select using (auth.role() = 'authenticated');
 
+-- TTS narration audio cache (mp3 bytes live in Storage bucket 'tts-cache';
+-- this table holds lightweight metadata + hit telemetry). Create the Storage
+-- bucket once:  Supabase → Storage → New bucket → name "tts-cache" (private).
+create table if not exists tts_cache (
+  tts_hash text primary key,
+  text_preview text,
+  voice text not null default 'onyx',
+  speed numeric not null default 1,
+  byte_size integer,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+alter table tts_cache enable row level security;
+-- No client policies: the audio is served through the /api/tts route using the
+-- service-role key, so browsers never read this table or the bucket directly.
+
+create or replace function public.increment_tts_hit(p_hash text)
+returns void
+language sql
+security definer
+as $$
+  update public.tts_cache set hit_count = hit_count + 1 where tts_hash = p_hash;
+$$;
+
 -- Student progress (parent chart, syncs across devices)
 create table if not exists public.skill_progress (
   id bigint generated always as identity primary key,
