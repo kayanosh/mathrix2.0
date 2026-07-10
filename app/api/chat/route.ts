@@ -23,7 +23,12 @@ import {
   buildCorrectionMessage,
   parseCriticResponse,
 } from "@/lib/prompts/critic";
-import { validateResponse, sanitizeWhiteboardResponse } from "@/lib/validate";
+import {
+  validateResponse,
+  sanitizeWhiteboardResponse,
+  validateNoMissingSteps,
+  buildContinuityRetryMessage,
+} from "@/lib/validate";
 import { casSolve } from "@/lib/cas-solver";
 import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
 import { buildGroundTruth } from "@/lib/ground-truth";
@@ -720,6 +725,41 @@ export async function POST(req: NextRequest) {
       }
 
       result = validateResponse(rawContent, requiredBlockTypes);
+    }
+
+    // ── Continuity-aware retry: fix unexplained jumps in the working ──
+    // If the schema-valid solution skips steps (latexBefore ≠ previous
+    // latexAfter, or missing explanations), regenerate ONCE with the specific
+    // gaps fed back. Accept the retry only if it reduces the number of jumps.
+    if (result.ok && result.data) {
+      const continuityIssues = validateNoMissingSteps(result.data);
+      if (continuityIssues.length > 0) {
+        console.log(
+          `[Pass 1] ${continuityIssues.length} continuity gap(s) — retrying for missing steps`,
+        );
+        const continuityMessages = convertToAnthropicMessages([
+          ...formattedMessages,
+          { role: "assistant" as const, content: rawContent },
+          { role: "user" as const, content: buildContinuityRetryMessage(continuityIssues) },
+        ]);
+
+        try {
+          const retry = await claudeSolve(systemPrompt, continuityMessages);
+          const retryResult = validateResponse(retry.content, requiredBlockTypes);
+          if (retryResult.ok && retryResult.data) {
+            const retryIssues = validateNoMissingSteps(retryResult.data);
+            if (retryIssues.length < continuityIssues.length) {
+              console.log(
+                `[Pass 1] Continuity retry improved: ${continuityIssues.length} → ${retryIssues.length} gap(s)`,
+              );
+              result = retryResult;
+              rawContent = retry.content;
+            }
+          }
+        } catch {
+          // Keep the original solution if the retry fails.
+        }
+      }
     }
 
     // If still invalid, return fallback

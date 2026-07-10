@@ -301,6 +301,16 @@ export function validateNoMissingSteps(data: WhiteboardResponse): string[] {
 }
 
 /**
+ * Build a targeted correction message for the solver when its worked solution
+ * contains unexplained jumps (see validateStepContinuity). Fed back to the LLM
+ * for a single regeneration pass so detection becomes correction.
+ */
+export function buildContinuityRetryMessage(warnings: string[]): string {
+  const list = warnings.map((w) => `• ${w}`).join("\n");
+  return `Your worked solution skips steps that a student needs to see. Specifically:\n${list}\n\nRegenerate the FULL solution as valid WhiteboardResponse JSON. In every equation_steps block:\n• Change only ONE thing per step, and make each step's latexBefore exactly equal to the previous step's latexAfter (no jumps).\n• Give every step a short one-line explanation of what you did and why.\n• Insert the missing intermediate steps rather than combining several operations into one line.\nKeep everything else the same. Output ONLY valid JSON.`;
+}
+
+/**
  * Hard rule: a maths question (response contains any `=` in equation_steps,
  * or any block at all besides `text`) must NOT consist only of `text` blocks.
  */
