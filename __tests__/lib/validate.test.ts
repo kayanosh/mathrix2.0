@@ -1,4 +1,8 @@
-import { validateResponse } from "@/lib/validate";
+import {
+  validateResponse,
+  validateNoMissingSteps,
+  buildContinuityRetryMessage,
+} from "@/lib/validate";
 
 describe("validateResponse", () => {
   const validResponse = JSON.stringify({
@@ -533,5 +537,77 @@ describe("validateResponse", () => {
     expect(
       result.errors!.some((e) => e.includes("ornate")),
     ).toBe(true);
+  });
+});
+
+describe("buildContinuityRetryMessage", () => {
+  const jumpingResponse = {
+    intro: "Let's solve 2x + 4 = 10.",
+    blocks: [
+      {
+        type: "equation_steps" as const,
+        steps: [
+          {
+            stepNumber: 1,
+            operationLabel: "Start",
+            explanation: "Here's the equation.",
+            latexBefore: "2x + 4 = 10",
+            latexAfter: "2x + 4 = 10",
+            arrowDirection: "down" as const,
+          },
+          {
+            stepNumber: 2,
+            operationLabel: "Jump",
+            explanation: "",
+            latexBefore: "2x = 6",
+            latexAfter: "x = 3",
+            arrowDirection: "simplify" as const,
+          },
+        ],
+      },
+    ],
+    conclusion: "So x = 3.",
+  };
+
+  it("includes each detected gap and step-by-step instructions", () => {
+    const warnings = validateNoMissingSteps(jumpingResponse);
+    expect(warnings.length).toBeGreaterThan(0);
+
+    const msg = buildContinuityRetryMessage(warnings);
+    for (const w of warnings) {
+      expect(msg).toContain(w);
+    }
+    expect(msg).toMatch(/latexBefore/);
+    expect(msg).toMatch(/ONLY valid JSON/);
+  });
+
+  it("returns no warnings for a continuous chain", () => {
+    const clean = {
+      ...jumpingResponse,
+      blocks: [
+        {
+          type: "equation_steps" as const,
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Start",
+              explanation: "Here's the equation.",
+              latexBefore: "2x + 4 = 10",
+              latexAfter: "2x + 4 = 10",
+              arrowDirection: "down" as const,
+            },
+            {
+              stepNumber: 2,
+              operationLabel: "Subtract 4",
+              explanation: "Subtract 4 from both sides.",
+              latexBefore: "2x + 4 = 10",
+              latexAfter: "2x = 6",
+              arrowDirection: "down" as const,
+            },
+          ],
+        },
+      ],
+    };
+    expect(validateNoMissingSteps(clean)).toHaveLength(0);
   });
 });
