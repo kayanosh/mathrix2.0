@@ -239,9 +239,37 @@ function cuesForColumn(
   block: ColumnMethodBlock,
   bi: number,
 ) {
+  const methodLabel = block.method.replace(/_/g, " ");
   cues.push({
     blockIndex: bi,
-    text: `Let's work through ${block.question} using the ${block.method.replace(/_/g, " ")} method. The answer is ${block.answer}.`,
+    text: `Let's set up ${block.question} using the ${methodLabel}. Watch the digits line up in columns.`,
+    kind: "column",
+  });
+
+  if (block.method === "column_multiplication" && block.rows.length >= 4) {
+    const partials = block.rows.slice(2, -1);
+    partials.forEach((row, i) => {
+      const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
+      cues.push({
+        blockIndex: bi,
+        text:
+          i === 0
+            ? `First multiply by the ones. That gives ${digits}. Carry any tens to the next column — follow the orange arrow.`
+            : `Next multiply by the tens. Write ${digits} — remember the place-value zero. Then add the partial products.`,
+        kind: "column",
+      });
+    });
+  } else if (block.carries?.length) {
+    cues.push({
+      blockIndex: bi,
+      text: `When a column makes 10 or more, we carry — follow the orange arrows.`,
+      kind: "column",
+    });
+  }
+
+  cues.push({
+    blockIndex: bi,
+    text: `So the answer is ${block.answer}. Well done!`,
     kind: "column",
   });
 }

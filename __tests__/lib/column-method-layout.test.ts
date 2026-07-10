@@ -11,8 +11,8 @@ import {
 describe("cellCenter", () => {
   it("returns centre of a cell in the grid", () => {
     const c = cellCenter(0, 2, 3);
-    expect(c.x).toBe(120);
-    expect(c.y).toBe(66);
+    expect(c.x).toBe(90);
+    expect(c.y).toBe(50);
   });
 
   it("offsets y by row index", () => {
@@ -28,16 +28,16 @@ describe("carrySlotCenter", () => {
     const carry = carrySlotCenter(0, 1);
     expect(carry.x).toBe(cell.x);
     expect(carry.y).toBeLessThan(cell.y);
-    expect(carry.y).toBe(20);
+    expect(carry.y).toBe(14);
   });
 });
 
 describe("inferCarryMoves", () => {
-  it("returns empty for non-addition methods", () => {
+  it("returns empty for long division", () => {
     expect(inferCarryMoves("long_division", [{ row: 0, col: 1, digit: "1" }], 3)).toEqual([]);
   });
 
-  it("infers carry arrows from column to the right", () => {
+  it("infers carry arrows for column addition", () => {
     const moves = inferCarryMoves(
       "column_addition",
       [{ row: 0, col: 1, digit: "1" }],
@@ -51,6 +51,22 @@ describe("inferCarryMoves", () => {
       toCol: 1,
       kind: "carry",
       label: "carry 1",
+    });
+  });
+
+  it("infers carry arrows for column multiplication", () => {
+    const moves = inferCarryMoves(
+      "column_multiplication",
+      [{ row: 2, col: 1, digit: "3" }],
+      3
+    );
+    expect(moves).toHaveLength(1);
+    expect(moves[0]).toMatchObject({
+      fromRow: 2,
+      fromCol: 2,
+      toRow: 2,
+      toCol: 1,
+      kind: "carry",
     });
   });
 });

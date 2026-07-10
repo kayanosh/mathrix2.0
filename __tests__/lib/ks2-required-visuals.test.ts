@@ -15,6 +15,17 @@ describe("detectKS2RequiredVisuals", () => {
     expect(reqs.some((r) => r.matchedTopic === "Column Multiplication")).toBe(true);
   });
 
+  it("requires place-value table for ×1000, not column_method", () => {
+    const reqs = detectKS2RequiredVisuals("What is 250 × 1000?");
+    expect(reqs[0]?.matchedTopic).toBe("Place Value ×÷ 10/100/1000");
+    expect(reqs[0]?.requiredBlocks).toEqual(["table", "equation_steps"]);
+  });
+
+  it("requires number_line for multiples", () => {
+    const reqs = detectKS2RequiredVisuals("Find the multiples of 4 up to 40.");
+    expect(reqs.some((r) => r.requiredBlocks.includes("number_line"))).toBe(true);
+  });
+
   it("requires number_line for fraction number line topics", () => {
     const reqs = detectKS2RequiredVisuals("", "Fractions", [
       "Fractions on a number line",
@@ -28,7 +39,7 @@ describe("detectKS2RequiredVisuals", () => {
     expect(reqs.some((r) => r.requiredBlocks.includes("labeled_shape"))).toBe(true);
   });
 
-  it("detects arithmetic from question text", () => {
+  it("detects column multiplication from question text", () => {
     const reqs = detectKS2RequiredVisuals("What is 23 × 45?");
     expect(reqs.some((r) => r.requiredBlocks.includes("column_method"))).toBe(true);
   });

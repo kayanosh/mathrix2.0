@@ -9,6 +9,10 @@ interface Props {
   baseDelay: number;
 }
 
+/**
+ * Light-theme table for the whiteboard / KS2 lesson surface.
+ * (Previously used dark-mode greys that were nearly invisible on white.)
+ */
 export default function TableRenderer({ block, baseDelay }: Props) {
   const { headers, rows, mathColumns, caption, highlightCells } = block;
   const mathCols = new Set(mathColumns || []);
@@ -17,16 +21,10 @@ export default function TableRenderer({ block, baseDelay }: Props) {
   );
 
   return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-      }}
-    >
+    <div className="rounded-xl overflow-hidden bg-white border border-indigo-100 shadow-sm">
       {caption && (
         <div className="px-4 pt-3 pb-1">
-          <span className="text-xs text-gray-400 font-[family-name:var(--font-caveat)] text-base">
+          <span className="text-sm font-semibold text-indigo-700 font-[family-name:var(--font-caveat)]">
             {caption}
           </span>
         </div>
@@ -35,15 +33,14 @@ export default function TableRenderer({ block, baseDelay }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr>
+            <tr className="bg-indigo-50/80">
               {headers.map((h, ci) => (
                 <motion.th
                   key={ci}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: baseDelay + ci * 0.05 }}
-                  className="px-4 py-2.5 text-left text-xs font-semibold text-indigo-300 uppercase tracking-wider"
-                  style={{ borderBottom: "1px solid rgba(129,140,248,0.15)" }}
+                  className="px-4 py-2.5 text-left text-xs font-bold text-indigo-800 uppercase tracking-wider border-b border-indigo-200"
                 >
                   {mathCols.has(ci) ? <MathRenderer latex={h} /> : h}
                 </motion.th>
@@ -57,20 +54,18 @@ export default function TableRenderer({ block, baseDelay }: Props) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: baseDelay + 0.15 + ri * 0.06 }}
-                className="hover:bg-white/[0.02] transition-colors"
+                className="hover:bg-indigo-50/40 transition-colors"
               >
                 {row.map((cell, ci) => {
                   const isHighlighted = highlights.has(`${ri}-${ci}`);
                   return (
                     <td
                       key={ci}
-                      className="px-4 py-2 text-gray-300"
-                      style={{
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        background: isHighlighted
-                          ? "rgba(129,140,248,0.1)"
-                          : undefined,
-                      }}
+                      className={`px-4 py-2.5 text-base font-medium border-b border-gray-100 ${
+                        isHighlighted
+                          ? "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-300"
+                          : "text-gray-900"
+                      }`}
                     >
                       {mathCols.has(ci) ? (
                         <MathRenderer latex={cell} />

@@ -15,6 +15,7 @@ import {
   gridWidth,
   inferCarryMoves,
   movesWithLanes,
+  normalizeColumnDigits,
   ROW_SEPARATOR_H,
 } from "@/lib/column-method-layout";
 
@@ -34,10 +35,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
   const { rows, carries, moves, cellNotes, separatorAfterRows, question, answer, method } = block;
   const separators = new Set(separatorAfterRows || []);
 
-  const maxCols = Math.max(
-    ...rows.map((r) => r.replace(/^[+\-×x]\s*/, "").trim().length),
-    1
-  );
+  const maxCols = Math.max(...rows.map((r) => normalizeColumnDigits(r).length), 1);
   const cellW = DEFAULT_CELL_W;
   const cellH = DEFAULT_CELL_H;
   const carryH = DEFAULT_CARRY_H;
@@ -137,7 +135,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
           )}
 
           {rows.map((row, ri) => {
-            const cleaned = row.replace(/^[+\-×x]\s*/, "").trim();
+            const cleaned = normalizeColumnDigits(row);
             const showOperator = ri === operatorRow && operatorChar;
 
             return (

@@ -209,10 +209,10 @@ describe("buildNarrationPlan", () => {
       conclusion: "Done",
     };
     const plan = buildNarrationPlan(data);
-    const colCue = plan.find((c) => c.kind === "column");
-    expect(colCue).toBeDefined();
-    expect(colCue!.text).toContain("384 ÷ 12");
-    expect(colCue!.text).toContain("32");
+    const colCues = plan.filter((c) => c.kind === "column");
+    expect(colCues.length).toBeGreaterThanOrEqual(1);
+    expect(colCues.some((c) => c.text.includes("384 ÷ 12"))).toBe(true);
+    expect(colCues.some((c) => c.text.includes("32"))).toBe(true);
   });
 
   it("includes hint and keyTakeaway cues", () => {

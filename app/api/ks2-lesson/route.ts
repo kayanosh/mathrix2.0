@@ -12,6 +12,7 @@ import {
   KS2_LESSON_VISUAL_SCHEMA,
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
+import { deepRepairStrings } from "@/lib/validate";
 import type { VisualBlock } from "@/types/whiteboard";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -74,11 +75,24 @@ function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhite
   if (!raw || typeof raw !== "object") return undefined;
   const wb = raw as Record<string, unknown>;
   if (!Array.isArray(wb.blocks) || wb.blocks.length === 0) return undefined;
-  return {
+  const repaired = deepRepairStrings({
     intro: (wb.intro || "").toString(),
     blocks: wb.blocks as VisualBlock[],
     conclusion: (wb.conclusion || "").toString(),
-  };
+  });
+  // Normalise column_method digit rows (strip spaces between digits)
+  repaired.blocks = repaired.blocks.map((block) => {
+    if (block.type !== "column_method") return block;
+    return {
+      ...block,
+      rows: block.rows.map((row) => {
+        const op = row.match(/^[+\-×x]/)?.[0] ?? "";
+        const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
+        return op ? `${op}${digits}` : digits;
+      }),
+    };
+  });
+  return repaired;
 }
 
 /**
@@ -103,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     const isMaths = /math/i.test(subject);
     const mathsRule = isMaths
-      ? "Wrap every number, calculation, fraction, or symbol in $...$ so it renders nicely (for example $\\frac{3}{4}$, $12 \\times 4$). Use double backslashes for LaTeX commands in JSON."
+      ? `Wrap every number, calculation, fraction, or symbol in $...$ so it renders nicely. In JSON every LaTeX backslash MUST be doubled: write "$12 \\\\times 4$" and "$\\\\frac{3}{4}$". A single backslash before t becomes a tab and shows as the broken word "imes" — never do that.`
       : "Do not use LaTeX or $ symbols.";
 
     // ── Single-question explanation (structured, step-by-step) ───────────────
@@ -250,7 +264,7 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
     const raw = completion.choices[0]?.message?.content || "{}";
     let lesson: KS2Lesson | null = null;
     try {
-      const parsed = JSON.parse(raw);
+      const parsed = deepRepairStrings(JSON.parse(raw));
       lesson = {
         intro: (parsed.intro || "").toString(),
         heroEmoji: parsed.heroEmoji ? parsed.heroEmoji.toString() : undefined,

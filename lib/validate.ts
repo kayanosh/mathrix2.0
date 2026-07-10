@@ -26,7 +26,8 @@ export interface ValidationResult {
  * JSON.parse interprets  \f  as U+000C (form-feed),  \t  as U+0009 (tab), etc.
  * This reverses those common manglings so LaTeX renders correctly.
  */
-function repairMangledBackslashes(s: string): string {
+/** Fix strings mangled by JSON backslash escaping (e.g. \\times → tab + "imes"). */
+export function repairMangledBackslashes(s: string): string {
   return s
     .replace(/\f/g, "\\f")              // form-feed  → \f  (fixes \frac, \forall, \flat)
     .replace(/\t/g, "\\t")              // tab        → \t  (fixes \times, \text, \theta, \tan, \to)
@@ -38,7 +39,7 @@ function repairMangledBackslashes(s: string): string {
 /**
  * Recursively walk a parsed object and repair every string value.
  */
-function deepRepairStrings<T>(obj: T): T {
+export function deepRepairStrings<T>(obj: T): T {
   if (typeof obj === "string") return repairMangledBackslashes(obj) as T;
   if (Array.isArray(obj)) return obj.map(deepRepairStrings) as T;
   if (obj && typeof obj === "object") {

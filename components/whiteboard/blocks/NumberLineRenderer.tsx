@@ -29,13 +29,10 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
   }
 
   return (
-    <div className="rounded-xl p-4" style={{
-      background: "rgba(255,255,255,0.03)",
-      border: "1px solid rgba(255,255,255,0.07)",
-    }}>
+    <div className="rounded-xl p-4 bg-white border border-indigo-100 shadow-sm">
       {/* Inequality label */}
       {inequalityLabel && (
-        <div className="mb-3 flex justify-center">
+        <div className="mb-3 flex justify-center text-gray-900">
           <MathRenderer latex={inequalityLabel} display />
         </div>
       )}
@@ -58,7 +55,7 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
               height={24}
               fill={s.color || "#818cf8"}
               opacity={0}
-              animate={{ opacity: 0.15 }}
+              animate={{ opacity: 0.2 }}
               transition={{ delay: baseDelay + 0.3, duration: 0.4 }}
               rx={4}
             />
@@ -71,8 +68,8 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           y1={lineY}
           x2={width - padding + 10}
           y2={lineY}
-          stroke="#6b7280"
-          strokeWidth="2"
+          stroke="#334155"
+          strokeWidth="2.5"
           strokeLinecap="round"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
@@ -82,14 +79,14 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
         {/* Arrow ends */}
         <motion.polygon
           points={`${width - padding + 14},${lineY} ${width - padding + 6},${lineY - 4} ${width - padding + 6},${lineY + 4}`}
-          fill="#6b7280"
+          fill="#334155"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: baseDelay + 0.5 }}
         />
         <motion.polygon
           points={`${padding - 14},${lineY} ${padding - 6},${lineY - 4} ${padding - 6},${lineY + 4}`}
-          fill="#6b7280"
+          fill="#334155"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: baseDelay + 0.5 }}
@@ -108,15 +105,16 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
               y1={lineY - 6}
               x2={xPos(v)}
               y2={lineY + 6}
-              stroke="#6b7280"
+              stroke="#475569"
               strokeWidth="1.5"
             />
             <text
               x={xPos(v)}
               y={lineY + 22}
               textAnchor="middle"
-              fill="#9ca3af"
-              fontSize="11"
+              fill="#1e293b"
+              fontSize="12"
+              fontWeight="600"
               fontFamily="var(--font-caveat), cursive"
             >
               {v}
@@ -140,18 +138,18 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
             <circle
               cx={xPos(m.value)}
               cy={lineY}
-              r="6"
-              fill={m.style === "filled" ? "#818cf8" : "#07070e"}
-              stroke="#818cf8"
-              strokeWidth="2"
+              r="7"
+              fill={m.style === "filled" ? "#4f46e5" : "#fff"}
+              stroke="#4f46e5"
+              strokeWidth="2.5"
             />
             {m.label && (
               <text
                 x={xPos(m.value)}
                 y={lineY - 14}
                 textAnchor="middle"
-                fill="#e8e8f0"
-                fontSize="12"
+                fill="#312e81"
+                fontSize="13"
                 fontFamily="var(--font-caveat), cursive"
                 fontWeight="bold"
               >

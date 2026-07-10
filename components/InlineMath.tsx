@@ -1,6 +1,7 @@
 "use client";
 
 import MathRenderer from "./MathRenderer";
+import { repairMangledBackslashes } from "@/lib/validate";
 
 /**
  * Renders a string that may contain inline LaTeX delimited by `$...$`.
@@ -18,13 +19,17 @@ export default function InlineMath({
 }) {
   if (!text) return null;
 
-  // Fast path: no dollar signs → plain text
-  if (!text.includes("$")) {
-    return <>{text}</>;
+  // Repair JSON-mangled LaTeX (e.g. tab+"imes" from a broken \times)
+  const repaired = repairMangledBackslashes(text);
+
+  // Fast path: no dollar signs → plain text (still show × if mangled without $)
+  if (!repaired.includes("$")) {
+    const plain = repaired.replace(/\\times/g, "×").replace(/\\div/g, "÷");
+    return <>{plain}</>;
   }
 
   // Split on $...$ (non-greedy), keeping the delimiters as captured groups
-  const parts = text.split(/\$([^$]+?)\$/g);
+  const parts = repaired.split(/\$([^$]+?)\$/g);
 
   // parts alternates: [text, mathContent, text, mathContent, ...]
   return (

@@ -1,8 +1,8 @@
 import type { ColumnMethodMove } from "@/types/whiteboard";
 
-export const DEFAULT_CELL_W = 48;
-export const DEFAULT_CELL_H = 52;
-export const DEFAULT_CARRY_H = 40;
+export const DEFAULT_CELL_W = 36;
+export const DEFAULT_CELL_H = 44;
+export const DEFAULT_CARRY_H = 28;
 export const ROW_SEPARATOR_H = 2;
 
 /** Centre point of a digit cell in the column grid (px, top-left origin). */
@@ -55,7 +55,12 @@ export function inferCarryMoves(
   carries: { row: number; col: number; digit: string }[] | undefined,
   maxCols: number
 ): ColumnMethodMove[] {
-  if (method !== "column_addition" || !carries?.length) return [];
+  if (
+    (method !== "column_addition" && method !== "column_multiplication") ||
+    !carries?.length
+  ) {
+    return [];
+  }
 
   return carries.map((c) => {
     const fromCol = Math.min(c.col + 1, maxCols - 1);
@@ -68,6 +73,11 @@ export function inferCarryMoves(
       kind: "carry" as const,
     };
   });
+}
+
+/** Strip spaces / operator prefixes so digit grids stay tightly aligned. */
+export function normalizeColumnDigits(row: string): string {
+  return row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "").trim();
 }
 
 /** Sort moves right-to-left and assign staggered lane indices for arrow routing. */
