@@ -182,6 +182,34 @@ create policy "Authenticated users can read topic lesson cache" on topic_lesson_
   for select using (auth.role() = 'authenticated');
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- TTS NARRATION CACHE — metadata for cached narration audio
+-- The mp3 bytes live in the Storage bucket 'tts-cache' (create it once, private).
+-- This table only holds lightweight metadata + hit telemetry; audio is served
+-- through the /api/tts route using the service-role key.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists tts_cache (
+  tts_hash text primary key,          -- sha256 of normalised text + voice + speed
+  text_preview text,                  -- first 200 chars, for debugging
+  voice text not null default 'onyx',
+  speed numeric not null default 1,
+  byte_size integer,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+alter table tts_cache enable row level security;
+-- No client policies: browsers never read this table or the bucket directly.
+
+create or replace function public.increment_tts_hit(p_hash text)
+returns void
+language sql
+security definer
+as $$
+  update public.tts_cache set hit_count = hit_count + 1 where tts_hash = p_hash;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- EXAM PAPERS TABLE — Metadata for downloadable past papers
 -- ═══════════════════════════════════════════════════════════════════════════
 
