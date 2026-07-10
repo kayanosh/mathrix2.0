@@ -157,6 +157,31 @@ create policy "Authenticated users can read ks2 lesson cache" on ks2_lesson_cach
   for select using (auth.role() = 'authenticated');
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- TOPIC LESSON CACHE — "Teach me a topic" lessons (one per topic+level+tier)
+-- Mirrors question_cache: shared, read-only to clients, written server-side.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists topic_lesson_cache (
+  id uuid primary key default gen_random_uuid(),
+  lesson_hash text not null,
+  topic text not null,
+  level text not null default 'GCSE',
+  tier text,                          -- 'foundation' | 'higher' | KS2 tier | null
+  response_json jsonb not null,       -- full WhiteboardResponse (the lesson)
+  contract_json jsonb,                -- LessonContractResult metadata (sections/warnings)
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+create unique index if not exists idx_topic_lesson_cache_hash
+  on topic_lesson_cache (lesson_hash);
+
+alter table topic_lesson_cache enable row level security;
+
+create policy "Authenticated users can read topic lesson cache" on topic_lesson_cache
+  for select using (auth.role() = 'authenticated');
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- EXAM PAPERS TABLE — Metadata for downloadable past papers
 -- ═══════════════════════════════════════════════════════════════════════════
 

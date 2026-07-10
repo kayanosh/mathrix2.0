@@ -13,6 +13,11 @@ import {
   buildLessonRetryMessage,
 } from "@/lib/lesson-contract";
 import {
+  hashLessonKey,
+  lookupLessonCache,
+  writeLessonCache,
+} from "@/lib/lesson-cache";
+import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
   buildCorrectionMessage,
@@ -369,6 +374,37 @@ export async function POST(req: NextRequest) {
         questionText.replace(/\[LESSON MODE\]/i, "").trim() ||
         "Maths";
 
+      const lessonHash = hashLessonKey(lessonTopic, level || "GCSE", tier);
+
+      // ── Cache lookup: replay a previously generated lesson ──────────────
+      const cachedLesson = await lookupLessonCache(lessonHash);
+      if (cachedLesson) {
+        console.log(`[LessonMode] Cache HIT for "${lessonTopic}"`);
+        send("solver_done", {
+          whiteboard: cachedLesson.response_json,
+          response: {
+            type: "explanation",
+            intro: cachedLesson.response_json.intro,
+            steps: [],
+            conclusion: cachedLesson.response_json.conclusion,
+          },
+          category,
+          validationWarnings: [],
+        });
+        send("verification_done", {
+          verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+          whiteboard: cachedLesson.response_json,
+        });
+        if (user) {
+          const today = new Date().toISOString().split("T")[0];
+          try {
+            await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+          } catch { /* ignore */ }
+        }
+        controller.close();
+        return;
+      }
+
       // Look up any topic-specific visual guidance (reuses the teacher map)
       const visuals = getTeacherRequiredVisuals(lessonTopic);
 
@@ -458,6 +494,20 @@ export async function POST(req: NextRequest) {
         verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
         whiteboard: lessonData,
       });
+
+      // ── Persist the lesson — only cache complete, structurally-valid lessons ──
+      if (lessonResult.ok && lessonResult.data && contract.ok) {
+        writeLessonCache({
+          lessonHash,
+          topic: lessonTopic,
+          level: level || "GCSE",
+          tier: tier || null,
+          responseJson: lessonData,
+          contractJson: contract,
+        }).catch((err) => {
+          console.warn("[LessonCache] Write failed:", (err as Error).message);
+        });
+      }
 
       if (user) {
         const today = new Date().toISOString().split("T")[0];
