@@ -228,6 +228,78 @@ export function validateAlgebraArrows(block: EquationStepBlock): string[] {
   return errors;
 }
 
+// ── Step continuity ("no missing steps") ──────────────────────────────────────
+
+/** Normalise a LaTeX expression so two "identical" steps compare equal. */
+function normalizeLatexForCompare(s: string): string {
+  return stripHtmlIds(s)
+    .replace(/\\left|\\right/g, "")
+    .replace(/\\,|\\;|\\!|\\quad|\\qquad|~/g, "")
+    .replace(/\\cdot/g, "*")
+    .replace(/\\times/g, "*")
+    .replace(/\$/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+/**
+ * Enforce "no unexplained jumps" across an equation_steps block:
+ *   1. Every non-first step should have a written reason (`explanation`).
+ *   2. When a step provides `latexBefore`, it must match the previous step's
+ *      `latexAfter` — otherwise the working jumped over a step.
+ *
+ * These are returned as non-blocking warnings so the critic/retry loop can
+ * nudge the model without hard-failing an otherwise-correct solution.
+ */
+export function validateStepContinuity(block: EquationStepBlock): string[] {
+  const warnings: string[] = [];
+
+  block.steps.forEach((step, i) => {
+    const isFirst = i === 0;
+
+    // (1) Every step past the first needs a reason.
+    if (!isFirst && (!step.explanation || step.explanation.trim().length === 0)) {
+      warnings.push(
+        `Step ${step.stepNumber}: no explanation given — every step needs a one-line reason (no unexplained jumps).`,
+      );
+    }
+
+    // (2) latexBefore must continue the previous step's latexAfter.
+    if (!isFirst) {
+      const prev = block.steps[i - 1];
+      if (
+        step.latexBefore &&
+        step.latexBefore.trim().length > 0 &&
+        prev.latexAfter &&
+        prev.latexAfter.trim().length > 0
+      ) {
+        const before = normalizeLatexForCompare(step.latexBefore);
+        const prevAfter = normalizeLatexForCompare(prev.latexAfter);
+        if (before && prevAfter && before !== prevAfter) {
+          warnings.push(
+            `Step ${step.stepNumber}: jumps from the previous line. Its latexBefore ("${step.latexBefore}") should match Step ${prev.stepNumber}'s latexAfter ("${prev.latexAfter}") — show the missing step in between.`,
+          );
+        }
+      }
+    }
+  });
+
+  return warnings;
+}
+
+/**
+ * Run step-continuity checks across every equation_steps block in a response.
+ */
+export function validateNoMissingSteps(data: WhiteboardResponse): string[] {
+  const warnings: string[] = [];
+  for (const block of data.blocks) {
+    if (block.type === "equation_steps") {
+      warnings.push(...validateStepContinuity(block as EquationStepBlock));
+    }
+  }
+  return warnings;
+}
+
 /**
  * Hard rule: a maths question (response contains any `=` in equation_steps,
  * or any block at all besides `text`) must NOT consist only of `text` blocks.
@@ -380,6 +452,9 @@ export function validateResponse(
   // 8. Simple-language warnings (do NOT block — surface to critic/retry loop)
   const languageWarnings = validateSimpleLanguage(data);
 
+  // 8b. Step-continuity warnings ("no missing steps" / no unexplained jumps)
+  const continuityWarnings = validateNoMissingSteps(data);
+
   // Arrow contract violations (term crossings without arrows, missing \htmlId
   // pairs) live inside semanticErrors and are hard failures. Differentiate
   // them so we know whether to fail or just warn.
@@ -393,16 +468,16 @@ export function validateResponse(
     return {
       ok: false,
       data,
-      errors: [...hardErrors, ...otherSemantic, ...languageWarnings],
+      errors: [...hardErrors, ...otherSemantic, ...languageWarnings, ...continuityWarnings],
     };
   }
 
-  if (otherSemantic.length > 0 || languageWarnings.length > 0) {
+  if (otherSemantic.length > 0 || languageWarnings.length > 0 || continuityWarnings.length > 0) {
     // Non-blocking warnings — still return data but flag them.
     return {
       ok: true,
       data,
-      errors: [...otherSemantic, ...languageWarnings],
+      errors: [...otherSemantic, ...languageWarnings, ...continuityWarnings],
     };
   }
 

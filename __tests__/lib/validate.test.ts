@@ -429,6 +429,84 @@ describe("validateResponse", () => {
     expect(result.ok).toBe(true);
   });
 
+  // ── No missing steps / step continuity ─────────────────────────────────────
+
+  it("warns when a step jumps over the previous step's result", () => {
+    const jump = JSON.stringify({
+      intro: "Let's solve 2x + 4 = 10.",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Start",
+              explanation: "Here's the equation.",
+              latexBefore: "2x + 4 = 10",
+              latexAfter: "2x + 4 = 10",
+              arrowDirection: "down",
+            },
+            {
+              stepNumber: 2,
+              operationLabel: "Jump",
+              explanation: "Somehow we get here.",
+              latexBefore: "2x = 6",
+              latexAfter: "x = 3",
+              arrowDirection: "simplify",
+            },
+          ],
+        },
+      ],
+      conclusion: "So x = 3.",
+    });
+    const result = validateResponse(jump);
+    expect(result.ok).toBe(true); // warnings are non-blocking
+    expect(result.errors!.some((e) => e.includes("jumps from the previous line"))).toBe(true);
+  });
+
+  it("warns when a non-first step has no explanation", () => {
+    const noReason = JSON.stringify({
+      intro: "Let's solve 2x = 6.",
+      blocks: [
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Start",
+              explanation: "Here's the equation.",
+              latexBefore: "2x = 6",
+              latexAfter: "2x = 6",
+              arrowDirection: "down",
+            },
+            {
+              stepNumber: 2,
+              operationLabel: "Divide by 2",
+              explanation: "",
+              latexBefore: "2x = 6",
+              latexAfter: "x = 3",
+              arrowDirection: "simplify",
+            },
+          ],
+        },
+      ],
+      conclusion: "So x = 3.",
+    });
+    const result = validateResponse(noReason);
+    expect(result.ok).toBe(true);
+    expect(result.errors!.some((e) => e.includes("no explanation given"))).toBe(true);
+  });
+
+  it("does not warn about continuity for a clean, continuous chain", () => {
+    const result = validateResponse(validResponse);
+    expect(result.ok).toBe(true);
+    expect(
+      (result.errors || []).some(
+        (e) => e.includes("jumps from the previous line") || e.includes("no explanation given"),
+      ),
+    ).toBe(false);
+  });
+
   it("warns when ornate words appear in explanation text", () => {
     const ornate = JSON.stringify({
       intro: "Splendid — let's tackle this rather elegant problem, shall we?",
