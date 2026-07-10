@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       const sys = `You are a kind, encouraging UK primary school teacher helping a Year 5/6 pupil with ${subject}.
 Explain how to answer the question below in clear, friendly steps a 9-11 year old understands. Be warm and encouraging. ${mathsRule}
 Break the explanation into short, logical steps. Give each step a fitting emoji.
+Keep every step to one short sentence in Year 5 language every pupil understands — never a paragraph or a chunk of text.
 If a small comparison or list of facts would help (for example word classes, science facts, vocabulary), include an optional "table".
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {

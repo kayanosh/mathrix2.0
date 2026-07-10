@@ -10,9 +10,13 @@ import WhiteboardTutor from "./WhiteboardTutor";
 interface Props {
   question: string;
   onClose: () => void;
+  /** Student level for the tutor prompt (e.g. "GCSE", "KS2"). Defaults to "GCSE". */
+  level?: string;
+  /** Difficulty tier. Defaults to the saved GCSE tier (or "higher"). */
+  tier?: string;
 }
 
-export default function PracticeWhiteboardModal({ question, onClose }: Props) {
+export default function PracticeWhiteboardModal({ question, onClose, level, tier: tierProp }: Props) {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,16 +34,17 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
 
     try {
       const tier =
-        typeof window !== "undefined"
+        tierProp ??
+        (typeof window !== "undefined"
           ? localStorage.getItem("mathrix_gcse_tier") || "higher"
-          : "higher";
+          : "higher");
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [{ role: "user", content: question }],
-          level: "GCSE",
+          level: level || "GCSE",
           tier,
         }),
         signal: controller.signal,
@@ -90,7 +95,7 @@ export default function PracticeWhiteboardModal({ question, onClose }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [question]);
+  }, [question, level, tierProp]);
 
   useEffect(() => {
     fetchSolution();
