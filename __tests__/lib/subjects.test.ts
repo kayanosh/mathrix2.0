@@ -47,7 +47,7 @@ describe("SUBJECTS", () => {
     const maths = SUBJECTS.find((s) => s.id === "maths")!;
     const algebra = maths.topics.find((t) => t.id === "algebra");
     expect(algebra).toBeDefined();
-    expect(algebra!.subtopics).toContain("Solving linear equations");
+    expect(algebra!.subtopics).toContain("Solving equations");
   });
 
   it("maths has calculus topic with A-Level subtopics", () => {
