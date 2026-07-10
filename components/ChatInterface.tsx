@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu, Sigma } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu, Sigma } from "lucide-react";
 import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -28,6 +28,7 @@ import {
   MAX_PDF_BYTES,
 } from "@/lib/file-input";
 import { wrapLatexForSend } from "@/lib/latex-input";
+import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -370,6 +371,24 @@ export default function ChatInterface() {
     setPendingImage(null);
     setPendingExtraPages([]);
   }, []);
+
+  // ── Voice dictation (Web Speech API) ─────────────────────
+  const speechBaseRef = useRef("");
+  const { supported: micSupported, listening: micListening, start: startMic, stop: stopMic } =
+    useSpeechRecognition({
+      onResult: (transcript) => {
+        const base = speechBaseRef.current;
+        setInput(base ? `${base} ${transcript}` : transcript);
+      },
+    });
+  const handleMicToggle = useCallback(() => {
+    if (micListening) {
+      stopMic();
+    } else {
+      speechBaseRef.current = input.trim();
+      startMic();
+    }
+  }, [micListening, startMic, stopMic, input]);
 
   const sendMessage = async (text?: string) => {
     // In LaTeX mode, wrap the student's typed expression in $...$ so the whole
@@ -835,6 +854,9 @@ export default function ChatInterface() {
           latexMode={latexMode}
           setLatexMode={setLatexMode}
           fileBusy={fileBusy}
+          micSupported={micSupported}
+          micListening={micListening}
+          onMicToggle={handleMicToggle}
           onShowSkillMap={() => setShowSkillMap(true)}
         />
       ) : (
@@ -896,6 +918,9 @@ export default function ChatInterface() {
             latexMode={latexMode}
             setLatexMode={setLatexMode}
             fileBusy={fileBusy}
+            micSupported={micSupported}
+            micListening={micListening}
+            onMicToggle={handleMicToggle}
           />
         </>
       )}
@@ -965,6 +990,9 @@ interface InputProps {
   latexMode: boolean;
   setLatexMode: (v: boolean) => void;
   fileBusy: boolean;
+  micSupported: boolean;
+  micListening: boolean;
+  onMicToggle: () => void;
   onShowSkillMap?: () => void;
 }
 
@@ -972,7 +1000,8 @@ function HeroLanding(props: InputProps) {
   const {
     input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
     fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
-    hintMode, setHintMode, latexMode, setLatexMode, fileBusy, onShowSkillMap,
+    hintMode, setHintMode, latexMode, setLatexMode, fileBusy,
+    micSupported, micListening, onMicToggle, onShowSkillMap,
   } = props;
 
   return (
@@ -1081,6 +1110,16 @@ function HeroLanding(props: InputProps) {
             >
               <Sigma size={16} className={latexMode ? "text-indigo-500" : "text-gray-400"} />
             </button>
+            {micSupported && (
+              <button
+                onClick={onMicToggle}
+                disabled={loading}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30 ${micListening ? "bg-red-50" : ""}`}
+                title={micListening ? "Stop dictation" : "Dictate your question"}
+              >
+                <Mic size={16} className={micListening ? "text-red-500 animate-pulse" : "text-gray-400"} />
+              </button>
+            )}
             <button
               onClick={() => sendMessage()}
               disabled={(!input.trim() && !pendingImage) || loading}
@@ -1206,6 +1245,7 @@ function ChatInputBar(props: InputProps) {
     input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
     fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
     hintMode, setHintMode, latexMode, setLatexMode, fileBusy,
+    micSupported, micListening, onMicToggle,
   } = props;
 
   return (
@@ -1282,6 +1322,16 @@ function ChatInputBar(props: InputProps) {
           >
             <Sigma size={16} className={latexMode ? "text-indigo-500" : "text-gray-400"} />
           </button>
+          {micSupported && (
+            <button
+              onClick={onMicToggle}
+              disabled={loading}
+              className={`flex-shrink-0 mb-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30 ${micListening ? "bg-red-50" : ""}`}
+              title={micListening ? "Stop dictation" : "Dictate your question"}
+            >
+              <Mic size={16} className={micListening ? "text-red-500 animate-pulse" : "text-gray-400"} />
+            </button>
+          )}
 
           <textarea
             ref={inputRef}
