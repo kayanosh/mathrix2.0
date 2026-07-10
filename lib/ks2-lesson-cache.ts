@@ -1,4 +1,11 @@
 import { supabaseAdmin } from "./supabase/admin";
+import type { VisualBlock } from "@/types/whiteboard";
+
+export interface CachedKS2WorkedExampleWhiteboard {
+  intro: string;
+  blocks: VisualBlock[];
+  conclusion: string;
+}
 
 export interface CachedKS2Lesson {
   intro: string;
@@ -9,19 +16,20 @@ export interface CachedKS2Lesson {
     steps: string[];
     answer: string;
     emoji?: string;
+    whiteboard?: CachedKS2WorkedExampleWhiteboard;
   };
   keyPoints: string[];
   tryThis?: { question: string; answer: string };
 }
 
-/** Stable cache key: one shared lesson per topic + target + tier + kind. */
+/** Stable cache key: one shared lesson per topic + target + tier + kind. v3 = whiteboard visuals. */
 export function ks2LessonCacheKey(
   topicId: string,
   target: string,
   tier: string,
   kind: string
 ): string {
-  return `${topicId}|${target}|${tier}|${kind}`;
+  return `v3|${topicId}|${target}|${tier}|${kind}`;
 }
 
 export async function lookupKS2LessonCache(

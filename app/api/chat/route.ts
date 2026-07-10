@@ -26,6 +26,10 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizeQuestion, hashQuestion, isCacheable, lookupCache, writeCache } from "@/lib/question-cache";
 import { retrieveContentChunks, buildContentChunkBlock } from "@/lib/rag";
+import {
+  detectKS2RequiredVisuals,
+  mergeVisualRequirements,
+} from "@/lib/ks2-required-visuals";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
 const openai = new OpenAI({
@@ -87,6 +91,8 @@ export async function POST(req: NextRequest) {
       useWhiteboard = true,
       hintMode = false,
       teacherMode = false,
+      topic: topicContext,
+      subtopics: subtopicsContext,
     } = body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -182,7 +188,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Stage 1b: Detect required visual diagrams ─────────────────────
-    const requiredVisuals = detectRequiredVisuals(questionText, category);
+    let requiredVisuals = detectRequiredVisuals(questionText, category);
+    if (level === "KS2") {
+      const subtopicsArr = Array.isArray(subtopicsContext)
+        ? (subtopicsContext as string[])
+        : undefined;
+      const ks2Visuals = detectKS2RequiredVisuals(
+        questionText,
+        typeof topicContext === "string" ? topicContext : undefined,
+        subtopicsArr
+      );
+      requiredVisuals = mergeVisualRequirements(requiredVisuals, ks2Visuals);
+    }
     const requiredBlockTypes = getRequiredBlockTypes(requiredVisuals);
     if (requiredVisuals.length > 0) {
       console.log(

@@ -639,6 +639,21 @@ Long division example:
   "answer": "32"
 }
 
+Column multiplication example (23 × 45):
+{
+  "type": "column_method",
+  "method": "column_multiplication",
+  "rows": [" 23", "×45", "115", "920", "1035"],
+  "carries": [{"row": 0, "col": 1, "digit": "1"}],
+  "moves": [
+    {"fromRow": 1, "fromCol": 1, "toRow": 0, "toCol": 1, "label": "carry 1", "kind": "carry"}
+  ],
+  "separatorAfterRows": [1, 3],
+  "question": "23 × 45",
+  "answer": "1035"
+}
+Use "×" prefix on the multiplier row. Include partial-product rows and a final sum row. Place separatorAfterRows after the multiplier row and before the final answer row.
+
 ─── type: "text" ───
 Fallback for explanatory text between visual blocks.
 { "type": "text", "content": "Now we substitute back...", "latex": "x = 3" }

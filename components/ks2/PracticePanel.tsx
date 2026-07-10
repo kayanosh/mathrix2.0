@@ -142,7 +142,15 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
       <AnimatePresence>
         {askQuestion &&
           (isMaths ? (
-            <PracticeWhiteboardModal question={askQuestion} level="KS2" tier={tier} onClose={() => setAskQuestion(null)} />
+            <PracticeWhiteboardModal
+              question={askQuestion}
+              onClose={() => setAskQuestion(null)}
+              level="KS2"
+              tier={tier}
+              subject={subjectName}
+              topic={topicName}
+              subtopics={subtopics}
+            />
           ) : (
             <KS2ExplainModal
               subjectName={subjectName}

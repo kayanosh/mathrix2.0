@@ -14,9 +14,30 @@ interface Props {
   level?: string;
   /** Difficulty tier. Defaults to the saved GCSE tier (or "higher"). */
   tier?: string;
+  topic?: string;
+  subtopics?: string[];
+  subject?: string;
 }
 
-export default function PracticeWhiteboardModal({ question, onClose, level, tier: tierProp }: Props) {
+function buildQuestionWithContext(
+  question: string,
+  opts: { level?: string; subject?: string; topic?: string; subtopics?: string[] }
+): string {
+  const { level, subject, topic, subtopics } = opts;
+  if (!level || level === "GCSE") return question;
+  const parts = [level, subject, topic, ...(subtopics?.length ? [subtopics.join("; ")] : [])].filter(Boolean);
+  return `[${parts.join(" — ")}]\n\n${question}`;
+}
+
+export default function PracticeWhiteboardModal({
+  question,
+  onClose,
+  level = "GCSE",
+  tier: tierProp,
+  topic,
+  subtopics,
+  subject,
+}: Props) {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,16 +57,25 @@ export default function PracticeWhiteboardModal({ question, onClose, level, tier
       const tier =
         tierProp ??
         (typeof window !== "undefined"
-          ? localStorage.getItem("mathrix_gcse_tier") || "higher"
-          : "higher");
+          ? level === "KS2"
+            ? localStorage.getItem("ks2_tier") || "secure"
+            : localStorage.getItem("mathrix_gcse_tier") || "higher"
+          : level === "KS2"
+            ? "secure"
+            : "higher");
+
+      const messageContent = buildQuestionWithContext(question, { level, subject, topic, subtopics });
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [{ role: "user", content: question }],
-          level: level || "GCSE",
+          messages: [{ role: "user", content: messageContent }],
+          level,
           tier,
+          subject: subject || (level === "KS2" ? "Mathematics" : undefined),
+          topic,
+          subtopics,
         }),
         signal: controller.signal,
       });
@@ -95,7 +125,7 @@ export default function PracticeWhiteboardModal({ question, onClose, level, tier
     } finally {
       setLoading(false);
     }
-  }, [question, level, tierProp]);
+  }, [question, level, tierProp, topic, subtopics, subject]);
 
   useEffect(() => {
     fetchSolution();

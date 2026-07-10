@@ -2,22 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer } from "lucide-react";
+import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer, MonitorPlay } from "lucide-react";
 import InlineMath from "@/components/InlineMath";
+import BlockRenderer from "@/components/whiteboard/BlockRenderer";
+import WhiteboardTutor from "@/components/WhiteboardTutor";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
+import type { VisualBlock, WhiteboardResponse } from "@/types/whiteboard";
 
 export interface LessonSection {
   heading: string;
   body: string;
   emoji?: string;
 }
+export interface WorkedExampleWhiteboard {
+  intro: string;
+  blocks: VisualBlock[];
+  conclusion: string;
+}
 export interface WorkedExample {
   question: string;
   steps: string[];
   answer: string;
   emoji?: string;
+  whiteboard?: WorkedExampleWhiteboard;
 }
 export interface KS2Lesson {
   intro: string;
@@ -40,7 +49,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v2_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v3_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(p: Props): string {
@@ -84,6 +93,7 @@ export default function LessonPanel(props: Props) {
   const [showTryAnswer, setShowTryAnswer] = useState(false);
   const [includeTryAnswer, setIncludeTryAnswer] = useState(true);
   const [fromLibrary, setFromLibrary] = useState(false);
+  const [watchMode, setWatchMode] = useState(false);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
@@ -153,7 +163,24 @@ export default function LessonPanel(props: Props) {
     );
   }
 
+  const workedWhiteboard: WhiteboardResponse | null =
+    lesson.workedExample?.whiteboard &&
+    lesson.workedExample.whiteboard.blocks.length > 0
+      ? {
+          intro: lesson.workedExample.whiteboard.intro || lesson.workedExample.question,
+          blocks: lesson.workedExample.whiteboard.blocks,
+          conclusion:
+            lesson.workedExample.whiteboard.conclusion || lesson.workedExample.answer,
+          subject: subjectName,
+          topic: topicName,
+        }
+      : null;
+
   return (
+    <>
+      {watchMode && workedWhiteboard && (
+        <WhiteboardTutor data={workedWhiteboard} onClose={() => setWatchMode(false)} />
+      )}
     <motion.div
       initial="hidden"
       animate="show"
@@ -228,10 +255,33 @@ export default function LessonPanel(props: Props) {
       {/* Worked example */}
       {lesson.workedExample && lesson.workedExample.question && (
         <motion.div variants={fadeUp} className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
-          <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-500 mb-2">
-            {lesson.workedExample.emoji ? `${lesson.workedExample.emoji} ` : ""}Worked example
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-500">
+              {lesson.workedExample.emoji ? `${lesson.workedExample.emoji} ` : ""}Worked example
+            </p>
+            {workedWhiteboard && (
+              <button
+                type="button"
+                onClick={() => setWatchMode(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-100 px-3 py-1.5 text-[12px] font-semibold text-indigo-700 hover:bg-indigo-200"
+              >
+                <MonitorPlay size={14} /> Watch me solve it
+              </button>
+            )}
+          </div>
           <p className="font-medium text-gray-900 mb-3">{<InlineMath text={lesson.workedExample.question} />}</p>
+
+          {workedWhiteboard && (
+            <div className="mb-4 space-y-3 rounded-xl bg-white/80 p-3 border border-indigo-100">
+              {workedWhiteboard.intro && (
+                <p className="text-sm text-gray-600">{<InlineMath text={workedWhiteboard.intro} />}</p>
+              )}
+              {workedWhiteboard.blocks.map((block, bi) => (
+                <BlockRenderer key={bi} block={block} index={bi} baseDelay={0.1 + bi * 0.2} />
+              ))}
+            </div>
+          )}
+
           <ol className="space-y-1.5">
             {lesson.workedExample.steps.map((step, i) => (
               <motion.li
@@ -393,5 +443,6 @@ export default function LessonPanel(props: Props) {
       {/* Accent underline */}
       <div className="h-1 w-16 rounded-full" style={{ background: accentHex }} />
     </motion.div>
+    </>
   );
 }

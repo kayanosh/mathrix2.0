@@ -6,7 +6,13 @@ import {
   lookupKS2LessonCache,
   writeKS2LessonCache,
   type CachedKS2Lesson,
+  type CachedKS2WorkedExampleWhiteboard,
 } from "@/lib/ks2-lesson-cache";
+import {
+  KS2_LESSON_VISUAL_SCHEMA,
+  ks2LessonVisualsPrompt,
+} from "@/lib/ks2-required-visuals";
+import type { VisualBlock } from "@/types/whiteboard";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -20,6 +26,7 @@ interface WorkedExample {
   steps: string[];
   answer: string;
   emoji?: string;
+  whiteboard?: CachedKS2WorkedExampleWhiteboard;
 }
 interface KS2Lesson {
   intro: string;
@@ -61,6 +68,17 @@ function tierPhrase(tier: string): string {
     : tier === "greater_depth"
       ? "Greater Depth (challenging, multi-step reasoning, the highest standard)"
       : "Expected Standard (typical year-group difficulty)";
+}
+
+function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhiteboard | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const wb = raw as Record<string, unknown>;
+  if (!Array.isArray(wb.blocks) || wb.blocks.length === 0) return undefined;
+  return {
+    intro: (wb.intro || "").toString(),
+    blocks: wb.blocks as VisualBlock[],
+    conclusion: (wb.conclusion || "").toString(),
+  };
 }
 
 /**
@@ -174,8 +192,30 @@ ${englishExplainExtra(subject, topic, subtopics)}`;
 
     const guidedExtra =
       kind === "guided"
-        ? `This is a GUIDED PRACTICE lesson: focus the sections on worked examples with helpful HINTS, and always include "tryThis" (a question the pupil attempts, with its answer).`
-        : `This is a LEARN lesson: teach the idea clearly from the start. Include "tryThis" if it helps.`;
+        ? `This is a GUIDED PRACTICE lesson: focus the sections on worked examples with helpful HINTS, and always include "tryThis" (a question the pupil attempts, with its answer). Show the method on a whiteboard-style diagram — steps are hints, not a word-only solution.`
+        : `This is a LEARN lesson: teach the idea clearly from the start. Show the method visually first ("I do"), then name each step. Include "tryThis" if it helps.`;
+
+    const mathsVisualExtra = isMaths
+      ? `
+MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:
+${ks2LessonVisualsPrompt(topic, subtopics)}
+${KS2_LESSON_VISUAL_SCHEMA}
+`
+      : "";
+
+    const workedExampleShape = isMaths
+      ? `"workedExample": {
+    "question": "an example question",
+    "steps": ["short caption for step 1", "short caption for step 2"],
+    "answer": "the final answer",
+    "emoji": "a single emoji",
+    "whiteboard": {
+      "intro": "one sentence before the diagram",
+      "blocks": [{ "type": "column_method", "...": "..." }],
+      "conclusion": "one sentence with the answer"
+    }
+  }`
+      : `"workedExample": { "question": "an example question", "steps": ["step 1", "step 2"], "answer": "the final answer", "emoji": "a single emoji" }`;
 
     const sys = `You are a warm, encouraging UK primary school teacher creating a ${targetPhrase(target)} lesson for a Year 5/6 pupil.
 Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
@@ -183,13 +223,13 @@ Difficulty: ${tierPhrase(tier)}.
 ${guidedExtra}
 Write in simple, friendly language for a 9-11 year old. Be concrete and use everyday examples. ${mathsRule}
 Make it playful and visual: pick a "heroEmoji" that represents the whole topic, and give every section a fitting "emoji".
-
+${mathsVisualExtra}
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {
   "intro": "1-2 friendly sentences introducing the topic",
   "heroEmoji": "a single emoji for the topic",
   "sections": [{ "heading": "short heading", "body": "1-3 short sentences", "emoji": "a single emoji" }],
-  "workedExample": { "question": "an example question", "steps": ["step 1", "step 2"], "answer": "the final answer", "emoji": "a single emoji" },
+  ${workedExampleShape},
   "keyPoints": ["short thing to remember", "another"],
   "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }
 }
@@ -197,13 +237,13 @@ Use 3-5 sections, 2-4 worked-example steps, and 2-4 key points.
 ${englishLessonExtra(subject, topic, subtopics)}`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: isMaths ? "gpt-4o" : "gpt-4o-mini",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: sys },
         { role: "user", content: `Create the ${kind} lesson now.` },
       ],
-      max_tokens: 1400,
+      max_tokens: isMaths ? 2800 : 1400,
       temperature: 0.7,
     });
 
@@ -232,6 +272,7 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
                   : [],
                 answer: (parsed.workedExample.answer || "").toString(),
                 emoji: parsed.workedExample.emoji ? parsed.workedExample.emoji.toString() : undefined,
+                whiteboard: parseWorkedExampleWhiteboard(parsed.workedExample.whiteboard),
               }
             : { question: "", steps: [], answer: "" },
         keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.map((x: unknown) => String(x)) : [],

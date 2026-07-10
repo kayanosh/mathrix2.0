@@ -270,6 +270,26 @@ describe("validateResponse", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("validates a column multiplication block", () => {
+    const colResponse = JSON.stringify({
+      intro: "Let's multiply using the column method.",
+      blocks: [
+        {
+          type: "column_method",
+          method: "column_multiplication",
+          rows: [" 23", "×45", "115", "920", "1035"],
+          carries: [{ row: 0, col: 1, digit: "1" }],
+          separatorAfterRows: [1, 3],
+          question: "23 × 45",
+          answer: "1035",
+        },
+      ],
+      conclusion: "23 × 45 = 1035.",
+    });
+    const result = validateResponse(colResponse);
+    expect(result.ok).toBe(true);
+  });
+
   // ── Algebra arrow + step-block + language enforcement ──────────────────────
 
   it("rejects a maths question answered with only text blocks", () => {

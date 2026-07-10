@@ -34,7 +34,10 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
   const { rows, carries, moves, cellNotes, separatorAfterRows, question, answer, method } = block;
   const separators = new Set(separatorAfterRows || []);
 
-  const maxCols = Math.max(...rows.map((r) => r.replace(/^[+\-]\s*/, "").trim().length), 1);
+  const maxCols = Math.max(
+    ...rows.map((r) => r.replace(/^[+\-×x]\s*/, "").trim().length),
+    1
+  );
   const cellW = DEFAULT_CELL_W;
   const cellH = DEFAULT_CELL_H;
   const carryH = DEFAULT_CARRY_H;
@@ -62,9 +65,17 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
   const operatorRow =
     method === "column_addition" || method === "column_subtraction"
       ? rows.findIndex((r) => /^[+\-]/.test(r.trim()))
-      : -1;
+      : method === "column_multiplication"
+        ? rows.findIndex((r) => /^[×x]/.test(r.trim()))
+        : -1;
   const operatorChar =
-    method === "column_addition" ? "+" : method === "column_subtraction" ? "−" : "";
+    method === "column_addition"
+      ? "+"
+      : method === "column_subtraction"
+        ? "−"
+        : method === "column_multiplication"
+          ? "×"
+          : "";
 
   return (
     <div className="rounded-xl p-5 bg-gray-50/80 border border-gray-200">
@@ -126,7 +137,7 @@ export default function ColumnMethodRenderer({ block, baseDelay }: Props) {
           )}
 
           {rows.map((row, ri) => {
-            const cleaned = row.replace(/^[+\-]\s*/, "").trim();
+            const cleaned = row.replace(/^[+\-×x]\s*/, "").trim();
             const showOperator = ri === operatorRow && operatorChar;
 
             return (
