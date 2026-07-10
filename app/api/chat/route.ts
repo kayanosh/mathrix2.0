@@ -39,6 +39,7 @@ import {
   detectKS2RequiredVisuals,
   mergeVisualRequirements,
 } from "@/lib/ks2-required-visuals";
+import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
 const openai = new OpenAI({
@@ -110,6 +111,55 @@ export async function POST(req: NextRequest) {
       controller.close();
       return;
     }
+
+    // ── Input safety: size limits, off-topic/unsafe redirect, injection guard ──
+    const safety = checkInputSafety(messages);
+    if (!safety.ok) {
+      if (safety.reason === "non_maths" || safety.reason === "blocked") {
+        // Gentle, friendly redirect rendered as a normal whiteboard response
+        const friendly: WhiteboardResponse = {
+          intro: safety.message || "I'm your maths tutor.",
+          blocks: [
+            {
+              type: "text",
+              content: safety.detail || safety.message || "Ask me a maths question to get started.",
+            },
+          ],
+          conclusion: safety.conclusion || "What maths shall we work on?",
+        };
+        send("solver_done", {
+          whiteboard: friendly,
+          response: { type: "explanation", intro: friendly.intro, steps: [], conclusion: friendly.conclusion },
+          category: "number",
+          validationWarnings: [],
+        });
+        send("verification_done", {
+          verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false },
+          whiteboard: friendly,
+        });
+        controller.close();
+        return;
+      }
+      // empty / too_long / too_many_messages — technical error
+      send("error", { error: safety.message || "Invalid request" });
+      controller.close();
+      return;
+    }
+
+    // Apply sanitised text back onto the last user message so downstream
+    // classification, prompting and caching all use the cleaned version.
+    if (safety.sanitizedText !== undefined) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]?.role === "user") {
+          messages[i] = { ...messages[i], content: safety.sanitizedText };
+          break;
+        }
+      }
+    }
+
+    // Defensive instruction appended to LLM system prompts when the student's
+    // message looks like a prompt-injection / role-hijack attempt.
+    const injectionGuard = safety.injectionDetected ? "\n\n" + INJECTION_GUARD : "";
 
     // ── Auth & Usage Enforcement ─────────────────────────────────
     const supabase = await createClient();
@@ -222,7 +272,7 @@ export async function POST(req: NextRequest) {
 
     if (isFollowUp) {
       console.log("[FastPath] Follow-up detected — skipping CAS/SymPy/critic");
-      const followUpSystemPrompt = buildFollowUpPrompt();
+      const followUpSystemPrompt = buildFollowUpPrompt() + injectionGuard;
       const followUpMessages = messages.map(
         (msg: { role: string; content: string; imageUrl?: string }) => ({
           role: msg.role as "user" | "assistant",
@@ -281,7 +331,7 @@ export async function POST(req: NextRequest) {
         teacherSubtopic,
         level || "GCSE",
         visuals,
-      );
+      ) + injectionGuard;
 
       const teacherMessages = convertToAnthropicMessages([
         { role: "user" as const, content: questionText },
@@ -413,7 +463,7 @@ export async function POST(req: NextRequest) {
         level || "GCSE",
         tier,
         visuals,
-      );
+      ) + injectionGuard;
 
       const lessonUserMsg = `Teach me a full lesson on: "${lessonTopic}". Follow the lesson contract exactly.`;
 
@@ -567,7 +617,7 @@ export async function POST(req: NextRequest) {
       level || undefined,
       contentChunkBlock || undefined,
       questionText || undefined,
-    );
+    ) + injectionGuard;
 
     // ── Stage 4: Prepare messages ─────────────────────────────────────
     const contextPrefix =
