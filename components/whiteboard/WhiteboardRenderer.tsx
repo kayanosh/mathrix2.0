@@ -8,6 +8,7 @@ import BlockRenderer from "./BlockRenderer";
 import InlineMath from "@/components/InlineMath";
 import MathRenderer from "@/components/MathRenderer";
 import WhyExpander from "./blocks/WhyExpander";
+import { useLessonProgress } from "@/lib/hooks/useLessonProgress";
 
 // ── Card types ────────────────────────────────────────────────────────────────
 
@@ -67,9 +68,18 @@ interface Props {
   data: WhiteboardResponse;
   /** When true, all cards are shown immediately — no step-through. */
   revealAll?: boolean;
+  /** When true, save/restore playback position for signed-in users. */
+  persist?: boolean;
+  /** Progress kind label ('solve' | 'lesson' | 'teacher'). */
+  persistKind?: string;
 }
 
-export default function WhiteboardRenderer({ data, revealAll = false }: Props) {
+export default function WhiteboardRenderer({
+  data,
+  revealAll = false,
+  persist = false,
+  persistKind = "solve",
+}: Props) {
   const [sessionKey, setSessionKey] = useState(0);
   const [revealed, setRevealed] = useState(revealAll ? Infinity : 1);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -78,12 +88,37 @@ export default function WhiteboardRenderer({ data, revealAll = false }: Props) {
   const answerIndex = cards.findIndex((c) => c.kind === "answer");
   const allRevealed = revealed >= cards.length;
 
+  const persistEnabled = persist && !revealAll;
+
+  const handleResume = useCallback(
+    (pos: number) => {
+      // Only jump forward if the student hasn't already advanced past the start.
+      setRevealed((r) => (r <= 1 ? Math.min(Math.max(pos, 1), cards.length) : r));
+    },
+    [cards.length],
+  );
+
+  const { save } = useLessonProgress({
+    enabled: persistEnabled,
+    data,
+    totalSteps: cards.length,
+    kind: persistKind,
+    title: data.topic || data.intro?.slice(0, 80) || null,
+    onResume: handleResume,
+  });
+
   // Reset when data changes
   useEffect(() => {
     setRevealed(revealAll ? Infinity : 1);
     setShowCelebration(false);
     setSessionKey((k) => k + 1);
   }, [data, revealAll]);
+
+  // Persist playback position as the student advances.
+  useEffect(() => {
+    if (!persistEnabled || revealed <= 1) return;
+    save(Math.min(revealed, cards.length), revealed >= cards.length);
+  }, [revealed, persistEnabled, cards.length, save]);
 
   const revealNext = useCallback(() => {
     setRevealed((r) => {
