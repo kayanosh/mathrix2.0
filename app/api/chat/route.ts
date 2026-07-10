@@ -213,11 +213,25 @@ export async function POST(req: NextRequest) {
     if (isFollowUp) {
       console.log("[FastPath] Follow-up detected — skipping CAS/SymPy/critic");
       const followUpSystemPrompt = buildFollowUpPrompt();
+      // Preserve any image from the original question so follow-ups ("why did
+      // you do step 2?") keep the visual context. Same multipart shape the main
+      // solver path uses — consumed by both Claude and the GPT-4o fallback.
       const followUpMessages = messages.map(
-        (msg: { role: string; content: string; imageUrl?: string }) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        })
+        (msg: { role: string; content: string; imageUrl?: string }) => {
+          if (msg.imageUrl && msg.role === "user") {
+            return {
+              role: "user" as const,
+              content: [
+                { type: "image_url" as const, image_url: { url: msg.imageUrl, detail: "high" as const } },
+                { type: "text" as const, text: msg.content || "Refer to the maths question shown in this image." },
+              ],
+            };
+          }
+          return {
+            role: msg.role as "user" | "assistant",
+            content: msg.content,
+          };
+        }
       );
       const anthropicFollowUp = convertToAnthropicMessages(followUpMessages);
       let followUpRaw = "";
