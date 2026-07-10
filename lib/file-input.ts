@@ -57,19 +57,25 @@ export function compressImageDataUrl(
   });
 }
 
+/** How many PDF pages we rasterise at most (keeps the vision payload sane). */
+export const MAX_PDF_PAGES = 3;
+
 export interface PdfRasterResult {
-  dataUrl: string;
+  /** One JPEG data URI per rendered page (each kept full-size and legible). */
+  dataUrls: string[];
+  /** Total pages in the document. */
   pageCount: number;
 }
 
 /**
- * Rasterise the FIRST page of a PDF to a JPEG data URI so it can flow through
- * the existing image (vision) pipeline. Returns the total page count so the UI
- * can note when only page 1 was used.
+ * Rasterise up to `maxPages` pages of a PDF, each as its OWN JPEG data URI so
+ * every page stays legible (we deliberately do NOT stack pages into one tall
+ * image that the vision model would downscale). The pages flow through the
+ * existing image pipeline as multiple image parts on one message.
  */
-export async function pdfFileToImageDataUrl(
+export async function pdfFileToImageDataUrls(
   file: File,
-  opts?: { targetWidth?: number; quality?: number },
+  opts?: { targetWidth?: number; quality?: number; maxPages?: number },
 ): Promise<PdfRasterResult> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -80,28 +86,32 @@ export async function pdfFileToImageDataUrl(
   const buffer = await file.arrayBuffer();
   const doc = await pdfjs.getDocument({ data: buffer }).promise;
   const pageCount = doc.numPages;
-
-  const page = await doc.getPage(1);
-  const base = page.getViewport({ scale: 1 });
+  const maxPages = Math.max(1, opts?.maxPages ?? MAX_PDF_PAGES);
+  const toRender = Math.min(pageCount, maxPages);
   const targetWidth = opts?.targetWidth ?? 1400;
-  // Clamp scale so tiny/huge PDFs both come out legible but not enormous.
-  const scale = Math.min(3, Math.max(1, targetWidth / base.width));
-  const viewport = page.getViewport({ scale });
+  const quality = opts?.quality ?? 0.85;
 
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(viewport.width);
-  canvas.height = Math.ceil(viewport.height);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas unavailable");
+  const dataUrls: string[] = [];
+  for (let n = 1; n <= toRender; n++) {
+    const page = await doc.getPage(n);
+    const base = page.getViewport({ scale: 1 });
+    // Clamp scale so tiny/huge PDFs both come out legible but not enormous.
+    const scale = Math.min(3, Math.max(1, targetWidth / base.width));
+    const viewport = page.getViewport({ scale });
 
-  // JPEG has no alpha — paint a white background first.
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas unavailable");
 
-  await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    // JPEG has no alpha — paint a white background first.
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  return {
-    dataUrl: canvas.toDataURL("image/jpeg", opts?.quality ?? 0.85),
-    pageCount,
-  };
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    dataUrls.push(canvas.toDataURL("image/jpeg", quality));
+  }
+
+  return { dataUrls, pageCount };
 }

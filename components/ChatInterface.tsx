@@ -23,7 +23,7 @@ import {
   isPdfFile,
   fileToDataUrl,
   compressImageDataUrl,
-  pdfFileToImageDataUrl,
+  pdfFileToImageDataUrls,
   MAX_IMAGE_BYTES,
   MAX_PDF_BYTES,
 } from "@/lib/file-input";
@@ -133,6 +133,7 @@ export default function ChatInterface() {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingExtraPages, setPendingExtraPages] = useState<string[]>([]);
   const [hintMode, setHintMode] = useState(false);
   const [latexMode, setLatexMode] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
@@ -312,14 +313,17 @@ export default function ChatInterface() {
           return;
         }
         setFileBusy(true);
-        const { dataUrl, pageCount } = await pdfFileToImageDataUrl(file);
-        const compressed = await compressImageDataUrl(dataUrl, 1600, 0.85);
-        setPendingImage(compressed);
-        if (pageCount > 1) {
+        const { dataUrls, pageCount } = await pdfFileToImageDataUrls(file);
+        const compressed = await Promise.all(
+          dataUrls.map((d) => compressImageDataUrl(d, 1600, 0.85)),
+        );
+        setPendingImage(compressed[0] ?? null);
+        setPendingExtraPages(compressed.slice(1));
+        if (pageCount > compressed.length) {
           setInput((prev) =>
             prev
               ? prev
-              : "Solve the question on this page (PDF page 1).",
+              : `Solve the questions in this PDF (showing the first ${compressed.length} of ${pageCount} pages).`,
           );
         }
         return;
@@ -337,6 +341,7 @@ export default function ChatInterface() {
       const raw = await fileToDataUrl(file);
       const compressed = await compressImageDataUrl(raw);
       setPendingImage(compressed);
+      setPendingExtraPages([]);
     } catch (err) {
       console.error("[Chat] File read failed:", err);
       alert("Sorry, I couldn't read that file. Try a clear photo instead.");
@@ -360,6 +365,11 @@ export default function ChatInterface() {
     }
     prevMsgCountRef.current = messages.length;
   }, [messages, loading]);
+
+  const clearPendingImage = useCallback(() => {
+    setPendingImage(null);
+    setPendingExtraPages([]);
+  }, []);
 
   const sendMessage = async (text?: string) => {
     // In LaTeX mode, wrap the student's typed expression in $...$ so the whole
@@ -388,24 +398,28 @@ export default function ChatInterface() {
     }
 
     const imageUrl = pendingImage || undefined;
+    const allImages = pendingImage ? [pendingImage, ...pendingExtraPages] : [];
+    const imageUrls = allImages.length > 1 ? allImages : undefined;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: content || (imageUrl ? "Solve this question from the photo" : ""),
       imageUrl,
+      imageUrls,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setPendingImage(null);
+    setPendingExtraPages([]);
     setLoading(true);
 
     try {
       const history = [
-        ...messages.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl })),
-        { role: "user", content: userMsg.content, imageUrl: userMsg.imageUrl },
+        ...messages.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl, imageUrls: m.imageUrls })),
+        { role: "user", content: userMsg.content, imageUrl: userMsg.imageUrl, imageUrls: userMsg.imageUrls },
       ];
 
       const res = await fetch("/api/chat", {
@@ -808,6 +822,8 @@ export default function ChatInterface() {
           loading={loading}
           pendingImage={pendingImage}
           setPendingImage={setPendingImage}
+          pendingExtraCount={pendingExtraPages.length}
+          clearPendingImage={clearPendingImage}
           fileInputRef={fileInputRef}
           cameraInputRef={cameraInputRef}
           inputRef={inputRef}
@@ -867,6 +883,8 @@ export default function ChatInterface() {
             loading={loading}
             pendingImage={pendingImage}
             setPendingImage={setPendingImage}
+            pendingExtraCount={pendingExtraPages.length}
+            clearPendingImage={clearPendingImage}
             fileInputRef={fileInputRef}
             cameraInputRef={cameraInputRef}
             inputRef={inputRef}
@@ -934,6 +952,8 @@ interface InputProps {
   loading: boolean;
   pendingImage: string | null;
   setPendingImage: (v: string | null) => void;
+  pendingExtraCount: number;
+  clearPendingImage: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   cameraInputRef: React.RefObject<HTMLInputElement | null>;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -950,7 +970,7 @@ interface InputProps {
 
 function HeroLanding(props: InputProps) {
   const {
-    input, setInput, loading, pendingImage, setPendingImage,
+    input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
     fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
     hintMode, setHintMode, latexMode, setLatexMode, fileBusy, onShowSkillMap,
   } = props;
@@ -991,8 +1011,13 @@ function HeroLanding(props: InputProps) {
               alt="Upload preview"
               className="h-20 rounded-xl border border-gray-200 object-cover"
             />
+            {pendingExtraCount > 0 && (
+              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
+                +{pendingExtraCount} {pendingExtraCount === 1 ? "page" : "pages"}
+              </span>
+            )}
             <button
-              onClick={() => setPendingImage(null)}
+              onClick={clearPendingImage}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-400 transition-colors"
             >
               <X size={10} className="text-white" />
@@ -1178,7 +1203,7 @@ function HeroLanding(props: InputProps) {
 /* ─────────────────────────────────────────────────────── */
 function ChatInputBar(props: InputProps) {
   const {
-    input, setInput, loading, pendingImage, setPendingImage,
+    input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
     fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
     hintMode, setHintMode, latexMode, setLatexMode, fileBusy,
   } = props;
@@ -1195,8 +1220,13 @@ function ChatInputBar(props: InputProps) {
               alt="Upload preview"
               className="h-20 rounded-xl border border-gray-200 object-cover"
             />
+            {pendingExtraCount > 0 && (
+              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
+                +{pendingExtraCount} {pendingExtraCount === 1 ? "page" : "pages"}
+              </span>
+            )}
             <button
-              onClick={() => setPendingImage(null)}
+              onClick={clearPendingImage}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-400 transition-colors"
             >
               <X size={10} className="text-white" />
@@ -1332,14 +1362,20 @@ function MessageBubble({
             boxShadow: "0 2px 12px rgba(5,150,105,0.2)",
           }}
         >
-          {message.imageUrl && (
+          {(message.imageUrls && message.imageUrls.length > 1
+            ? message.imageUrls
+            : message.imageUrl
+              ? [message.imageUrl]
+              : []
+          ).map((src, i) => (
             <img
-              src={message.imageUrl}
-              alt="Uploaded question"
+              key={i}
+              src={src}
+              alt={`Uploaded question${message.imageUrls && message.imageUrls.length > 1 ? ` page ${i + 1}` : ""}`}
               className="rounded-xl mb-2.5 max-h-48 object-contain w-full"
               style={{ border: "1px solid rgba(255,255,255,0.2)" }}
             />
-          )}
+          ))}
           {message.content}
         </div>
         <div

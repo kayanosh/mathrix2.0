@@ -40,8 +40,10 @@ export interface ChatMessage {
   parsed?: TutorResponse;
   /** New whiteboard response format */
   whiteboard?: import("./whiteboard").WhiteboardResponse;
-  /** Base64 image data URI attached to this message */
+  /** Base64 image data URI attached to this message (primary/first page) */
   imageUrl?: string;
+  /** All image data URIs when several were attached (e.g. multi-page PDF) */
+  imageUrls?: string[];
   timestamp: Date;
 }
 
