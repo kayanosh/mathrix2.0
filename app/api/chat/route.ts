@@ -32,7 +32,9 @@ import {
 import { casSolve } from "@/lib/cas-solver";
 import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
 import { buildGroundTruth } from "@/lib/ground-truth";
-import { claudeSolve, convertToAnthropicMessages } from "@/lib/claude-solver";
+import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/lib/claude-solver";
+import { logAiUsage } from "@/lib/ai-usage-log";
+import type { CallUsage } from "@/lib/ai-cost";
 import { postVerifyCAS } from "@/lib/cas-post-verify";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
@@ -166,6 +168,31 @@ export async function POST(req: NextRequest) {
     // message looks like a prompt-injection / role-hijack attempt.
     const injectionGuard = safety.injectionDetected ? "\n\n" + INJECTION_GUARD : "";
 
+    // ── AI cost telemetry: accumulate every model call this request makes ──
+    const aiCalls: CallUsage[] = [];
+    const recordClaude = (r: {
+      usage?: { inputTokens: number; outputTokens: number };
+      model?: string;
+    }) => {
+      if (r.usage) {
+        aiCalls.push({
+          model: r.model || CLAUDE_SOLVER_MODEL,
+          inputTokens: r.usage.inputTokens,
+          outputTokens: r.usage.outputTokens,
+        });
+      }
+    };
+    const recordOpenAI = (
+      model: string,
+      resp: { usage?: { prompt_tokens?: number; completion_tokens?: number } | null },
+    ) => {
+      aiCalls.push({
+        model,
+        inputTokens: resp.usage?.prompt_tokens ?? 0,
+        outputTokens: resp.usage?.completion_tokens ?? 0,
+      });
+    };
+
     // ── Auth & Usage Enforcement ─────────────────────────────────
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -246,6 +273,17 @@ export async function POST(req: NextRequest) {
           } catch { /* ignore */ }
         }
 
+        logAiUsage({
+          userId: user?.id,
+          mode: "cache",
+          category: cached.category,
+          level: level || "GCSE",
+          tier: tier || null,
+          cached: true,
+          confidence: cached.verification_json?.confidence || "high",
+          calls: [],
+        });
+
         controller.close();
         return;
       }
@@ -289,6 +327,7 @@ export async function POST(req: NextRequest) {
       try {
         const r = await claudeSolve(followUpSystemPrompt, anthropicFollowUp);
         followUpRaw = r.content;
+        recordClaude(r);
       } catch {
         const fb = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -300,6 +339,7 @@ export async function POST(req: NextRequest) {
           ],
         });
         followUpRaw = fb.choices[0]?.message?.content || "";
+        recordOpenAI("gpt-4o", fb);
       }
       const followUpResult = validateResponse(followUpRaw, []);
       const followUpData: WhiteboardResponse = followUpResult.ok && followUpResult.data
@@ -311,6 +351,15 @@ export async function POST(req: NextRequest) {
           };
       send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
       send("verification_done", { verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
+      logAiUsage({
+        userId: user?.id,
+        mode: "followup",
+        category,
+        level: level || "GCSE",
+        tier: tier || null,
+        confidence: "high",
+        calls: aiCalls,
+      });
       controller.close();
       return;
     }
@@ -347,6 +396,7 @@ export async function POST(req: NextRequest) {
       try {
         const r = await claudeSolve(teacherSystemPrompt, teacherMessages);
         teacherRaw = r.content;
+        recordClaude(r);
       } catch {
         const fb = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -358,6 +408,7 @@ export async function POST(req: NextRequest) {
           ],
         });
         teacherRaw = fb.choices[0]?.message?.content || "";
+        recordOpenAI("gpt-4o", fb);
       }
 
       let teacherResult = validateResponse(teacherRaw, requiredBlocks);
@@ -374,6 +425,7 @@ export async function POST(req: NextRequest) {
           ]);
           try {
             const r2 = await claudeSolve(teacherSystemPrompt, retryMessages);
+            recordClaude(r2);
             const retryResult = validateResponse(r2.content, requiredBlocks);
             if (retryResult.ok || retryResult.data) {
               teacherResult = retryResult;
@@ -412,6 +464,16 @@ export async function POST(req: NextRequest) {
           await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
         } catch { /* ignore */ }
       }
+
+      logAiUsage({
+        userId: user?.id,
+        mode: "teacher",
+        category,
+        level: level || "GCSE",
+        tier: tier || null,
+        confidence: "high",
+        calls: aiCalls,
+      });
 
       controller.close();
       return;
@@ -686,6 +748,7 @@ export async function POST(req: NextRequest) {
     try {
       const solverResult = await claudeSolve(systemPrompt, anthropicMessages);
       rawContent = solverResult.content;
+      recordClaude(solverResult);
     } catch (claudeErr) {
       // Fallback to GPT-4o if Claude is unavailable
       console.warn(`[Pass 1] Claude failed, falling back to GPT-4o: ${(claudeErr as Error).message}`);
@@ -699,6 +762,7 @@ export async function POST(req: NextRequest) {
         ],
       });
       rawContent = fallbackResponse.choices[0]?.message?.content || "";
+      recordOpenAI("gpt-4o", fallbackResponse);
     }
 
     // ── Validate solver output (Zod + required visuals) ───────────────
@@ -720,6 +784,7 @@ export async function POST(req: NextRequest) {
       try {
         const retryResult = await claudeSolve(systemPrompt, retryAnthropicMessages);
         rawContent = retryResult.content;
+        recordClaude(retryResult);
       } catch {
         // If retry also fails, keep original rawContent
       }
@@ -884,6 +949,7 @@ export async function POST(req: NextRequest) {
         { role: "user" as const, content: criticUserMessage },
       ],
     });
+    recordOpenAI(CRITIC_MODEL, criticResponse);
 
     const criticRaw = criticResponse.choices[0]?.message?.content || "";
     const criticResult = parseCriticResponse(criticRaw);
@@ -919,6 +985,7 @@ export async function POST(req: NextRequest) {
         try {
           const correctionResult = await claudeSolve(systemPrompt, correctionAnthropicMessages);
           correctedContent = correctionResult.content;
+          recordClaude(correctionResult);
         } catch {
           // Fall back to GPT-4o for correction
           const fallback = await openai.chat.completions.create({
@@ -933,6 +1000,7 @@ export async function POST(req: NextRequest) {
             ],
           });
           correctedContent = fallback.choices[0]?.message?.content || "";
+          recordOpenAI("gpt-4o", fallback);
         }
         const correctedResult = validateResponse(
           correctedContent,
@@ -1063,6 +1131,16 @@ export async function POST(req: NextRequest) {
         console.warn("[Cache] Write failed:", (err as Error).message);
       });
     }
+
+    logAiUsage({
+      userId: user?.id,
+      mode: hintMode ? "hint" : "solve",
+      category: effectiveCategory,
+      level: level || "GCSE",
+      tier: tier || null,
+      confidence: verification.confidence,
+      calls: aiCalls,
+    });
 
     controller.close();
 

@@ -21,11 +21,20 @@ const THINKING_BUDGET = 4096;
 /** Max tokens for the combined thinking + text output */
 const MAX_TOKENS = 12288;
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface ClaudeSolverResult {
   /** The parsed JSON text block from Claude's response */
   content: string;
   /** Internal chain-of-thought (never sent to client) */
   thinkingContent?: string;
+  /** Token usage for cost telemetry (best-effort; zeros if unavailable) */
+  usage?: TokenUsage;
+  /** The model that produced this result */
+  model?: string;
 }
 
 /**
@@ -82,7 +91,15 @@ export async function claudeSolve(
     console.log(`[Claude] Extended thinking (${thinkingContent.length} chars): ${preview}...`);
   }
 
-  return { content, thinkingContent };
+  return {
+    content,
+    thinkingContent,
+    model: CLAUDE_SOLVER_MODEL,
+    usage: {
+      inputTokens: response.usage?.input_tokens ?? 0,
+      outputTokens: response.usage?.output_tokens ?? 0,
+    },
+  };
 }
 
 /**

@@ -1,6 +1,34 @@
 -- Mathrix: run this ONCE in Supabase → SQL Editor if tables are missing.
 -- Safe to re-run (uses IF NOT EXISTS / IF NOT EXISTS columns).
 
+-- AI usage / cost telemetry — one row per served AI request.
+create table if not exists public.ai_usage_log (
+  id bigint generated always as identity primary key,
+  user_id uuid references public.profiles(id) on delete set null,
+  mode text not null,
+  category text,
+  level text,
+  tier text,
+  cached boolean not null default false,
+  confidence text,
+  models text[] not null default '{}',
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  est_cost_usd numeric not null default 0,
+  cost_known boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.ai_usage_log enable row level security;
+
+drop policy if exists "Users can view own AI usage" on public.ai_usage_log;
+create policy "Users can view own AI usage"
+  on public.ai_usage_log for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_ai_usage_log_user on public.ai_usage_log (user_id, created_at desc);
+create index if not exists idx_ai_usage_log_created on public.ai_usage_log (created_at desc);
+
 -- KS2 shared lesson cache (saves OpenAI tokens across users)
 create table if not exists ks2_lesson_cache (
   cache_key text primary key,

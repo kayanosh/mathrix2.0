@@ -45,6 +45,34 @@ create policy "Users can view own usage"
 
 -- Service role handles insert/update (no user-facing insert policy needed)
 
+-- AI usage / cost telemetry — one row per served AI request.
+-- Written server-side via the service role; users can read only their own rows.
+create table if not exists public.ai_usage_log (
+  id bigint generated always as identity primary key,
+  user_id uuid references public.profiles(id) on delete set null,  -- null = anonymous
+  mode text not null,                 -- 'solve' | 'hint' | 'teacher' | 'lesson' | 'followup' | 'cache'
+  category text,                      -- question category (e.g. 'algebra')
+  level text,
+  tier text,
+  cached boolean not null default false,
+  confidence text,                    -- 'high' | 'medium' | 'low' | null
+  models text[] not null default '{}',
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  est_cost_usd numeric not null default 0,
+  cost_known boolean not null default true,  -- false when an unpriced model was used
+  created_at timestamptz not null default now()
+);
+
+alter table public.ai_usage_log enable row level security;
+
+create policy "Users can view own AI usage"
+  on public.ai_usage_log for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_ai_usage_log_user on public.ai_usage_log (user_id, created_at desc);
+create index if not exists idx_ai_usage_log_created on public.ai_usage_log (created_at desc);
+
 -- 3. Auto-create profile on sign-up (trigger)
 create or replace function public.handle_new_user()
 returns trigger
