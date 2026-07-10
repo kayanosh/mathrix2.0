@@ -228,7 +228,8 @@ export async function POST(req: NextRequest) {
 
     // ── Stage 0: Parse input ──────────────────────────────────────────
     const hasImage = messages.some(
-      (m: { imageUrl?: string }) => m.imageUrl
+      (m: { imageUrl?: string; imageUrls?: string[] }) =>
+        m.imageUrl || (m.imageUrls && m.imageUrls.length > 0)
     );
 
     const lastUserMsg = [...messages]
@@ -693,24 +694,39 @@ export async function POST(req: NextRequest) {
         : "";
 
     const formattedMessages = messages.map(
-      (msg: { role: string; content: string; imageUrl?: string }, i: number) => {
+      (msg: { role: string; content: string; imageUrl?: string; imageUrls?: string[] }, i: number) => {
         const isLast = i === messages.length - 1 && msg.role === "user";
         const textContent = isLast ? contextPrefix + msg.content : msg.content;
 
-        if (msg.imageUrl && msg.role === "user") {
+        // Collect every attached image (multi-page PDFs carry several).
+        const images =
+          msg.imageUrls && msg.imageUrls.length > 0
+            ? msg.imageUrls
+            : msg.imageUrl
+              ? [msg.imageUrl]
+              : [];
+
+        if (images.length > 0 && msg.role === "user") {
           const parts: Array<
             | { type: "text"; text: string }
             | { type: "image_url"; image_url: { url: string; detail: "high" } }
           > = [];
 
-          parts.push({
-            type: "image_url" as const,
-            image_url: { url: msg.imageUrl, detail: "high" as const },
-          });
+          for (const url of images) {
+            parts.push({
+              type: "image_url" as const,
+              image_url: { url, detail: "high" as const },
+            });
+          }
 
+          const multi = images.length > 1;
           parts.push({
             type: "text" as const,
-            text: textContent || "Look at this maths question in the image. Read it carefully, then solve it step by step showing all working out.",
+            text:
+              textContent ||
+              (multi
+                ? "These images are the pages of one maths question sheet. Read them in order, then solve the question(s) step by step showing all working out."
+                : "Look at this maths question in the image. Read it carefully, then solve it step by step showing all working out."),
           });
 
           return { role: msg.role as "user", content: parts };
