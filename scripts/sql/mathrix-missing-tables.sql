@@ -29,6 +29,36 @@ create policy "Users can view own AI usage"
 create index if not exists idx_ai_usage_log_user on public.ai_usage_log (user_id, created_at desc);
 create index if not exists idx_ai_usage_log_created on public.ai_usage_log (created_at desc);
 
+-- Lesson playback sessions — per-user resume position + completed-lesson history.
+create table if not exists public.lesson_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  content_key text not null,
+  kind text not null default 'solve',
+  title text,
+  topic text,
+  subject text,
+  level text,
+  tier text,
+  total_steps integer not null default 0,
+  last_position integer not null default 0,
+  completed boolean not null default false,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, content_key)
+);
+
+alter table public.lesson_sessions enable row level security;
+
+drop policy if exists "Users can view own lesson sessions" on public.lesson_sessions;
+create policy "Users can view own lesson sessions"
+  on public.lesson_sessions for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_lesson_sessions_user
+  on public.lesson_sessions (user_id, updated_at desc);
+
 -- KS2 shared lesson cache (saves OpenAI tokens across users)
 create table if not exists ks2_lesson_cache (
   cache_key text primary key,

@@ -1327,7 +1327,7 @@ function MessageBubble({
       >
         {whiteboardResponse ? (
           <>
-            <WhiteboardRenderer data={whiteboardResponse} />
+            <WhiteboardRenderer data={whiteboardResponse} persist />
             {onWatchWhiteboard && (
               <motion.button
                 initial={{ opacity: 0, y: 4 }}
