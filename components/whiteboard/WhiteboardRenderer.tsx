@@ -373,7 +373,19 @@ function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
 // ── Card: Visual block (graph, shape, table, chart, etc.) ─────────────────────
 
 function VisualCard({ card }: { card: Extract<Card, { kind: "visual" }> }) {
+  // Text blocks (including lesson-section headers) render their own styling —
+  // no need for the generic "text" type label above them.
+  const isText = card.block.type === "text";
   const label = card.block.type.replace(/_/g, " ");
+
+  if (isText) {
+    return (
+      <div className="rounded-2xl overflow-hidden">
+        <BlockRenderer block={card.block} index={card.blockIndex} baseDelay={0} />
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       <div className="px-5 pt-3 pb-1 text-[11px] font-medium text-gray-400 capitalize">

@@ -333,6 +333,21 @@ export interface ColumnMethodBlock {
   answer: string;
 }
 
+// ── Lesson contract ───────────────────────────────────────────────────────────
+
+/**
+ * The ordered sections a full topic-teaching lesson must cover.
+ * Used by the "Teach me a topic" flow to enforce a consistent lesson structure.
+ */
+export type LessonSection =
+  | "objective"
+  | "prerequisites"
+  | "vocabulary"
+  | "rule"
+  | "example"
+  | "mistakes"
+  | "recap";
+
 // ── Block: Text Explanation (fallback) ────────────────────────────────────────
 
 export interface TextBlock {
@@ -340,6 +355,14 @@ export interface TextBlock {
   content: string;
   /** Optional LaTeX expressions inline */
   latex?: string;
+  /**
+   * When this text block introduces a lesson-contract section, the section it
+   * belongs to. Set by the "Teach me a topic" flow so the renderer can show a
+   * section heading and the validator can confirm every section is present.
+   */
+  section?: LessonSection;
+  /** Optional short heading shown above the content (e.g. "Worked example 1 — easy"). */
+  heading?: string;
 }
 
 // ── Discriminated Union ───────────────────────────────────────────────────────

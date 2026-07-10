@@ -4,7 +4,8 @@
  *   2. Batch question generation (20 questions: 5 easy, 5 medium, 5 hard, 5 exam-style)
  */
 
-import { SCHEMA } from "./system";
+import { SCHEMA, getTierPersona } from "./system";
+import { buildLessonContractPromptBlock } from "@/lib/lesson-contract";
 
 // ── Subtopic → Required visuals map ──────────────────────────────────────────
 
@@ -154,6 +155,69 @@ TEACHER MODE SIMPLIFICATION:
 • Do NOT use \\htmlId{} tags. They are not needed for teacher explanations.
 • Do NOT include "arrows" arrays in equation_steps. Keep steps simple.
 • Focus on clear operationLabel, explanation, latexBefore, latexAfter, and balanceNotation.
+
+${SCHEMA}
+
+OUTPUT: Valid JSON only. No markdown fences.`;
+}
+
+/**
+ * Builds a system prompt for the "Teach me a topic" flow.
+ *
+ * Unlike `buildTeacherExplanationPrompt` (topic intro + one example), this
+ * enforces the full lesson contract: objective → prerequisites → vocabulary →
+ * rule → graded worked examples → common mistakes → recap. The response is a
+ * WhiteboardResponse whose section-header text blocks carry a `section` field.
+ */
+export function buildLessonPrompt(
+  topic: string,
+  level: string = "GCSE",
+  tier?: string,
+  visuals?: TeacherVisual,
+): string {
+  const persona = getTierPersona(tier) || getTierPersona(level);
+
+  const levelHeader = persona
+    ? persona
+    : `You are Mathrix — a warm, clear ${level} maths teacher for UK students.
+Speak in plain, everyday English with short sentences. Explain every term the first time you use it.`;
+
+  const visualSection =
+    visuals && visuals.blocks.length > 0
+      ? `
+TOPIC-SPECIFIC VISUALS — include where they help:
+Block type(s) that suit this topic: ${visuals.blocks.map((b) => `"${b}"`).join(", ")}
+Guidance: ${visuals.hint}
+Use them inside the "rule" or "example" sections.
+`
+      : "";
+
+  return `${levelHeader}
+
+You are in TEACH-ME-A-TOPIC mode. The student wants a full lesson on: "${topic}".
+Teach it like a real teacher building the topic from the ground up — do NOT just solve one question.
+
+CRITICAL: Respond with valid JSON matching the WhiteboardResponse schema. Never plain text. No markdown fences.
+
+${buildLessonContractPromptBlock()}
+${visualSection}
+INLINE MATH: Wrap all maths in $...$ (e.g. "$x = 3$", "$\\frac{1}{2}$"). Never raw LaTeX in text.
+Do NOT double-write expressions (LaTeX + plain text).
+
+JSON ESCAPING — CRITICAL:
+All LaTeX backslashes MUST be double-escaped in JSON strings.
+  ✅ "latexAfter": "\\\\frac{9}{5}"   → renders \\frac{9}{5}
+  ❌ "latexAfter": "\\frac{9}{5}"     → \\f becomes form-feed
+This applies to ALL LaTeX commands: \\\\frac, \\\\sqrt, \\\\times, \\\\theta, \\\\cdot, etc.
+
+RESPONSE STRUCTURE:
+• "intro": one short welcoming sentence for the lesson.
+• "blocks": the lesson, following the LESSON CONTRACT above in order.
+• "conclusion": one encouraging closing sentence.
+• "subject": "Maths"
+• "topic": "${topic}"
+• "keyTakeaway": the single most important thing to remember.
+• "hint": the most common mistake to avoid (or null).
 
 ${SCHEMA}
 

@@ -1159,6 +1159,15 @@ Reference named theorems and identities by their formal names.`,
 };
 
 /**
+ * Return the persona block for a given student level/tier, or "" if none.
+ * Exposed so other flows (e.g. topic lessons) can apply the same level-appropriate
+ * voice (KS1/KS2 Year 5 language, A-Level rigour, etc.).
+ */
+export function getTierPersona(tier?: string): string {
+  return tier && TIER_PERSONA[tier] ? TIER_PERSONA[tier] : "";
+}
+
+/**
  * Lightweight system prompt for follow-up/clarification questions.
  * Skips the heavy schema + examples — just responds conversationally with text blocks.
  */
