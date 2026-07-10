@@ -23,6 +23,28 @@ drop policy if exists "Authenticated users can read ks2 lesson cache" on ks2_les
 create policy "Authenticated users can read ks2 lesson cache" on ks2_lesson_cache
   for select using (auth.role() = 'authenticated');
 
+-- Topic lesson cache ("Teach me a topic" lessons; shared, saves tokens)
+create table if not exists topic_lesson_cache (
+  id uuid primary key default gen_random_uuid(),
+  lesson_hash text not null,
+  topic text not null,
+  level text not null default 'GCSE',
+  tier text,
+  response_json jsonb not null,
+  contract_json jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+create unique index if not exists idx_topic_lesson_cache_hash
+  on topic_lesson_cache (lesson_hash);
+
+alter table topic_lesson_cache enable row level security;
+
+drop policy if exists "Authenticated users can read topic lesson cache" on topic_lesson_cache;
+create policy "Authenticated users can read topic lesson cache" on topic_lesson_cache
+  for select using (auth.role() = 'authenticated');
+
 -- Student progress (parent chart, syncs across devices)
 create table if not exists public.skill_progress (
   id bigint generated always as identity primary key,
