@@ -6,6 +6,7 @@ import type { EquationStepBlock, EquationStep } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
 import InlineMath from "@/components/InlineMath";
 import TermTransferArrow from "../TermTransferArrow";
+import TeacherMarkOverlay from "../TeacherMarkOverlay";
 import WhyExpander from "./WhyExpander";
 
 const MARKER = {
@@ -212,6 +213,16 @@ function StepPairCard({
           color={arrow.color || MARKER.red}
         />
       ))}
+
+      {/* Teacher pen marks — circle/underline/box on the key term */}
+      {step.marks?.map((mark, mi) => (
+        <TeacherMarkOverlay
+          key={mark.targetId || mi}
+          containerRef={pairRef}
+          mark={mark}
+          delay={delay + 0.5 + mi * 0.4}
+        />
+      ))}
     </motion.div>
   );
 }
@@ -228,16 +239,18 @@ function WrittenEquation({
   isFinal: boolean;
   isFirst: boolean;
 }) {
+  const lineRef = useRef<HTMLDivElement>(null);
   const latex = isFirst
     ? step.latexBefore || step.latexAfter
     : step.latexAfter;
 
   return (
     <motion.div
+      ref={lineRef}
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay, duration: 0.35, ease: "easeOut" }}
-      className={`wb-equation-line flex items-center gap-3 py-1.5 px-2 rounded-lg ${
+      className={`wb-equation-line relative flex items-center gap-3 py-1.5 px-2 rounded-lg ${
         isFinal ? "wb-final-answer" : ""
       }`}
     >
@@ -263,6 +276,16 @@ function WrittenEquation({
           ✓
         </motion.span>
       )}
+
+      {/* Teacher pen marks — circle/underline/box on the key term */}
+      {step.marks?.map((mark, mi) => (
+        <TeacherMarkOverlay
+          key={mark.targetId || mi}
+          containerRef={lineRef}
+          mark={mark}
+          delay={delay + 0.5 + mi * 0.4}
+        />
+      ))}
     </motion.div>
   );
 }
