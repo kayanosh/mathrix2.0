@@ -45,6 +45,63 @@ create policy "Users can view own usage"
 
 -- Service role handles insert/update (no user-facing insert policy needed)
 
+-- AI usage / cost telemetry — one row per served AI request.
+-- Written server-side via the service role; users can read only their own rows.
+create table if not exists public.ai_usage_log (
+  id bigint generated always as identity primary key,
+  user_id uuid references public.profiles(id) on delete set null,  -- null = anonymous
+  mode text not null,                 -- 'solve' | 'hint' | 'teacher' | 'lesson' | 'followup' | 'cache'
+  category text,                      -- question category (e.g. 'algebra')
+  level text,
+  tier text,
+  cached boolean not null default false,
+  confidence text,                    -- 'high' | 'medium' | 'low' | null
+  models text[] not null default '{}',
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  est_cost_usd numeric not null default 0,
+  cost_known boolean not null default true,  -- false when an unpriced model was used
+  created_at timestamptz not null default now()
+);
+
+alter table public.ai_usage_log enable row level security;
+
+create policy "Users can view own AI usage"
+  on public.ai_usage_log for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_ai_usage_log_user on public.ai_usage_log (user_id, created_at desc);
+create index if not exists idx_ai_usage_log_created on public.ai_usage_log (created_at desc);
+
+-- Lesson playback sessions — per-user resume position + completed-lesson history.
+create table if not exists public.lesson_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  content_key text not null,          -- stable content hash from lesson-progress-key
+  kind text not null default 'solve', -- 'solve' | 'lesson' | 'teacher'
+  title text,
+  topic text,
+  subject text,
+  level text,
+  tier text,
+  total_steps integer not null default 0,
+  last_position integer not null default 0,
+  completed boolean not null default false,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, content_key)
+);
+
+alter table public.lesson_sessions enable row level security;
+
+create policy "Users can view own lesson sessions"
+  on public.lesson_sessions for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_lesson_sessions_user
+  on public.lesson_sessions (user_id, updated_at desc);
+
 -- 3. Auto-create profile on sign-up (trigger)
 create or replace function public.handle_new_user()
 returns trigger
@@ -155,6 +212,59 @@ alter table ks2_lesson_cache enable row level security;
 
 create policy "Authenticated users can read ks2 lesson cache" on ks2_lesson_cache
   for select using (auth.role() = 'authenticated');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TOPIC LESSON CACHE — "Teach me a topic" lessons (one per topic+level+tier)
+-- Mirrors question_cache: shared, read-only to clients, written server-side.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists topic_lesson_cache (
+  id uuid primary key default gen_random_uuid(),
+  lesson_hash text not null,
+  topic text not null,
+  level text not null default 'GCSE',
+  tier text,                          -- 'foundation' | 'higher' | KS2 tier | null
+  response_json jsonb not null,       -- full WhiteboardResponse (the lesson)
+  contract_json jsonb,                -- LessonContractResult metadata (sections/warnings)
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+create unique index if not exists idx_topic_lesson_cache_hash
+  on topic_lesson_cache (lesson_hash);
+
+alter table topic_lesson_cache enable row level security;
+
+create policy "Authenticated users can read topic lesson cache" on topic_lesson_cache
+  for select using (auth.role() = 'authenticated');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- TTS NARRATION CACHE — metadata for cached narration audio
+-- The mp3 bytes live in the Storage bucket 'tts-cache' (create it once, private).
+-- This table only holds lightweight metadata + hit telemetry; audio is served
+-- through the /api/tts route using the service-role key.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists tts_cache (
+  tts_hash text primary key,          -- sha256 of normalised text + voice + speed
+  text_preview text,                  -- first 200 chars, for debugging
+  voice text not null default 'onyx',
+  speed numeric not null default 1,
+  byte_size integer,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+alter table tts_cache enable row level security;
+-- No client policies: browsers never read this table or the bucket directly.
+
+create or replace function public.increment_tts_hit(p_hash text)
+returns void
+language sql
+security definer
+as $$
+  update public.tts_cache set hit_count = hit_count + 1 where tts_hash = p_hash;
+$$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- EXAM PAPERS TABLE — Metadata for downloadable past papers

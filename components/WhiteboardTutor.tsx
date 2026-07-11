@@ -13,6 +13,7 @@ import {
   RotateCcw,
   CheckCircle2,
   ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
 import type {
   WhiteboardResponse,
@@ -34,6 +35,7 @@ import {
   estimateMathWriteMs,
   estimateTextWriteMs,
 } from "@/lib/handwriting";
+import { getVerificationBadge } from "@/lib/verification-badge";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -1098,18 +1100,33 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
             )}
           </AnimatePresence>
 
-          {/* CAS Verified badge */}
-          {data.casVerified && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-              className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200"
-            >
-              <ShieldCheck size={13} className="text-emerald-600" />
-              Verified by CAS
-            </motion.div>
-          )}
+          {/* Verification badge — honest gating */}
+          {(() => {
+            const badge = getVerificationBadge(data);
+            if (!badge) return null;
+            const positive = badge.level === "verified" || badge.level === "checked";
+            const cls = positive
+              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+              : badge.level === "caution"
+              ? "text-amber-700 bg-amber-50 border-amber-200"
+              : "text-rose-700 bg-rose-50 border-rose-200";
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
+                className={`mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${cls}`}
+              >
+                {positive ? (
+                  <ShieldCheck size={13} className="text-emerald-600" />
+                ) : (
+                  <AlertTriangle size={13} />
+                )}
+                {badge.label}
+                {badge.detail && <span className="opacity-70">· {badge.detail}</span>}
+              </motion.div>
+            );
+          })()}
 
           {/* Hint */}
           <AnimatePresence>

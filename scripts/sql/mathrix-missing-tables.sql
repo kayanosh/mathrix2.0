@@ -1,6 +1,64 @@
 -- Mathrix: run this ONCE in Supabase → SQL Editor if tables are missing.
 -- Safe to re-run (uses IF NOT EXISTS / IF NOT EXISTS columns).
 
+-- AI usage / cost telemetry — one row per served AI request.
+create table if not exists public.ai_usage_log (
+  id bigint generated always as identity primary key,
+  user_id uuid references public.profiles(id) on delete set null,
+  mode text not null,
+  category text,
+  level text,
+  tier text,
+  cached boolean not null default false,
+  confidence text,
+  models text[] not null default '{}',
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  est_cost_usd numeric not null default 0,
+  cost_known boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.ai_usage_log enable row level security;
+
+drop policy if exists "Users can view own AI usage" on public.ai_usage_log;
+create policy "Users can view own AI usage"
+  on public.ai_usage_log for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_ai_usage_log_user on public.ai_usage_log (user_id, created_at desc);
+create index if not exists idx_ai_usage_log_created on public.ai_usage_log (created_at desc);
+
+-- Lesson playback sessions — per-user resume position + completed-lesson history.
+create table if not exists public.lesson_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  content_key text not null,
+  kind text not null default 'solve',
+  title text,
+  topic text,
+  subject text,
+  level text,
+  tier text,
+  total_steps integer not null default 0,
+  last_position integer not null default 0,
+  completed boolean not null default false,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, content_key)
+);
+
+alter table public.lesson_sessions enable row level security;
+
+drop policy if exists "Users can view own lesson sessions" on public.lesson_sessions;
+create policy "Users can view own lesson sessions"
+  on public.lesson_sessions for select
+  using (auth.uid() = user_id);
+
+create index if not exists idx_lesson_sessions_user
+  on public.lesson_sessions (user_id, updated_at desc);
+
 -- KS2 shared lesson cache (saves OpenAI tokens across users)
 create table if not exists ks2_lesson_cache (
   cache_key text primary key,
@@ -22,6 +80,53 @@ alter table ks2_lesson_cache enable row level security;
 drop policy if exists "Authenticated users can read ks2 lesson cache" on ks2_lesson_cache;
 create policy "Authenticated users can read ks2 lesson cache" on ks2_lesson_cache
   for select using (auth.role() = 'authenticated');
+
+-- Topic lesson cache ("Teach me a topic" lessons; shared, saves tokens)
+create table if not exists topic_lesson_cache (
+  id uuid primary key default gen_random_uuid(),
+  lesson_hash text not null,
+  topic text not null,
+  level text not null default 'GCSE',
+  tier text,
+  response_json jsonb not null,
+  contract_json jsonb,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+create unique index if not exists idx_topic_lesson_cache_hash
+  on topic_lesson_cache (lesson_hash);
+
+alter table topic_lesson_cache enable row level security;
+
+drop policy if exists "Authenticated users can read topic lesson cache" on topic_lesson_cache;
+create policy "Authenticated users can read topic lesson cache" on topic_lesson_cache
+  for select using (auth.role() = 'authenticated');
+
+-- TTS narration audio cache (mp3 bytes live in Storage bucket 'tts-cache';
+-- this table holds lightweight metadata + hit telemetry). Create the Storage
+-- bucket once:  Supabase → Storage → New bucket → name "tts-cache" (private).
+create table if not exists tts_cache (
+  tts_hash text primary key,
+  text_preview text,
+  voice text not null default 'onyx',
+  speed numeric not null default 1,
+  byte_size integer,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
+  hit_count integer not null default 0
+);
+
+alter table tts_cache enable row level security;
+-- No client policies: the audio is served through the /api/tts route using the
+-- service-role key, so browsers never read this table or the bucket directly.
+
+create or replace function public.increment_tts_hit(p_hash text)
+returns void
+language sql
+security definer
+as $$
+  update public.tts_cache set hit_count = hit_count + 1 where tts_hash = p_hash;
+$$;
 
 -- Student progress (parent chart, syncs across devices)
 create table if not exists public.skill_progress (

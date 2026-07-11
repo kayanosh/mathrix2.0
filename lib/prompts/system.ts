@@ -31,6 +31,12 @@ PERSONALITY & VOICE — PLAIN, FRIENDLY, ACCESSIBLE:
 TEACHING RULES:
 • Speak to a 13-year-old — every word must be understandable to a struggling student
 • Show EVERY intermediate step — never skip working
+
+NO MISSING STEPS (critical — the whole point of the whiteboard):
+• Change exactly ONE thing per step. Never combine two operations into a single line.
+• Continuity: each step's latexBefore MUST be the previous step's latexAfter, character for character. Never jump straight to a new expression.
+• Every step needs a one-line "explanation" saying WHAT you did and WHY. No blank reasons.
+• If you feel tempted to jump (e.g. rearrange AND simplify at once), split it into two steps.
 • HARD RULE: Never answer a maths question with prose only. Every maths response MUST contain at least one structured visual block (equation_steps, labeled_shape, coordinate_graph, probability_tree, venn_diagram, number_line, table, chart, column_method). A bare "text" block is NOT an acceptable answer for a maths question.
 • For word problems: step 1 = set up the equation/diagram, then solve
 • Reference exam board specs where natural
@@ -1200,6 +1206,15 @@ Pen marks: box the standard result/formula before applying it, underline the con
 that justifies a step (discriminant sign, domain restriction, validity range), and
 circle the final answer.`,
 };
+
+/**
+ * Return the persona block for a given student level/tier, or "" if none.
+ * Exposed so other flows (e.g. topic lessons) can apply the same level-appropriate
+ * voice (KS1/KS2 Year 5 language, A-Level rigour, etc.).
+ */
+export function getTierPersona(tier?: string): string {
+  return tier && TIER_PERSONA[tier] ? TIER_PERSONA[tier] : "";
+}
 
 /**
  * Lightweight system prompt for follow-up/clarification questions.

@@ -7,18 +7,34 @@ export const config = {
 };
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
-import { buildTeacherExplanationPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";
+import { buildTeacherExplanationPrompt, buildLessonPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";
+import {
+  validateLessonContract,
+  buildLessonRetryMessage,
+} from "@/lib/lesson-contract";
+import {
+  hashLessonKey,
+  lookupLessonCache,
+  writeLessonCache,
+} from "@/lib/lesson-cache";
 import {
   buildCriticSystemPrompt,
   buildCriticUserMessage,
   buildCorrectionMessage,
   parseCriticResponse,
 } from "@/lib/prompts/critic";
-import { validateResponse, sanitizeWhiteboardResponse } from "@/lib/validate";
+import {
+  validateResponse,
+  sanitizeWhiteboardResponse,
+  validateNoMissingSteps,
+  buildContinuityRetryMessage,
+} from "@/lib/validate";
 import { casSolve } from "@/lib/cas-solver";
 import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
 import { buildGroundTruth } from "@/lib/ground-truth";
-import { claudeSolve, convertToAnthropicMessages } from "@/lib/claude-solver";
+import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/lib/claude-solver";
+import { logAiUsage } from "@/lib/ai-usage-log";
+import type { CallUsage } from "@/lib/ai-cost";
 import { postVerifyCAS } from "@/lib/cas-post-verify";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
@@ -30,6 +46,7 @@ import {
   detectKS2RequiredVisuals,
   mergeVisualRequirements,
 } from "@/lib/ks2-required-visuals";
+import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
 const openai = new OpenAI({
@@ -91,6 +108,7 @@ export async function POST(req: NextRequest) {
       useWhiteboard = true,
       hintMode = false,
       teacherMode = false,
+      lessonMode = false,
       topic: topicContext,
       subtopics: subtopicsContext,
     } = body;
@@ -100,6 +118,80 @@ export async function POST(req: NextRequest) {
       controller.close();
       return;
     }
+
+    // ── Input safety: size limits, off-topic/unsafe redirect, injection guard ──
+    const safety = checkInputSafety(messages);
+    if (!safety.ok) {
+      if (safety.reason === "non_maths" || safety.reason === "blocked") {
+        // Gentle, friendly redirect rendered as a normal whiteboard response
+        const friendly: WhiteboardResponse = {
+          intro: safety.message || "I'm your maths tutor.",
+          blocks: [
+            {
+              type: "text",
+              content: safety.detail || safety.message || "Ask me a maths question to get started.",
+            },
+          ],
+          conclusion: safety.conclusion || "What maths shall we work on?",
+        };
+        send("solver_done", {
+          whiteboard: friendly,
+          response: { type: "explanation", intro: friendly.intro, steps: [], conclusion: friendly.conclusion },
+          category: "number",
+          validationWarnings: [],
+        });
+        send("verification_done", {
+          verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false },
+          whiteboard: friendly,
+        });
+        controller.close();
+        return;
+      }
+      // empty / too_long / too_many_messages — technical error
+      send("error", { error: safety.message || "Invalid request" });
+      controller.close();
+      return;
+    }
+
+    // Apply sanitised text back onto the last user message so downstream
+    // classification, prompting and caching all use the cleaned version.
+    if (safety.sanitizedText !== undefined) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]?.role === "user") {
+          messages[i] = { ...messages[i], content: safety.sanitizedText };
+          break;
+        }
+      }
+    }
+
+    // Defensive instruction appended to LLM system prompts when the student's
+    // message looks like a prompt-injection / role-hijack attempt.
+    const injectionGuard = safety.injectionDetected ? "\n\n" + INJECTION_GUARD : "";
+
+    // ── AI cost telemetry: accumulate every model call this request makes ──
+    const aiCalls: CallUsage[] = [];
+    const recordClaude = (r: {
+      usage?: { inputTokens: number; outputTokens: number };
+      model?: string;
+    }) => {
+      if (r.usage) {
+        aiCalls.push({
+          model: r.model || CLAUDE_SOLVER_MODEL,
+          inputTokens: r.usage.inputTokens,
+          outputTokens: r.usage.outputTokens,
+        });
+      }
+    };
+    const recordOpenAI = (
+      model: string,
+      resp: { usage?: { prompt_tokens?: number; completion_tokens?: number } | null },
+    ) => {
+      aiCalls.push({
+        model,
+        inputTokens: resp.usage?.prompt_tokens ?? 0,
+        outputTokens: resp.usage?.completion_tokens ?? 0,
+      });
+    };
 
     // ── Auth & Usage Enforcement ─────────────────────────────────
     const supabase = await createClient();
@@ -136,7 +228,8 @@ export async function POST(req: NextRequest) {
 
     // ── Stage 0: Parse input ──────────────────────────────────────────
     const hasImage = messages.some(
-      (m: { imageUrl?: string }) => m.imageUrl
+      (m: { imageUrl?: string; imageUrls?: string[] }) =>
+        m.imageUrl || (m.imageUrls && m.imageUrls.length > 0)
     );
 
     const lastUserMsg = [...messages]
@@ -181,6 +274,17 @@ export async function POST(req: NextRequest) {
           } catch { /* ignore */ }
         }
 
+        logAiUsage({
+          userId: user?.id,
+          mode: "cache",
+          category: cached.category,
+          level: level || "GCSE",
+          tier: tier || null,
+          cached: true,
+          confidence: cached.verification_json?.confidence || "high",
+          calls: [],
+        });
+
         controller.close();
         return;
       }
@@ -212,18 +316,42 @@ export async function POST(req: NextRequest) {
 
     if (isFollowUp) {
       console.log("[FastPath] Follow-up detected — skipping CAS/SymPy/critic");
-      const followUpSystemPrompt = buildFollowUpPrompt();
+      const followUpSystemPrompt = buildFollowUpPrompt() + injectionGuard;
+      // Preserve any image(s) from the original question so follow-ups ("why did
+      // you do step 2?") keep the visual context. Same multipart shape the main
+      // solver path uses — consumed by both Claude and the GPT-4o fallback.
       const followUpMessages = messages.map(
-        (msg: { role: string; content: string; imageUrl?: string }) => ({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        })
+        (msg: { role: string; content: string; imageUrl?: string; imageUrls?: string[] }) => {
+          const images =
+            msg.imageUrls && msg.imageUrls.length > 0
+              ? msg.imageUrls
+              : msg.imageUrl
+                ? [msg.imageUrl]
+                : [];
+          if (images.length > 0 && msg.role === "user") {
+            return {
+              role: "user" as const,
+              content: [
+                ...images.map((url) => ({
+                  type: "image_url" as const,
+                  image_url: { url, detail: "high" as const },
+                })),
+                { type: "text" as const, text: msg.content || "Refer to the maths question shown in this image." },
+              ],
+            };
+          }
+          return {
+            role: msg.role as "user" | "assistant",
+            content: msg.content,
+          };
+        }
       );
       const anthropicFollowUp = convertToAnthropicMessages(followUpMessages);
       let followUpRaw = "";
       try {
         const r = await claudeSolve(followUpSystemPrompt, anthropicFollowUp);
         followUpRaw = r.content;
+        recordClaude(r);
       } catch {
         const fb = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -235,6 +363,7 @@ export async function POST(req: NextRequest) {
           ],
         });
         followUpRaw = fb.choices[0]?.message?.content || "";
+        recordOpenAI("gpt-4o", fb);
       }
       const followUpResult = validateResponse(followUpRaw, []);
       const followUpData: WhiteboardResponse = followUpResult.ok && followUpResult.data
@@ -246,6 +375,15 @@ export async function POST(req: NextRequest) {
           };
       send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
       send("verification_done", { verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
+      logAiUsage({
+        userId: user?.id,
+        mode: "followup",
+        category,
+        level: level || "GCSE",
+        tier: tier || null,
+        confidence: "high",
+        calls: aiCalls,
+      });
       controller.close();
       return;
     }
@@ -271,7 +409,7 @@ export async function POST(req: NextRequest) {
         teacherSubtopic,
         level || "GCSE",
         visuals,
-      );
+      ) + injectionGuard;
 
       const teacherMessages = convertToAnthropicMessages([
         { role: "user" as const, content: questionText },
@@ -282,6 +420,7 @@ export async function POST(req: NextRequest) {
       try {
         const r = await claudeSolve(teacherSystemPrompt, teacherMessages);
         teacherRaw = r.content;
+        recordClaude(r);
       } catch {
         const fb = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -293,6 +432,7 @@ export async function POST(req: NextRequest) {
           ],
         });
         teacherRaw = fb.choices[0]?.message?.content || "";
+        recordOpenAI("gpt-4o", fb);
       }
 
       let teacherResult = validateResponse(teacherRaw, requiredBlocks);
@@ -309,6 +449,7 @@ export async function POST(req: NextRequest) {
           ]);
           try {
             const r2 = await claudeSolve(teacherSystemPrompt, retryMessages);
+            recordClaude(r2);
             const retryResult = validateResponse(r2.content, requiredBlocks);
             if (retryResult.ok || retryResult.data) {
               teacherResult = retryResult;
@@ -341,6 +482,174 @@ export async function POST(req: NextRequest) {
       });
 
       // Increment usage for authenticated users
+      if (user) {
+        const today = new Date().toISOString().split("T")[0];
+        try {
+          await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+        } catch { /* ignore */ }
+      }
+
+      logAiUsage({
+        userId: user?.id,
+        mode: "teacher",
+        category,
+        level: level || "GCSE",
+        tier: tier || null,
+        confidence: "high",
+        calls: aiCalls,
+      });
+
+      controller.close();
+      return;
+    }
+
+    // ── Teach-me-a-topic fast path: full structured lesson ────────────────
+    if (lessonMode) {
+      console.log("[LessonMode] Generating a full topic lesson — skipping CAS/critic");
+
+      // Extract the topic from the message (format: [LESSON MODE] ... "<topic>")
+      const lessonMatch = questionText.match(/\[LESSON MODE\][^"]*"(.+?)"/);
+      const lessonTopic =
+        lessonMatch?.[1] ||
+        (typeof topicContext === "string" && topicContext) ||
+        questionText.replace(/\[LESSON MODE\]/i, "").trim() ||
+        "Maths";
+
+      const lessonHash = hashLessonKey(lessonTopic, level || "GCSE", tier);
+
+      // ── Cache lookup: replay a previously generated lesson ──────────────
+      const cachedLesson = await lookupLessonCache(lessonHash);
+      if (cachedLesson) {
+        console.log(`[LessonMode] Cache HIT for "${lessonTopic}"`);
+        send("solver_done", {
+          whiteboard: cachedLesson.response_json,
+          response: {
+            type: "explanation",
+            intro: cachedLesson.response_json.intro,
+            steps: [],
+            conclusion: cachedLesson.response_json.conclusion,
+          },
+          category,
+          validationWarnings: [],
+        });
+        send("verification_done", {
+          verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+          whiteboard: cachedLesson.response_json,
+        });
+        if (user) {
+          const today = new Date().toISOString().split("T")[0];
+          try {
+            await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+          } catch { /* ignore */ }
+        }
+        controller.close();
+        return;
+      }
+
+      // Look up any topic-specific visual guidance (reuses the teacher map)
+      const visuals = getTeacherRequiredVisuals(lessonTopic);
+
+      const lessonSystemPrompt = buildLessonPrompt(
+        lessonTopic,
+        level || "GCSE",
+        tier,
+        visuals,
+      ) + injectionGuard;
+
+      const lessonUserMsg = `Teach me a full lesson on: "${lessonTopic}". Follow the lesson contract exactly.`;
+
+      async function runLesson(sys: string, convo: { role: "user" | "assistant"; content: string }[]) {
+        const anthropic = convertToAnthropicMessages(convo);
+        try {
+          const r = await claudeSolve(sys, anthropic);
+          return r.content;
+        } catch {
+          const fb = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 8192,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system" as const, content: sys },
+              ...convo,
+            ],
+          });
+          return fb.choices[0]?.message?.content || "";
+        }
+      }
+
+      let lessonRaw = await runLesson(lessonSystemPrompt, [
+        { role: "user", content: lessonUserMsg },
+      ]);
+      let lessonResult = validateResponse(lessonRaw);
+      let contract = validateLessonContract(
+        lessonResult.data ?? { intro: "", blocks: [], conclusion: "" },
+      );
+
+      // Retry once if the lesson is structurally valid but missing sections
+      if (lessonResult.data && !contract.ok && contract.missing.length > 0) {
+        console.log(`[LessonMode] Retrying — missing sections: ${contract.missing.join(", ")}`);
+        try {
+          const retryRaw = await runLesson(lessonSystemPrompt, [
+            { role: "user", content: lessonUserMsg },
+            { role: "assistant", content: lessonRaw },
+            { role: "user", content: buildLessonRetryMessage(contract.missing) },
+          ]);
+          const retryResult = validateResponse(retryRaw);
+          if (retryResult.data) {
+            const retryContract = validateLessonContract(retryResult.data);
+            // Accept the retry if it covers at least as many sections as before
+            if (retryContract.missing.length <= contract.missing.length) {
+              lessonRaw = retryRaw;
+              lessonResult = retryResult;
+              contract = retryContract;
+            }
+          }
+        } catch {
+          // Keep the first attempt if the retry fails
+        }
+      }
+
+      const lessonData: WhiteboardResponse = lessonResult.data
+        ? lessonResult.data
+        : {
+            intro: "Let's learn this topic together.",
+            blocks: [{ type: "text", content: lessonRaw.replace(/```json|```/g, "").trim() }],
+            conclusion: "That's the lesson — well done for sticking with it!",
+          };
+
+      const lessonWarnings = [
+        ...(lessonResult.errors || []),
+        ...(contract.missing.length > 0
+          ? [`Lesson missing sections: ${contract.missing.join(", ")}`]
+          : []),
+        ...contract.warnings,
+      ];
+
+      send("solver_done", {
+        whiteboard: lessonData,
+        response: { type: "explanation", intro: lessonData.intro, steps: [], conclusion: lessonData.conclusion },
+        category,
+        validationWarnings: lessonWarnings,
+      });
+      send("verification_done", {
+        verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+        whiteboard: lessonData,
+      });
+
+      // ── Persist the lesson — only cache complete, structurally-valid lessons ──
+      if (lessonResult.ok && lessonResult.data && contract.ok) {
+        writeLessonCache({
+          lessonHash,
+          topic: lessonTopic,
+          level: level || "GCSE",
+          tier: tier || null,
+          responseJson: lessonData,
+          contractJson: contract,
+        }).catch((err) => {
+          console.warn("[LessonCache] Write failed:", (err as Error).message);
+        });
+      }
+
       if (user) {
         const today = new Date().toISOString().split("T")[0];
         try {
@@ -399,7 +708,7 @@ export async function POST(req: NextRequest) {
       level || undefined,
       contentChunkBlock || undefined,
       questionText || undefined,
-    );
+    ) + injectionGuard;
 
     // ── Stage 4: Prepare messages ─────────────────────────────────────
     const contextPrefix =
@@ -408,24 +717,39 @@ export async function POST(req: NextRequest) {
         : "";
 
     const formattedMessages = messages.map(
-      (msg: { role: string; content: string; imageUrl?: string }, i: number) => {
+      (msg: { role: string; content: string; imageUrl?: string; imageUrls?: string[] }, i: number) => {
         const isLast = i === messages.length - 1 && msg.role === "user";
         const textContent = isLast ? contextPrefix + msg.content : msg.content;
 
-        if (msg.imageUrl && msg.role === "user") {
+        // Collect every attached image (multi-page PDFs carry several).
+        const images =
+          msg.imageUrls && msg.imageUrls.length > 0
+            ? msg.imageUrls
+            : msg.imageUrl
+              ? [msg.imageUrl]
+              : [];
+
+        if (images.length > 0 && msg.role === "user") {
           const parts: Array<
             | { type: "text"; text: string }
             | { type: "image_url"; image_url: { url: string; detail: "high" } }
           > = [];
 
-          parts.push({
-            type: "image_url" as const,
-            image_url: { url: msg.imageUrl, detail: "high" as const },
-          });
+          for (const url of images) {
+            parts.push({
+              type: "image_url" as const,
+              image_url: { url, detail: "high" as const },
+            });
+          }
 
+          const multi = images.length > 1;
           parts.push({
             type: "text" as const,
-            text: textContent || "Look at this maths question in the image. Read it carefully, then solve it step by step showing all working out.",
+            text:
+              textContent ||
+              (multi
+                ? "These images are the pages of one maths question sheet. Read them in order, then solve the question(s) step by step showing all working out."
+                : "Look at this maths question in the image. Read it carefully, then solve it step by step showing all working out."),
           });
 
           return { role: msg.role as "user", content: parts };
@@ -463,6 +787,7 @@ export async function POST(req: NextRequest) {
     try {
       const solverResult = await claudeSolve(systemPrompt, anthropicMessages);
       rawContent = solverResult.content;
+      recordClaude(solverResult);
     } catch (claudeErr) {
       // Fallback to GPT-4o if Claude is unavailable
       console.warn(`[Pass 1] Claude failed, falling back to GPT-4o: ${(claudeErr as Error).message}`);
@@ -476,6 +801,7 @@ export async function POST(req: NextRequest) {
         ],
       });
       rawContent = fallbackResponse.choices[0]?.message?.content || "";
+      recordOpenAI("gpt-4o", fallbackResponse);
     }
 
     // ── Validate solver output (Zod + required visuals) ───────────────
@@ -497,11 +823,47 @@ export async function POST(req: NextRequest) {
       try {
         const retryResult = await claudeSolve(systemPrompt, retryAnthropicMessages);
         rawContent = retryResult.content;
+        recordClaude(retryResult);
       } catch {
         // If retry also fails, keep original rawContent
       }
 
       result = validateResponse(rawContent, requiredBlockTypes);
+    }
+
+    // ── Continuity-aware retry: fix unexplained jumps in the working ──
+    // If the schema-valid solution skips steps (latexBefore ≠ previous
+    // latexAfter, or missing explanations), regenerate ONCE with the specific
+    // gaps fed back. Accept the retry only if it reduces the number of jumps.
+    if (result.ok && result.data) {
+      const continuityIssues = validateNoMissingSteps(result.data);
+      if (continuityIssues.length > 0) {
+        console.log(
+          `[Pass 1] ${continuityIssues.length} continuity gap(s) — retrying for missing steps`,
+        );
+        const continuityMessages = convertToAnthropicMessages([
+          ...formattedMessages,
+          { role: "assistant" as const, content: rawContent },
+          { role: "user" as const, content: buildContinuityRetryMessage(continuityIssues) },
+        ]);
+
+        try {
+          const retry = await claudeSolve(systemPrompt, continuityMessages);
+          const retryResult = validateResponse(retry.content, requiredBlockTypes);
+          if (retryResult.ok && retryResult.data) {
+            const retryIssues = validateNoMissingSteps(retryResult.data);
+            if (retryIssues.length < continuityIssues.length) {
+              console.log(
+                `[Pass 1] Continuity retry improved: ${continuityIssues.length} → ${retryIssues.length} gap(s)`,
+              );
+              result = retryResult;
+              rawContent = retry.content;
+            }
+          }
+        } catch {
+          // Keep the original solution if the retry fails.
+        }
+      }
     }
 
     // If still invalid, return fallback
@@ -626,6 +988,7 @@ export async function POST(req: NextRequest) {
         { role: "user" as const, content: criticUserMessage },
       ],
     });
+    recordOpenAI(CRITIC_MODEL, criticResponse);
 
     const criticRaw = criticResponse.choices[0]?.message?.content || "";
     const criticResult = parseCriticResponse(criticRaw);
@@ -661,6 +1024,7 @@ export async function POST(req: NextRequest) {
         try {
           const correctionResult = await claudeSolve(systemPrompt, correctionAnthropicMessages);
           correctedContent = correctionResult.content;
+          recordClaude(correctionResult);
         } catch {
           // Fall back to GPT-4o for correction
           const fallback = await openai.chat.completions.create({
@@ -675,6 +1039,7 @@ export async function POST(req: NextRequest) {
             ],
           });
           correctedContent = fallback.choices[0]?.message?.content || "";
+          recordOpenAI("gpt-4o", fallback);
         }
         const correctedResult = validateResponse(
           correctedContent,
@@ -805,6 +1170,16 @@ export async function POST(req: NextRequest) {
         console.warn("[Cache] Write failed:", (err as Error).message);
       });
     }
+
+    logAiUsage({
+      userId: user?.id,
+      mode: hintMode ? "hint" : "solve",
+      category: effectiveCategory,
+      level: level || "GCSE",
+      tier: tier || null,
+      confidence: verification.confidence,
+      calls: aiCalls,
+    });
 
     controller.close();
 

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShieldCheck, ChevronRight, RotateCcw, Sparkles } from "lucide-react";
+import { ShieldCheck, ChevronRight, RotateCcw, Sparkles, AlertTriangle } from "lucide-react";
 import type { WhiteboardResponse, EquationStep, VisualBlock } from "@/types/whiteboard";
 import BlockRenderer from "./BlockRenderer";
 import InlineMath from "@/components/InlineMath";
@@ -13,6 +13,8 @@ import TeacherMarkOverlay from "./TeacherMarkOverlay";
 import WhyExpander from "./blocks/WhyExpander";
 import TextRenderer from "./blocks/TextRenderer";
 import { estimateMathWriteMs } from "@/lib/handwriting";
+import { getVerificationBadge, type VerificationBadge } from "@/lib/verification-badge";
+import { useLessonProgress } from "@/lib/hooks/useLessonProgress";
 
 // ── Card types ────────────────────────────────────────────────────────────────
 
@@ -20,7 +22,7 @@ type Card =
   | { kind: "intro"; intro: string; topic?: string; subject?: string; image?: string }
   | { kind: "step"; step: EquationStep; index: number; total: number }
   | { kind: "visual"; block: VisualBlock; blockIndex: number }
-  | { kind: "answer"; conclusion: string; casVerified?: boolean; groundTruth?: string; agreementCount?: number }
+  | { kind: "answer"; conclusion: string; groundTruth?: string; badge: VerificationBadge | null }
   | { kind: "insight"; hint?: string | null; keyTakeaway?: string; examTip?: string };
 
 function buildCards(data: WhiteboardResponse): Card[] {
@@ -49,9 +51,8 @@ function buildCards(data: WhiteboardResponse): Card[] {
   cards.push({
     kind: "answer",
     conclusion: data.conclusion,
-    casVerified: data.casVerified,
     groundTruth: data.sympyAnswer,
-    agreementCount: data.verification?.agreementCount,
+    badge: getVerificationBadge(data),
   });
 
   if (data.hint || data.keyTakeaway || data.examTip) {
@@ -72,6 +73,10 @@ interface Props {
   data: WhiteboardResponse;
   /** When true, all cards are shown immediately — no step-through. */
   revealAll?: boolean;
+  /** When true, save/restore playback position for signed-in users. */
+  persist?: boolean;
+  /** Progress kind label ('solve' | 'lesson' | 'teacher'). */
+  persistKind?: string;
   /** When true, maths and text write in letter by letter as each card appears. */
   writeIn?: boolean;
 }
@@ -79,6 +84,8 @@ interface Props {
 export default function WhiteboardRenderer({
   data,
   revealAll = false,
+  persist = false,
+  persistKind = "solve",
   writeIn = false,
 }: Props) {
   const [sessionKey, setSessionKey] = useState(0);
@@ -89,12 +96,37 @@ export default function WhiteboardRenderer({
   const answerIndex = cards.findIndex((c) => c.kind === "answer");
   const allRevealed = revealed >= cards.length;
 
+  const persistEnabled = persist && !revealAll;
+
+  const handleResume = useCallback(
+    (pos: number) => {
+      // Only jump forward if the student hasn't already advanced past the start.
+      setRevealed((r) => (r <= 1 ? Math.min(Math.max(pos, 1), cards.length) : r));
+    },
+    [cards.length],
+  );
+
+  const { save } = useLessonProgress({
+    enabled: persistEnabled,
+    data,
+    totalSteps: cards.length,
+    kind: persistKind,
+    title: data.topic || data.intro?.slice(0, 80) || null,
+    onResume: handleResume,
+  });
+
   // Reset when data changes
   useEffect(() => {
     setRevealed(revealAll ? Infinity : 1);
     setShowCelebration(false);
     setSessionKey((k) => k + 1);
   }, [data, revealAll]);
+
+  // Persist playback position as the student advances.
+  useEffect(() => {
+    if (!persistEnabled || revealed <= 1) return;
+    save(Math.min(revealed, cards.length), revealed >= cards.length);
+  }, [revealed, persistEnabled, cards.length, save]);
 
   const revealNext = useCallback(() => {
     setRevealed((r) => {
@@ -431,17 +463,24 @@ function VisualCard({
   writeIn: boolean;
 }) {
   const label = card.block.type.replace(/_/g, " ");
+
+  // Text blocks (including lesson-section headers) render their own styling —
+  // no need for the generic "text" type label above them.
+  if (card.block.type === "text") {
+    return (
+      <div className="rounded-2xl overflow-hidden">
+        <TextRenderer block={card.block} writeIn={writeIn} />
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
       <div className="px-5 pt-3 pb-1 text-[11px] font-medium text-gray-400 capitalize">
         {label}
       </div>
       <div className="px-4 pb-4">
-        {writeIn && card.block.type === "text" ? (
-          <TextRenderer block={card.block} writeIn />
-        ) : (
-          <BlockRenderer block={card.block} index={card.blockIndex} baseDelay={0} />
-        )}
+        <BlockRenderer block={card.block} index={card.blockIndex} baseDelay={0} />
       </div>
     </div>
   );
@@ -486,17 +525,52 @@ function AnswerCard({
           )}
         </div>
 
-        {/* Verification */}
-        {card.casVerified && (
-          <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/70">
-            <ShieldCheck size={12} />
-            Independently verified
-            {card.agreementCount !== undefined && card.agreementCount > 0 &&
-              ` · ${card.agreementCount}/4 checks passed`}
-          </div>
-        )}
+        {/* Verification — honest gating */}
+        {card.badge && <VerificationLine badge={card.badge} onDark />}
       </div>
     </motion.div>
+  );
+}
+
+// ── Verification badge line ───────────────────────────────────────────────────
+
+function VerificationLine({
+  badge,
+  onDark = false,
+}: {
+  badge: VerificationBadge;
+  onDark?: boolean;
+}) {
+  const positive = badge.level === "verified" || badge.level === "checked";
+
+  if (onDark) {
+    // Rendered on the emerald answer card — keep it subtle/white.
+    return (
+      <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/80">
+        {positive ? <ShieldCheck size={12} /> : <AlertTriangle size={12} />}
+        {badge.label}
+        {badge.detail && ` · ${badge.detail}`}
+      </div>
+    );
+  }
+
+  const cls =
+    badge.level === "verified"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : badge.level === "checked"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : badge.level === "caution"
+      ? "text-amber-700 bg-amber-50 border-amber-200"
+      : "text-rose-700 bg-rose-50 border-rose-200";
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${cls}`}
+    >
+      {positive ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
+      {badge.label}
+      {badge.detail && <span className="opacity-70">· {badge.detail}</span>}
+    </div>
   );
 }
 

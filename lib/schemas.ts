@@ -300,10 +300,22 @@ export const ColumnMethodBlockSchema = z.object({
 
 // ── Text Block ────────────────────────────────────────────────────────────────
 
+export const LessonSectionSchema = z.enum([
+  "objective",
+  "prerequisites",
+  "vocabulary",
+  "rule",
+  "example",
+  "mistakes",
+  "recap",
+]);
+
 export const TextBlockSchema = z.object({
   type: z.literal("text"),
   content: z.string(),
   latex: z.string().optional(),
+  section: LessonSectionSchema.optional(),
+  heading: z.string().optional(),
 });
 
 // ── Discriminated Union ───────────────────────────────────────────────────────
@@ -325,7 +337,7 @@ export const VisualBlockSchema = z.discriminatedUnion("type", [
 
 export const WhiteboardResponseSchema = z.object({
   intro: z.string(),
-  blocks: z.array(VisualBlockSchema).min(1).max(15),
+  blocks: z.array(VisualBlockSchema).min(1).max(20),
   conclusion: z.string(),
   hint: z.string().optional().nullable(),
   subject: z.string().optional(),

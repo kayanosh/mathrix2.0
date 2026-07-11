@@ -13,6 +13,7 @@ import {
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
 import { deepRepairStrings } from "@/lib/validate";
+import { detectPromptInjection, INJECTION_GUARD } from "@/lib/input-safety";
 import type { VisualBlock } from "@/types/whiteboard";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -140,7 +141,7 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "answer": "the final answer"
 }
 Use 2-5 steps. Omit "table" entirely if it would not help.
-${englishExplainExtra(subject, topic, subtopics)}`;
+${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(question) ? "\n\n" + INJECTION_GUARD : ""}`;
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         response_format: { type: "json_object" },

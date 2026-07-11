@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu, Sigma } from "lucide-react";
 import Link from "next/link";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -19,6 +19,16 @@ import TierSelector from "./TierSelector";
 import SkillMap from "./SkillMap";
 import { recordSkillAttempt } from "@/lib/skills";
 import { COMPANY } from "@/lib/company";
+import {
+  isPdfFile,
+  fileToDataUrl,
+  compressImageDataUrl,
+  pdfFileToImageDataUrls,
+  MAX_IMAGE_BYTES,
+  MAX_PDF_BYTES,
+} from "@/lib/file-input";
+import { wrapLatexForSend } from "@/lib/latex-input";
+import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -124,11 +134,16 @@ export default function ChatInterface() {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingExtraPages, setPendingExtraPages] = useState<string[]>([]);
   const [hintMode, setHintMode] = useState(false);
+  const [teachMode, setTeachMode] = useState(false);
+  const [latexMode, setLatexMode] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
   const [showSkillMap, setShowSkillMap] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Auth + usage state
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -283,47 +298,59 @@ export default function ChatInterface() {
     localStorage.setItem(ANON_PROMPT_KEY, JSON.stringify({ date: today, count: current + 1 }));
   };
 
-  /** Compress image to fit within max dimensions and quality */
-  const compressImage = useCallback((dataUrl: string, maxDim = 1200, quality = 0.7): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = () => resolve(dataUrl); // fallback to original
-      img.src = dataUrl;
-    });
-  }, []);
-
-  /** Convert selected file to base64 data URI */
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Handle a selected file — photo/camera image OR a PDF question sheet.
+   * PDFs are rasterised (page 1) into an image so they flow through the same
+   * vision pipeline. Everything ends up as a compressed JPEG data URI.
+   */
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image must be under 10 MB");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const raw = reader.result as string;
-      const compressed = await compressImage(raw);
-      setPendingImage(compressed);
-    };
-    reader.readAsDataURL(file);
     e.target.value = "";
-  }, [compressImage]);
+    if (!file) return;
+
+    try {
+      if (isPdfFile(file)) {
+        if (file.size > MAX_PDF_BYTES) {
+          alert("PDF must be under 20 MB");
+          return;
+        }
+        setFileBusy(true);
+        const { dataUrls, pageCount } = await pdfFileToImageDataUrls(file);
+        const compressed = await Promise.all(
+          dataUrls.map((d) => compressImageDataUrl(d, 1600, 0.85)),
+        );
+        setPendingImage(compressed[0] ?? null);
+        setPendingExtraPages(compressed.slice(1));
+        if (pageCount > compressed.length) {
+          setInput((prev) =>
+            prev
+              ? prev
+              : `Solve the questions in this PDF (showing the first ${compressed.length} of ${pageCount} pages).`,
+          );
+        }
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        alert("Please choose an image or PDF file.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        alert("Image must be under 10 MB");
+        return;
+      }
+      setFileBusy(true);
+      const raw = await fileToDataUrl(file);
+      const compressed = await compressImageDataUrl(raw);
+      setPendingImage(compressed);
+      setPendingExtraPages([]);
+    } catch (err) {
+      console.error("[Chat] File read failed:", err);
+      alert("Sorry, I couldn't read that file. Try a clear photo instead.");
+    } finally {
+      setFileBusy(false);
+    }
+  }, []);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevMsgCountRef = useRef(0);
@@ -341,8 +368,35 @@ export default function ChatInterface() {
     prevMsgCountRef.current = messages.length;
   }, [messages, loading]);
 
+  const clearPendingImage = useCallback(() => {
+    setPendingImage(null);
+    setPendingExtraPages([]);
+  }, []);
+
+  // ── Voice dictation (Web Speech API) ─────────────────────
+  const speechBaseRef = useRef("");
+  const { supported: micSupported, listening: micListening, start: startMic, stop: stopMic } =
+    useSpeechRecognition({
+      onResult: (transcript) => {
+        const base = speechBaseRef.current;
+        setInput(base ? `${base} ${transcript}` : transcript);
+      },
+    });
+  const handleMicToggle = useCallback(() => {
+    if (micListening) {
+      stopMic();
+    } else {
+      speechBaseRef.current = input.trim();
+      startMic();
+    }
+  }, [micListening, startMic, stopMic, input]);
+
   const sendMessage = async (text?: string) => {
-    const content = text || input.trim();
+    // In LaTeX mode, wrap the student's typed expression in $...$ so the whole
+    // pipeline treats it as maths. Suggestion chips (which pass `text`) are
+    // sent verbatim.
+    const content =
+      text ?? (latexMode ? wrapLatexForSend(input) : input.trim());
     if (!content && !pendingImage) return;
     if (loading) return;
 
@@ -364,30 +418,47 @@ export default function ChatInterface() {
     }
 
     const imageUrl = pendingImage || undefined;
+    // Teach-me-a-topic mode: the input is a topic, not a question.
+    const isLesson = teachMode && !imageUrl && !!content;
+    const allImages = pendingImage ? [pendingImage, ...pendingExtraPages] : [];
+    const imageUrls = allImages.length > 1 ? allImages : undefined;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: content || (imageUrl ? "Solve this question from the photo" : ""),
+      content: isLesson
+        ? `Teach me: ${content}`
+        : content || (imageUrl ? "Solve this question from the photo" : ""),
       imageUrl,
+      imageUrls,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setPendingImage(null);
+    setPendingExtraPages([]);
     setLoading(true);
 
     try {
       const history = [
-        ...messages.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl })),
-        { role: "user", content: userMsg.content, imageUrl: userMsg.imageUrl },
+        ...messages.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl, imageUrls: m.imageUrls })),
+        { role: "user", content: userMsg.content, imageUrl: userMsg.imageUrl, imageUrls: userMsg.imageUrls },
       ];
 
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history, level, examBoard, tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined, subject: selectedSubject, hintMode }),
+        body: JSON.stringify({
+          messages: history,
+          level,
+          examBoard,
+          tier: level === "GCSE" ? (localStorage.getItem("mathrix_gcse_tier") || "higher") : undefined,
+          subject: selectedSubject,
+          hintMode: isLesson ? false : hintMode,
+          lessonMode: isLesson,
+          topic: isLesson ? content : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -784,13 +855,24 @@ export default function ChatInterface() {
           loading={loading}
           pendingImage={pendingImage}
           setPendingImage={setPendingImage}
+          pendingExtraCount={pendingExtraPages.length}
+          clearPendingImage={clearPendingImage}
           fileInputRef={fileInputRef}
+          cameraInputRef={cameraInputRef}
           inputRef={inputRef}
           handleImageSelect={handleImageSelect}
           handleKeyDown={handleKeyDown}
           sendMessage={sendMessage}
           hintMode={hintMode}
           setHintMode={setHintMode}
+          teachMode={teachMode}
+          setTeachMode={setTeachMode}
+          latexMode={latexMode}
+          setLatexMode={setLatexMode}
+          fileBusy={fileBusy}
+          micSupported={micSupported}
+          micListening={micListening}
+          onMicToggle={handleMicToggle}
           onShowSkillMap={() => setShowSkillMap(true)}
         />
       ) : (
@@ -839,22 +921,43 @@ export default function ChatInterface() {
             loading={loading}
             pendingImage={pendingImage}
             setPendingImage={setPendingImage}
+            pendingExtraCount={pendingExtraPages.length}
+            clearPendingImage={clearPendingImage}
             fileInputRef={fileInputRef}
+            cameraInputRef={cameraInputRef}
             inputRef={inputRef}
             handleImageSelect={handleImageSelect}
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
             hintMode={hintMode}
             setHintMode={setHintMode}
+            teachMode={teachMode}
+            setTeachMode={setTeachMode}
+            latexMode={latexMode}
+            setLatexMode={setLatexMode}
+            fileBusy={fileBusy}
+            micSupported={micSupported}
+            micListening={micListening}
+            onMicToggle={handleMicToggle}
           />
         </>
       )}
 
-      {/* Hidden file input */}
+      {/* Hidden file input — photos and PDF question sheets */}
       <input
         ref={fileInputRef}
         type="file"
+        accept="image/*,application/pdf"
+        onChange={handleImageSelect}
+        className="hidden"
+      />
+
+      {/* Hidden camera input — opens the rear camera directly on mobile */}
+      <input
+        ref={cameraInputRef}
+        type="file"
         accept="image/*"
+        capture="environment"
         onChange={handleImageSelect}
         className="hidden"
       />
@@ -892,21 +995,70 @@ interface InputProps {
   loading: boolean;
   pendingImage: string | null;
   setPendingImage: (v: string | null) => void;
+  pendingExtraCount: number;
+  clearPendingImage: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  cameraInputRef: React.RefObject<HTMLInputElement | null>;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
   sendMessage: (text?: string) => void;
   hintMode: boolean;
   setHintMode: (v: boolean) => void;
+  teachMode: boolean;
+  setTeachMode: (v: boolean) => void;
+  latexMode: boolean;
+  setLatexMode: (v: boolean) => void;
+  fileBusy: boolean;
+  micSupported: boolean;
+  micListening: boolean;
+  onMicToggle: () => void;
   onShowSkillMap?: () => void;
+}
+
+/* Segmented mode toggle: Solve it · Hint · Teach me a topic */
+function ModeToggle({
+  hintMode,
+  setHintMode,
+  teachMode,
+  setTeachMode,
+}: {
+  hintMode: boolean;
+  setHintMode: (v: boolean) => void;
+  teachMode: boolean;
+  setTeachMode: (v: boolean) => void;
+}) {
+  const solveActive = !hintMode && !teachMode;
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
+      <button
+        onClick={() => { setHintMode(false); setTeachMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${solveActive ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
+      >
+        Solve it
+      </button>
+      <button
+        onClick={() => { setHintMode(true); setTeachMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode && !teachMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
+      >
+        Hint only
+      </button>
+      <button
+        onClick={() => { setTeachMode(true); setHintMode(false); }}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${teachMode ? "bg-white text-indigo-700 shadow-sm" : "text-gray-400"}`}
+      >
+        Teach me a topic
+      </button>
+    </div>
+  );
 }
 
 function HeroLanding(props: InputProps) {
   const {
-    input, setInput, loading, pendingImage, setPendingImage,
-    fileInputRef, inputRef, handleKeyDown, sendMessage,
-    hintMode, setHintMode, onShowSkillMap,
+    input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
+    fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
+    hintMode, setHintMode, teachMode, setTeachMode, latexMode, setLatexMode, fileBusy,
+    micSupported, micListening, onMicToggle, onShowSkillMap,
   } = props;
 
   return (
@@ -945,12 +1097,28 @@ function HeroLanding(props: InputProps) {
               alt="Upload preview"
               className="h-20 rounded-xl border border-gray-200 object-cover"
             />
+            {pendingExtraCount > 0 && (
+              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
+                +{pendingExtraCount} {pendingExtraCount === 1 ? "page" : "pages"}
+              </span>
+            )}
             <button
-              onClick={() => setPendingImage(null)}
+              onClick={clearPendingImage}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-400 transition-colors"
             >
               <X size={10} className="text-white" />
             </button>
+          </div>
+        )}
+
+        {latexMode && input.trim() && (
+          <div className="mb-3 w-full flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-left">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 flex-shrink-0">
+              LaTeX
+            </span>
+            <div className="text-gray-800 overflow-x-auto">
+              <InlineMath text={wrapLatexForSend(input)} />
+            </div>
           </div>
         )}
 
@@ -966,7 +1134,7 @@ function HeroLanding(props: InputProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a GCSE maths question..."
+            placeholder={teachMode ? "Enter a topic to learn — e.g. Pythagoras' theorem" : latexMode ? "Type LaTeX, e.g. \\frac{1}{2} + x^2" : "Ask a GCSE maths question..."}
             rows={1}
             className="flex-1 bg-transparent text-gray-900 pl-4 sm:pl-5 pr-2 py-3 sm:py-4 text-sm sm:text-base resize-none focus:outline-none placeholder-gray-400"
             style={{ minHeight: 46, maxHeight: 120, fieldSizing: "content" } as React.CSSProperties}
@@ -974,18 +1142,41 @@ function HeroLanding(props: InputProps) {
           <div className="flex items-center gap-1.5 mr-2">
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={loading}
+              disabled={loading || fileBusy}
               className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30"
-              title="Upload a photo"
+              title="Upload a photo or PDF"
             >
-              <ImagePlus size={16} className={pendingImage ? "text-blue-500" : "text-gray-400"} />
+              {fileBusy ? (
+                <Loader2 size={16} className="animate-spin text-gray-400" />
+              ) : (
+                <ImagePlus size={16} className={pendingImage ? "text-blue-500" : "text-gray-400"} />
+              )}
             </button>
             <button
-              className="w-9 h-9 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-              title="Voice input"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={loading || fileBusy}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30"
+              title="Scan with camera"
             >
-              <Mic size={16} />
+              <Camera size={16} className="text-gray-400" />
             </button>
+            <button
+              onClick={() => setLatexMode(!latexMode)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 ${latexMode ? "bg-indigo-50" : ""}`}
+              title="Type LaTeX"
+            >
+              <Sigma size={16} className={latexMode ? "text-indigo-500" : "text-gray-400"} />
+            </button>
+            {micSupported && (
+              <button
+                onClick={onMicToggle}
+                disabled={loading}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30 ${micListening ? "bg-red-50" : ""}`}
+                title={micListening ? "Stop dictation" : "Dictate your question"}
+              >
+                <Mic size={16} className={micListening ? "text-red-500 animate-pulse" : "text-gray-400"} />
+              </button>
+            )}
             <button
               onClick={() => sendMessage()}
               disabled={(!input.trim() && !pendingImage) || loading}
@@ -1008,11 +1199,13 @@ function HeroLanding(props: InputProps) {
         </div>
 
         {/* Press Enter hint */}
-        <p className="text-gray-400 text-sm mt-3">Press Enter to solve</p>
+        <p className="text-gray-400 text-sm mt-3">{teachMode ? "Press Enter to start the lesson" : "Press Enter to solve"}</p>
 
         {/* Bot helper text */}
         <p className="text-gray-500 text-sm mt-4">
-          I&apos;ll solve it step by step and explain every mark.
+          {teachMode
+            ? "I'll teach the whole topic step by step — from the basics to worked examples."
+            : "I'll solve it step by step and explain every mark."}
         </p>
 
         {/* Suggestion chip */}
@@ -1020,7 +1213,7 @@ function HeroLanding(props: InputProps) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.4 }}
-          onClick={() => sendMessage("Solve x² − 5x − 6 = 0")}
+          onClick={() => sendMessage(teachMode ? "Pythagoras' theorem" : "Solve x² − 5x − 6 = 0")}
           className="mt-5 group flex items-center gap-2 text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <span className="text-gray-400">Try:</span>
@@ -1032,32 +1225,24 @@ function HeroLanding(props: InputProps) {
               color: "#374151",
             }}
           >
-            Solve x² − 5x − 6 = 0
+            {teachMode ? "Teach me Pythagoras' theorem" : "Solve x² − 5x − 6 = 0"}
             <ArrowRight size={14} className="text-gray-400" />
           </span>
         </motion.button>
 
-        {/* Hint mode + My progress */}
+        {/* Mode toggle + My progress */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5, duration: 0.4 }}
           className="mt-4 flex items-center gap-3"
         >
-          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
-            <button
-              onClick={() => setHintMode(false)}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
-            >
-              Solve it
-            </button>
-            <button
-              onClick={() => setHintMode(true)}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
-            >
-              Hint only
-            </button>
-          </div>
+          <ModeToggle
+            hintMode={hintMode}
+            setHintMode={setHintMode}
+            teachMode={teachMode}
+            setTeachMode={setTeachMode}
+          />
           {onShowSkillMap && (
             <button
               onClick={onShowSkillMap}
@@ -1085,7 +1270,7 @@ function HeroLanding(props: InputProps) {
           }}
         >
           <Camera size={14} />
-          Upload a photo instead
+          Upload a photo or PDF
         </button>
 
         {/* Legal + company links */}
@@ -1108,9 +1293,10 @@ function HeroLanding(props: InputProps) {
 /* ─────────────────────────────────────────────────────── */
 function ChatInputBar(props: InputProps) {
   const {
-    input, setInput, loading, pendingImage, setPendingImage,
-    fileInputRef, inputRef, handleKeyDown, sendMessage,
-    hintMode, setHintMode,
+    input, setInput, loading, pendingImage, pendingExtraCount, clearPendingImage,
+    fileInputRef, cameraInputRef, inputRef, handleKeyDown, sendMessage,
+    hintMode, setHintMode, teachMode, setTeachMode, latexMode, setLatexMode, fileBusy,
+    micSupported, micListening, onMicToggle,
   } = props;
 
   return (
@@ -1125,12 +1311,28 @@ function ChatInputBar(props: InputProps) {
               alt="Upload preview"
               className="h-20 rounded-xl border border-gray-200 object-cover"
             />
+            {pendingExtraCount > 0 && (
+              <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
+                +{pendingExtraCount} {pendingExtraCount === 1 ? "page" : "pages"}
+              </span>
+            )}
             <button
-              onClick={() => setPendingImage(null)}
+              onClick={clearPendingImage}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-400 transition-colors"
             >
               <X size={10} className="text-white" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {latexMode && input.trim() && (
+        <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/60 px-3 py-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 flex-shrink-0">
+            LaTeX
+          </span>
+          <div className="text-gray-800 overflow-x-auto">
+            <InlineMath text={wrapLatexForSend(input)} />
           </div>
         </div>
       )}
@@ -1146,19 +1348,48 @@ function ChatInputBar(props: InputProps) {
         >
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
+            disabled={loading || fileBusy}
             className="flex-shrink-0 mb-2 ml-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30"
-            title="Upload a photo"
+            title="Upload a photo or PDF"
           >
-            <ImagePlus size={16} className={pendingImage ? "text-emerald-500" : "text-gray-400"} />
+            {fileBusy ? (
+              <Loader2 size={16} className="animate-spin text-gray-400" />
+            ) : (
+              <ImagePlus size={16} className={pendingImage ? "text-emerald-500" : "text-gray-400"} />
+            )}
           </button>
+          <button
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={loading || fileBusy}
+            className="flex-shrink-0 mb-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30"
+            title="Scan with camera"
+          >
+            <Camera size={16} className="text-gray-400" />
+          </button>
+          <button
+            onClick={() => setLatexMode(!latexMode)}
+            className={`flex-shrink-0 mb-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 ${latexMode ? "bg-indigo-50" : ""}`}
+            title="Type LaTeX"
+          >
+            <Sigma size={16} className={latexMode ? "text-indigo-500" : "text-gray-400"} />
+          </button>
+          {micSupported && (
+            <button
+              onClick={onMicToggle}
+              disabled={loading}
+              className={`flex-shrink-0 mb-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all hover:bg-gray-100 active:scale-95 disabled:opacity-30 ${micListening ? "bg-red-50" : ""}`}
+              title={micListening ? "Stop dictation" : "Dictate your question"}
+            >
+              <Mic size={16} className={micListening ? "text-red-500 animate-pulse" : "text-gray-400"} />
+            </button>
+          )}
 
           <textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question — e.g. Solve 3x − 7 = 14"
+            placeholder={teachMode ? "Enter a topic to learn — e.g. Fractions" : latexMode ? "Type LaTeX, e.g. \\frac{1}{2} + x^2" : "Ask a question — e.g. Solve 3x − 7 = 14"}
             rows={1}
             className="flex-1 bg-transparent text-gray-900 px-2 py-3.5 text-base resize-none focus:outline-none placeholder-gray-400"
             style={{ minHeight: 54, maxHeight: 180, fieldSizing: "content" } as React.CSSProperties}
@@ -1185,21 +1416,13 @@ function ChatInputBar(props: InputProps) {
         </div>
       </div>
       <div className="flex items-center justify-center gap-3 mt-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
-          <button
-            onClick={() => setHintMode(false)}
-            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${!hintMode ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
-          >
-            Solve it
-          </button>
-          <button
-            onClick={() => setHintMode(true)}
-            className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
-          >
-            Hint only
-          </button>
-        </div>
-        <span className="text-[11px] text-gray-400">Enter to send · 📷 photo</span>
+        <ModeToggle
+          hintMode={hintMode}
+          setHintMode={setHintMode}
+          teachMode={teachMode}
+          setTeachMode={setTeachMode}
+        />
+        <span className="text-[11px] text-gray-400">Enter to send · 📷 photo/PDF · ∑ LaTeX</span>
       </div>
     </div>
   );
@@ -1232,14 +1455,20 @@ function MessageBubble({
             boxShadow: "0 2px 12px rgba(5,150,105,0.2)",
           }}
         >
-          {message.imageUrl && (
+          {(message.imageUrls && message.imageUrls.length > 1
+            ? message.imageUrls
+            : message.imageUrl
+              ? [message.imageUrl]
+              : []
+          ).map((src, i) => (
             <img
-              src={message.imageUrl}
-              alt="Uploaded question"
+              key={i}
+              src={src}
+              alt={`Uploaded question${message.imageUrls && message.imageUrls.length > 1 ? ` page ${i + 1}` : ""}`}
               className="rounded-xl mb-2.5 max-h-48 object-contain w-full"
               style={{ border: "1px solid rgba(255,255,255,0.2)" }}
             />
-          )}
+          ))}
           {message.content}
         </div>
         <div
@@ -1284,7 +1513,7 @@ function MessageBubble({
       >
         {whiteboardResponse ? (
           <>
-            <WhiteboardRenderer data={whiteboardResponse} />
+            <WhiteboardRenderer data={whiteboardResponse} persist />
             {onWatchWhiteboard && (
               <motion.button
                 initial={{ opacity: 0, y: 4 }}
