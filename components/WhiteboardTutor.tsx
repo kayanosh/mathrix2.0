@@ -20,10 +20,21 @@ import type {
   EquationStepBlock,
 } from "@/types/whiteboard";
 import BlockRenderer from "./whiteboard/BlockRenderer";
+import ColumnMethodRenderer from "./whiteboard/blocks/ColumnMethodRenderer";
+import TextRenderer from "./whiteboard/blocks/TextRenderer";
 import MathRenderer from "./MathRenderer";
+import MathWriteIn from "./whiteboard/MathWriteIn";
+import HandwrittenInline from "./whiteboard/HandwrittenInline";
 import InlineMath from "./InlineMath";
 import TermTransferArrow from "./whiteboard/TermTransferArrow";
-import { buildNarrationPlan, type NarrationCue } from "@/lib/narration";
+import TeacherMarkOverlay from "./whiteboard/TeacherMarkOverlay";
+import { buildNarrationPlan } from "@/lib/narration";
+import { buildColumnRevealTimeline } from "@/lib/column-reveal";
+import {
+  estimateColumnStepWriteMs,
+  estimateMathWriteMs,
+  estimateTextWriteMs,
+} from "@/lib/handwriting";
 import { getVerificationBadge } from "@/lib/verification-badge";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -35,6 +46,7 @@ interface Props {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+/** Fallback pause before narration when no write-time estimate exists. */
 const WRITE_MS = 900;
 const POINTER_SIZE = 36;
 
@@ -337,55 +349,12 @@ function EquationStepsOverlay({
                 )}
 
                 {/* Single equation line */}
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{
-                    opacity: isActive ? 1 : 0.5,
-                    x: 0,
-                  }}
-                  transition={{ duration: 0.35, ease: "easeOut" }}
-                  className={`wb-equation-line flex items-center gap-3 py-1.5 px-2 rounded-lg ${
-                    isFinal ? "wb-final-answer" : ""
-                  }`}
-                >
-                  <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
-                    {step.stepNumber})
-                  </span>
-                  <div
-                    className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}
-                  >
-                    {(isFirst
-                      ? step.latexBefore || step.latexAfter
-                      : step.latexAfter) ? (
-                      <MathRenderer
-                        latex={
-                          isFirst
-                            ? step.latexBefore || step.latexAfter
-                            : step.latexAfter
-                        }
-                        display
-                      />
-                    ) : (
-                      <span className="font-[family-name:var(--font-caveat)] text-lg">
-                        <InlineMath text={step.explanation} />
-                      </span>
-                    )}
-                  </div>
-                  {isFinal && isActive && (
-                    <motion.span
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{
-                        delay: 0.3,
-                        type: "spring",
-                        stiffness: 300,
-                      }}
-                      className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                </motion.div>
+                <OverlaySingleLine
+                  step={step}
+                  isActive={isActive}
+                  isFinal={isFinal}
+                  isFirst={isFirst}
+                />
               </>
             )}
 
@@ -397,13 +366,86 @@ function EquationStepsOverlay({
                 transition={{ delay: 0.2, duration: 0.3 }}
                 className="wb-explanation font-[family-name:var(--font-caveat)] text-base sm:text-lg ml-6 mb-3 text-gray-600"
               >
-                ↳ <InlineMath text={step.explanation} />
+                ↳ <HandwrittenInline text={step.explanation} startDelay={200} />
               </motion.div>
             )}
           </div>
         );
       })}
     </div>
+  );
+}
+
+/* ── Overlay single equation line (with ref for TeacherMarkOverlay) ─── */
+function OverlaySingleLine({
+  step,
+  isActive,
+  isFinal,
+  isFirst,
+}: {
+  step: import("@/types/whiteboard").EquationStep;
+  isActive: boolean;
+  isFinal: boolean;
+  isFirst: boolean;
+}) {
+  const lineRef = useRef<HTMLDivElement>(null);
+  const latex = isFirst
+    ? step.latexBefore || step.latexAfter
+    : step.latexAfter;
+  // The pen draws marks after the equation has written in.
+  const markDelay = latex ? estimateMathWriteMs(latex) / 1000 + 0.2 : 0.4;
+
+  return (
+    <motion.div
+      ref={lineRef}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{
+        opacity: isActive ? 1 : 0.5,
+        x: 0,
+      }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className={`wb-equation-line relative flex items-center gap-3 py-1.5 px-2 rounded-lg ${
+        isFinal ? "wb-final-answer" : ""
+      }`}
+    >
+      <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
+        {step.stepNumber})
+      </span>
+      <div className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}>
+        {latex ? (
+          <MathWriteIn latex={latex} display />
+        ) : (
+          <span className="font-[family-name:var(--font-caveat)] text-lg">
+            <HandwrittenInline text={step.explanation} />
+          </span>
+        )}
+      </div>
+      {isFinal && isActive && (
+        <motion.span
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            delay: 0.3,
+            type: "spring",
+            stiffness: 300,
+          }}
+          className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
+        >
+          ✓
+        </motion.span>
+      )}
+
+      {/* Teacher pen marks — drawn while this step is being explained */}
+      {isActive &&
+        step.marks?.map((mark, mi) => (
+          <TeacherMarkOverlay
+            key={mark.targetId || mi}
+            containerRef={lineRef}
+            mark={mark}
+            delay={markDelay + mi * 0.4}
+          />
+        ))}
+    </motion.div>
   );
 }
 
@@ -459,7 +501,8 @@ function OverlayStepPairCard({
           {step.stepNumber})
         </span>
         <div className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}>
-          <MathRenderer latex={step.latexAfter} display />
+          {/* The new line writes in; the "before" line above stays static. */}
+          <MathWriteIn latex={step.latexAfter} display />
         </div>
         {isFinal && isActive && (
           <motion.span
@@ -489,6 +532,17 @@ function OverlayStepPairCard({
             color={arrow.color || MARKER.red}
           />
         ))}
+
+      {/* Teacher pen marks — drawn after the new line writes in */}
+      {isActive &&
+        step.marks?.map((mark, mi) => (
+          <TeacherMarkOverlay
+            key={mark.targetId || mi}
+            containerRef={pairRef}
+            mark={mark}
+            delay={estimateMathWriteMs(step.latexAfter) / 1000 + 0.25 + mi * 0.4}
+          />
+        ))}
     </motion.div>
   );
 }
@@ -500,9 +554,60 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
   const totalCues = plan.length;
 
+  // How long the "ink" takes to appear for each cue — narration waits for the
+  // writing to finish, exactly like a teacher who writes, then explains.
+  const writeMsPlan = useMemo(() => {
+    const columnTimelines = new Map<
+      number,
+      ReturnType<typeof buildColumnRevealTimeline>
+    >();
+    data.blocks.forEach((b, bi) => {
+      if (b.type === "column_method") {
+        columnTimelines.set(bi, buildColumnRevealTimeline(b));
+      }
+    });
+
+    return plan.map((cue) => {
+      switch (cue.kind) {
+        case "intro":
+          return estimateTextWriteMs(data.intro || "");
+        case "conclusion":
+          return estimateTextWriteMs(data.conclusion || "");
+        case "text": {
+          const b = data.blocks[cue.blockIndex];
+          return b?.type === "text" ? estimateTextWriteMs(b.content) : WRITE_MS;
+        }
+        case "equation_step": {
+          const b = data.blocks[cue.blockIndex];
+          if (b?.type !== "equation_steps") return WRITE_MS;
+          const step = b.steps[cue.subIndex ?? 0];
+          if (!step) return WRITE_MS;
+          const latex =
+            (cue.subIndex === 0
+              ? step.latexBefore || step.latexAfter
+              : step.latexAfter) || "";
+          return latex
+            ? estimateMathWriteMs(latex)
+            : estimateTextWriteMs(step.explanation || "");
+        }
+        case "column": {
+          const step = columnTimelines.get(cue.blockIndex)?.[cue.subIndex ?? 0];
+          if (!step) return WRITE_MS;
+          return estimateColumnStepWriteMs(
+            step.cellKeys.length + step.carryKeys.length + step.noteKeys.length,
+          );
+        }
+        default:
+          return WRITE_MS;
+      }
+    });
+  }, [plan, data]);
+
   // Playback state
   const [activeCue, setActiveCue] = useState(0);
   const [revealedCue, setRevealedCue] = useState(0);
+  // Bumped on replay so always-mounted elements (intro) re-run their write-in.
+  const [runId, setRunId] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
@@ -556,6 +661,19 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     return map;
   }, [revealedCue, plan, totalCues]);
 
+  // Column-method blocks reveal cell-by-cell: track the highest revealed
+  // teaching-step index per block (cue subIndex maps 1:1 to timeline steps).
+  const columnRevealMap = useMemo(() => {
+    const map = new Map<number, number>();
+    for (let i = 0; i <= revealedCue && i < totalCues; i++) {
+      const cue = plan[i];
+      if (cue.kind === "column" && cue.subIndex !== undefined) {
+        map.set(cue.blockIndex, Math.max(map.get(cue.blockIndex) ?? 0, cue.subIndex));
+      }
+    }
+    return map;
+  }, [revealedCue, plan, totalCues]);
+
   const activeEquationStep = useMemo(() => {
     const cue = plan[activeCue];
     if (cue?.kind === "equation_step")
@@ -591,10 +709,38 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setPointerVisible(true);
   }, [plan]);
 
+  // Glide the pointer along the line as the "pen" writes it.
+  const sweepPointer = useCallback(() => {
+    const cue = plan[activeCueRef.current];
+    if (!cue || cue.blockIndex < 0) return;
+
+    const refKey =
+      cue.subIndex !== undefined
+        ? `block-${cue.blockIndex}-step-${cue.subIndex}`
+        : `block-${cue.blockIndex}`;
+    const el =
+      blockRefs.current.get(refKey) ||
+      blockRefs.current.get(`block-${cue.blockIndex}`);
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    setPointerPos({
+      x: rect.left + Math.min(Math.max(rect.width - 16, 32), 280),
+      y: rect.top + rect.height / 2,
+    });
+  }, [plan]);
+
   useEffect(() => {
     const t = setTimeout(updatePointer, 150);
-    return () => clearTimeout(t);
-  }, [activeCue, updatePointer]);
+    // Start the sweep partway through the write so the spring lands as the
+    // ink finishes.
+    const writeMs = writeMsPlan[activeCue] ?? WRITE_MS;
+    const s = setTimeout(sweepPointer, Math.max(300, writeMs * 0.45));
+    return () => {
+      clearTimeout(t);
+      clearTimeout(s);
+    };
+  }, [activeCue, updatePointer, sweepPointer, writeMsPlan]);
 
   // ── Scroll board to active block ───────────────────────────────────────
 
@@ -668,9 +814,11 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
 
     if (!isPlaying) return;
 
+    // Wait for the handwriting to finish before speaking (scaled by speed).
+    const writeMs = (writeMsPlan[activeCue] ?? WRITE_MS) / speedRef.current;
     writeTimer.current = setTimeout(() => {
       startNarration(activeCue);
-    }, WRITE_MS + 150);
+    }, writeMs + 150);
 
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -720,6 +868,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setIsSpeaking(false);
     setActiveCue(0);
     setRevealedCue(0);
+    setRunId((n) => n + 1);
     setIsPlaying(true);
   };
 
@@ -836,7 +985,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
               transition={{ duration: 0.4 }}
               className="wb-intro font-[family-name:var(--font-caveat)] text-2xl sm:text-3xl leading-snug mb-6 text-gray-700"
             >
-              <InlineMath text={data.intro} />
+              <HandwrittenInline key={runId} text={data.intro} />
             </motion.p>
           )}
 
@@ -915,6 +1064,14 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
                       }
                       setBlockRef={setBlockRef}
                     />
+                  ) : block.type === "column_method" ? (
+                    <ColumnMethodRenderer
+                      block={block}
+                      baseDelay={0}
+                      revealStep={columnRevealMap.get(bi) ?? 0}
+                    />
+                  ) : block.type === "text" ? (
+                    <TextRenderer block={block} writeIn />
                   ) : (
                     <BlockRenderer block={block} index={bi} baseDelay={0} />
                   )}
@@ -937,7 +1094,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
                   className="text-green-600 flex-shrink-0 mt-0.5"
                 />
                 <span className="font-[family-name:var(--font-caveat)] text-xl sm:text-2xl text-green-700">
-                  <InlineMath text={data.conclusion} />
+                  <HandwrittenInline text={data.conclusion} startDelay={300} />
                 </span>
               </motion.div>
             )}
@@ -980,7 +1137,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
                 transition={{ delay: 0.4 }}
                 className="wb-hint mt-4 font-[family-name:var(--font-caveat)] text-lg text-amber-700"
               >
-                💡 <InlineMath text={data.hint} />
+                💡 <HandwrittenInline text={data.hint} startDelay={400} />
               </motion.div>
             )}
           </AnimatePresence>

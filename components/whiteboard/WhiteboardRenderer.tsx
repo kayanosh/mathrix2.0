@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShieldCheck, ChevronRight, RotateCcw, Sparkles, AlertTriangle } from "lucide-react";
 import type { WhiteboardResponse, EquationStep, VisualBlock } from "@/types/whiteboard";
 import BlockRenderer from "./BlockRenderer";
 import InlineMath from "@/components/InlineMath";
 import MathRenderer from "@/components/MathRenderer";
+import HandwrittenInline from "./HandwrittenInline";
+import MathWriteIn from "./MathWriteIn";
+import TeacherMarkOverlay from "./TeacherMarkOverlay";
 import WhyExpander from "./blocks/WhyExpander";
+import TextRenderer from "./blocks/TextRenderer";
+import { estimateMathWriteMs } from "@/lib/handwriting";
 import { getVerificationBadge, type VerificationBadge } from "@/lib/verification-badge";
 import { useLessonProgress } from "@/lib/hooks/useLessonProgress";
 
@@ -72,6 +77,8 @@ interface Props {
   persist?: boolean;
   /** Progress kind label ('solve' | 'lesson' | 'teacher'). */
   persistKind?: string;
+  /** When true, maths and text write in letter by letter as each card appears. */
+  writeIn?: boolean;
 }
 
 export default function WhiteboardRenderer({
@@ -79,6 +86,7 @@ export default function WhiteboardRenderer({
   revealAll = false,
   persist = false,
   persistKind = "solve",
+  writeIn = false,
 }: Props) {
   const [sessionKey, setSessionKey] = useState(0);
   const [revealed, setRevealed] = useState(revealAll ? Infinity : 1);
@@ -167,7 +175,7 @@ export default function WhiteboardRenderer({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
             >
-              <CardShell card={card} />
+              <CardShell card={card} writeIn={writeIn} />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -256,24 +264,30 @@ export default function WhiteboardRenderer({
 
 // ── Card shell: routes to the right card type ─────────────────────────────────
 
-function CardShell({ card }: { card: Card }) {
+function CardShell({ card, writeIn }: { card: Card; writeIn: boolean }) {
   switch (card.kind) {
     case "intro":
-      return <IntroCard card={card} />;
+      return <IntroCard card={card} writeIn={writeIn} />;
     case "step":
-      return <StepCard card={card} />;
+      return <StepCard card={card} writeIn={writeIn} />;
     case "visual":
-      return <VisualCard card={card} />;
+      return <VisualCard card={card} writeIn={writeIn} />;
     case "answer":
-      return <AnswerCard card={card} />;
+      return <AnswerCard card={card} writeIn={writeIn} />;
     case "insight":
-      return <InsightCard card={card} />;
+      return <InsightCard card={card} writeIn={writeIn} />;
   }
 }
 
 // ── Card: Intro / Problem ─────────────────────────────────────────────────────
 
-function IntroCard({ card }: { card: Extract<Card, { kind: "intro" }> }) {
+function IntroCard({
+  card,
+  writeIn,
+}: {
+  card: Extract<Card, { kind: "intro" }>;
+  writeIn: boolean;
+}) {
   return (
     <div className="wb-board rounded-2xl px-6 py-5 relative overflow-hidden">
       <div className="wb-rules pointer-events-none absolute inset-0" />
@@ -285,7 +299,11 @@ function IntroCard({ card }: { card: Extract<Card, { kind: "intro" }> }) {
       )}
 
       <p className="wb-intro font-[family-name:var(--font-caveat)] text-2xl sm:text-3xl leading-snug">
-        <InlineMath text={card.intro} />
+        {writeIn ? (
+          <HandwrittenInline text={card.intro} />
+        ) : (
+          <InlineMath text={card.intro} />
+        )}
       </p>
 
       {card.image && (
@@ -301,10 +319,21 @@ function IntroCard({ card }: { card: Extract<Card, { kind: "intro" }> }) {
 
 // ── Card: Equation Step ───────────────────────────────────────────────────────
 
-function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
+function StepCard({
+  card,
+  writeIn,
+}: {
+  card: Extract<Card, { kind: "step" }>;
+  writeIn: boolean;
+}) {
   const { step, index, total } = card;
   const isFirst = index === 0;
   const isFinal = index === total - 1;
+  const mathsRef = useRef<HTMLDivElement>(null);
+  // Pen marks draw after the equation has been written.
+  const markDelay = writeIn
+    ? estimateMathWriteMs(step.latexAfter || "") / 1000 + 0.2
+    : 0.35;
 
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -332,7 +361,8 @@ function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
 
       {/* The maths — this is the star of the show */}
       <div
-        className={`px-5 py-4 flex flex-col items-center ${
+        ref={mathsRef}
+        className={`px-5 py-4 flex flex-col items-center relative ${
           isFinal ? "bg-emerald-50" : "bg-gray-50/60"
         }`}
       >
@@ -359,7 +389,11 @@ function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
             isFinal ? "scale-110 origin-center" : ""
           }`}
         >
-          <MathRenderer latex={step.latexAfter} display />
+          {writeIn ? (
+            <MathWriteIn latex={step.latexAfter} display />
+          ) : (
+            <MathRenderer latex={step.latexAfter} display />
+          )}
         </div>
 
         {isFinal && (
@@ -372,12 +406,26 @@ function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
             ✓
           </motion.span>
         )}
+
+        {/* Teacher pen marks — circle/underline/box on the key term */}
+        {step.marks?.map((mark, mi) => (
+          <TeacherMarkOverlay
+            key={mark.targetId || mi}
+            containerRef={mathsRef}
+            mark={mark}
+            delay={markDelay + mi * 0.4}
+          />
+        ))}
       </div>
 
       {/* Explanation — typed text below the maths */}
       {step.explanation && !isFirst && (
         <div className="px-5 pt-3 pb-1 text-[13px] text-gray-600 leading-relaxed">
-          <InlineMath text={step.explanation} />
+          {writeIn ? (
+            <HandwrittenInline text={step.explanation} startDelay={250} />
+          ) : (
+            <InlineMath text={step.explanation} />
+          )}
         </div>
       )}
 
@@ -407,16 +455,21 @@ function StepCard({ card }: { card: Extract<Card, { kind: "step" }> }) {
 
 // ── Card: Visual block (graph, shape, table, chart, etc.) ─────────────────────
 
-function VisualCard({ card }: { card: Extract<Card, { kind: "visual" }> }) {
-  // Text blocks (including lesson-section headers) render their own styling —
-  // no need for the generic "text" type label above them.
-  const isText = card.block.type === "text";
+function VisualCard({
+  card,
+  writeIn,
+}: {
+  card: Extract<Card, { kind: "visual" }>;
+  writeIn: boolean;
+}) {
   const label = card.block.type.replace(/_/g, " ");
 
-  if (isText) {
+  // Text blocks (including lesson-section headers) render their own styling —
+  // no need for the generic "text" type label above them.
+  if (card.block.type === "text") {
     return (
       <div className="rounded-2xl overflow-hidden">
-        <BlockRenderer block={card.block} index={card.blockIndex} baseDelay={0} />
+        <TextRenderer block={card.block} writeIn={writeIn} />
       </div>
     );
   }
@@ -435,7 +488,13 @@ function VisualCard({ card }: { card: Extract<Card, { kind: "visual" }> }) {
 
 // ── Card: Answer (celebration) ────────────────────────────────────────────────
 
-function AnswerCard({ card }: { card: Extract<Card, { kind: "answer" }> }) {
+function AnswerCard({
+  card,
+  writeIn,
+}: {
+  card: Extract<Card, { kind: "answer" }>;
+  writeIn: boolean;
+}) {
   return (
     <motion.div
       className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-100 overflow-hidden"
@@ -459,7 +518,11 @@ function AnswerCard({ card }: { card: Extract<Card, { kind: "answer" }> }) {
 
         {/* Conclusion — large, handwritten feel */}
         <div className="font-[family-name:var(--font-caveat)] text-3xl sm:text-4xl leading-tight text-white">
-          <InlineMath text={card.conclusion} />
+          {writeIn ? (
+            <HandwrittenInline text={card.conclusion} startDelay={200} />
+          ) : (
+            <InlineMath text={card.conclusion} />
+          )}
         </div>
 
         {/* Verification — honest gating */}
@@ -513,7 +576,20 @@ function VerificationLine({
 
 // ── Card: Insight (hint + key takeaway + exam tip) ────────────────────────────
 
-function InsightCard({ card }: { card: Extract<Card, { kind: "insight" }> }) {
+function InsightCard({
+  card,
+  writeIn,
+}: {
+  card: Extract<Card, { kind: "insight" }>;
+  writeIn: boolean;
+}) {
+  const renderText = (text: string, delay = 0) =>
+    writeIn ? (
+      <HandwrittenInline text={text} startDelay={delay} />
+    ) : (
+      <InlineMath text={text} />
+    );
+
   return (
     <div className="flex flex-col gap-3">
       {card.keyTakeaway && (
@@ -522,7 +598,7 @@ function InsightCard({ card }: { card: Extract<Card, { kind: "insight" }> }) {
             Key idea
           </p>
           <p className="font-[family-name:var(--font-caveat)] text-lg text-amber-900">
-            <InlineMath text={card.keyTakeaway} />
+            {renderText(card.keyTakeaway)}
           </p>
         </div>
       )}
@@ -533,7 +609,7 @@ function InsightCard({ card }: { card: Extract<Card, { kind: "insight" }> }) {
             Watch out
           </p>
           <p className="font-[family-name:var(--font-caveat)] text-lg text-gray-700">
-            💡 <InlineMath text={card.hint} />
+            💡 {renderText(card.hint, 300)}
           </p>
         </div>
       )}
@@ -544,7 +620,7 @@ function InsightCard({ card }: { card: Extract<Card, { kind: "insight" }> }) {
             Exam tip
           </p>
           <p className="font-[family-name:var(--font-caveat)] text-lg text-sky-900">
-            <InlineMath text={card.examTip} />
+            {renderText(card.examTip, 600)}
           </p>
         </div>
       )}

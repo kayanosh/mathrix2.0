@@ -412,6 +412,38 @@ body {
 
 .animate-float { animation: float 5s ease-in-out infinite; }
 
+/* ── Handwriting write-in (letter-by-letter reveal) ──── */
+@keyframes wb-char-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) rotate(-2deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+}
+
+.wb-char {
+  display: inline-block;
+  opacity: 0;
+  animation: wb-char-in 0.16s ease-out forwards;
+}
+
+/* Keep whole words on one line — chars are separate inline-blocks,
+   which would otherwise let the browser break mid-word. */
+.wb-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-char {
+    opacity: 1;
+    animation: none;
+  }
+}
+
 .final-box { animation: pulse-glow 2.8s ease-in-out infinite; }
 
 /* ── Scrollbar ──────────────────────────────────────── */
