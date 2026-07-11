@@ -74,6 +74,22 @@ export interface EquationStep {
    *  Shown as a green verification callout.
    *  Example: "Check: 2(3) + 4 = 6 + 4 = 10 ✓" */
   selfCheck?: string;
+
+  /** Teacher pen marks — hand-drawn circle/underline/box around one key term.
+   *  The target term must be tagged in latexAfter with \htmlId{targetId}{...}. */
+  marks?: TeacherMark[];
+}
+
+/** A hand-drawn emphasis mark the teacher draws on a term while explaining. */
+export interface TeacherMark {
+  /** DOM id of the term to mark — tag it via \htmlId{targetId}{...} in latexAfter */
+  targetId: string;
+  /** circle = spot this value · underline = condition/rule · box = formula in use */
+  style: "circle" | "underline" | "box";
+  /** Marker colour (defaults to red #dc2626) */
+  color?: string;
+  /** Optional short Caveat label written beside the mark (≤30 chars) */
+  label?: string;
 }
 
 export interface EquationStepBlock {

@@ -73,6 +73,52 @@ describe("EquationStepBlockSchema", () => {
     const result = EquationStepBlockSchema.safeParse(data);
     expect(result.success).toBe(true);
   });
+
+  const stepWithMarks = (marks: unknown) => ({
+    type: "equation_steps",
+    steps: [
+      {
+        stepNumber: 1,
+        operationLabel: "Simplify",
+        explanation: "Done",
+        latexAfter: "x = \\htmlId{mark-1}{3}",
+        arrowDirection: "simplify",
+        marks,
+      },
+    ],
+  });
+
+  it("accepts teacher pen marks", () => {
+    const result = EquationStepBlockSchema.safeParse(
+      stepWithMarks([
+        { targetId: "mark-1", style: "circle", label: "the answer" },
+      ]),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects unknown mark styles", () => {
+    const result = EquationStepBlockSchema.safeParse(
+      stepWithMarks([{ targetId: "mark-1", style: "sparkle" }]),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects more than 2 marks per step", () => {
+    const marks = ["a", "b", "c"].map((id) => ({
+      targetId: id,
+      style: "circle",
+    }));
+    const result = EquationStepBlockSchema.safeParse(stepWithMarks(marks));
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects marks with an empty targetId", () => {
+    const result = EquationStepBlockSchema.safeParse(
+      stepWithMarks([{ targetId: "", style: "circle" }]),
+    );
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("CoordinateGraphBlockSchema", () => {

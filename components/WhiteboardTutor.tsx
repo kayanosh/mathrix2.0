@@ -26,6 +26,7 @@ import MathWriteIn from "./whiteboard/MathWriteIn";
 import HandwrittenInline from "./whiteboard/HandwrittenInline";
 import InlineMath from "./InlineMath";
 import TermTransferArrow from "./whiteboard/TermTransferArrow";
+import TeacherMarkOverlay from "./whiteboard/TeacherMarkOverlay";
 import { buildNarrationPlan } from "@/lib/narration";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 import {
@@ -346,55 +347,12 @@ function EquationStepsOverlay({
                 )}
 
                 {/* Single equation line */}
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{
-                    opacity: isActive ? 1 : 0.5,
-                    x: 0,
-                  }}
-                  transition={{ duration: 0.35, ease: "easeOut" }}
-                  className={`wb-equation-line flex items-center gap-3 py-1.5 px-2 rounded-lg ${
-                    isFinal ? "wb-final-answer" : ""
-                  }`}
-                >
-                  <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
-                    {step.stepNumber})
-                  </span>
-                  <div
-                    className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}
-                  >
-                    {(isFirst
-                      ? step.latexBefore || step.latexAfter
-                      : step.latexAfter) ? (
-                      <MathWriteIn
-                        latex={
-                          isFirst
-                            ? step.latexBefore || step.latexAfter
-                            : step.latexAfter
-                        }
-                        display
-                      />
-                    ) : (
-                      <span className="font-[family-name:var(--font-caveat)] text-lg">
-                        <HandwrittenInline text={step.explanation} />
-                      </span>
-                    )}
-                  </div>
-                  {isFinal && isActive && (
-                    <motion.span
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{
-                        delay: 0.3,
-                        type: "spring",
-                        stiffness: 300,
-                      }}
-                      className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
-                    >
-                      ✓
-                    </motion.span>
-                  )}
-                </motion.div>
+                <OverlaySingleLine
+                  step={step}
+                  isActive={isActive}
+                  isFinal={isFinal}
+                  isFirst={isFirst}
+                />
               </>
             )}
 
@@ -413,6 +371,79 @@ function EquationStepsOverlay({
         );
       })}
     </div>
+  );
+}
+
+/* ── Overlay single equation line (with ref for TeacherMarkOverlay) ─── */
+function OverlaySingleLine({
+  step,
+  isActive,
+  isFinal,
+  isFirst,
+}: {
+  step: import("@/types/whiteboard").EquationStep;
+  isActive: boolean;
+  isFinal: boolean;
+  isFirst: boolean;
+}) {
+  const lineRef = useRef<HTMLDivElement>(null);
+  const latex = isFirst
+    ? step.latexBefore || step.latexAfter
+    : step.latexAfter;
+  // The pen draws marks after the equation has written in.
+  const markDelay = latex ? estimateMathWriteMs(latex) / 1000 + 0.2 : 0.4;
+
+  return (
+    <motion.div
+      ref={lineRef}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{
+        opacity: isActive ? 1 : 0.5,
+        x: 0,
+      }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className={`wb-equation-line relative flex items-center gap-3 py-1.5 px-2 rounded-lg ${
+        isFinal ? "wb-final-answer" : ""
+      }`}
+    >
+      <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
+        {step.stepNumber})
+      </span>
+      <div className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}>
+        {latex ? (
+          <MathWriteIn latex={latex} display />
+        ) : (
+          <span className="font-[family-name:var(--font-caveat)] text-lg">
+            <HandwrittenInline text={step.explanation} />
+          </span>
+        )}
+      </div>
+      {isFinal && isActive && (
+        <motion.span
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{
+            delay: 0.3,
+            type: "spring",
+            stiffness: 300,
+          }}
+          className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
+        >
+          ✓
+        </motion.span>
+      )}
+
+      {/* Teacher pen marks — drawn while this step is being explained */}
+      {isActive &&
+        step.marks?.map((mark, mi) => (
+          <TeacherMarkOverlay
+            key={mark.targetId || mi}
+            containerRef={lineRef}
+            mark={mark}
+            delay={markDelay + mi * 0.4}
+          />
+        ))}
+    </motion.div>
   );
 }
 
@@ -497,6 +528,17 @@ function OverlayStepPairCard({
             label={arrow.label}
             delay={0.15 + ai * 0.2}
             color={arrow.color || MARKER.red}
+          />
+        ))}
+
+      {/* Teacher pen marks — drawn after the new line writes in */}
+      {isActive &&
+        step.marks?.map((mark, mi) => (
+          <TeacherMarkOverlay
+            key={mark.targetId || mi}
+            containerRef={pairRef}
+            mark={mark}
+            delay={estimateMathWriteMs(step.latexAfter) / 1000 + 0.25 + mi * 0.4}
           />
         ))}
     </motion.div>

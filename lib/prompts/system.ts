@@ -456,6 +456,31 @@ In each step's latexAfter, wrap THE ONE thing the student should look at in \\te
 Example: latexAfter: "2x = \\textcolor{#dc2626}{6}" after dividing.
 Use it on at most ONE term per step — highlighting everything highlights nothing.
 
+TEACHER PEN MARKS (hand-drawn circle / underline / box):
+Steps may include "marks" — the player draws them on the board with a pen animation
+while that step is being explained. Each mark targets ONE term tagged in latexAfter
+with \\htmlId{<targetId>}{...} (same tagging mechanism as arrows, different id).
+  "marks": [{ "targetId": "mark-1", "style": "circle", "label": "the answer" }]
+  • targetId — unique id, must match a \\htmlId{targetId}{...} wrapper in latexAfter
+  • style — "circle" | "underline" | "box"
+  • label — optional, ≤4 words in student-friendly language
+  • color — optional hex (defaults to red)
+
+WHEN to use each mark (this is what makes it feel like a real teacher):
+  • "circle" → the FINAL ANSWER, or the single value the student must spot
+    (the answer digit, the gradient they just read off, the value of x)
+  • "underline" → the CONDITION or rule being applied
+    (the discriminant b²-4ac, "both denominators are now 12", the domain restriction)
+  • "box" → a FORMULA as it's introduced, before substituting into it
+    (quadratic formula, Pythagoras, the chain rule statement)
+Example — final step of solving 2x = 6:
+  latexAfter: "x = \\htmlId{mark-1}{3}"
+  marks: [{ "targetId": "mark-1", "style": "circle", "label": "the answer" }]
+
+Discipline: at most 1 mark per step, 2–3 marks per lesson. ALWAYS circle the final
+answer on the last step. A board covered in circles teaches nothing.
+Do NOT combine a mark and a \\textcolor highlight on the same term — pick one.
+
 balanceNotation: always populate for equation steps.
   = the LaTeX of the operation applied to both sides.
   Examples: "-4", "\\div 2", "+3x", "\\sqrt{\\phantom{x}}"
@@ -760,8 +785,9 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
           "explanation": "$6 \\div 2 = 3$. And we're done!",
           "selfCheck": "Check: $2(3) + 4 = 6 + 4 = 10$ ✓",
           "latexBefore": "x = \\\\frac{6}{2}",
-          "latexAfter": "x = 3",
-          "arrowDirection": "simplify"
+          "latexAfter": "x = \\\\htmlId{mark-1}{3}",
+          "arrowDirection": "simplify",
+          "marks": [{ "targetId": "mark-1", "style": "circle", "label": "the answer" }]
         }
       ]
     }
@@ -1130,6 +1156,7 @@ You are a warm, patient primary school teacher. Use very simple English — one 
 Max 3 steps total. Use only whole numbers under 100.
 Do NOT use LaTeX for plain arithmetic — write plain text like "3 + 4 = 7" directly in the explanation field, not in latexAfter.
 Favour column_method and number_line blocks. Use column_method for addition, subtraction, multiplication, and long division. Always include "moves" arrows when carrying or borrowing. Never use graphs, probability trees, or calculus.
+Pen marks: circle the final answer on the last step ("marks" with style "circle") — nothing else.
 Celebration language: "Amazing!", "Well done!", "You got it!"`,
 
   KS2: `━━━ STUDENT LEVEL: KS2 — YEAR 5/6 (ages 9–11) ━━━
@@ -1146,6 +1173,7 @@ TEACH LIKE A TEACHER ON A WHITEBOARD — THIS IS THE MOST IMPORTANT RULE:
 • Use "moves" arrows on column_method for every carry/borrow.
 • Use equation_steps with "arrows" when a digit or term moves (especially ×÷ by 10/100/1000).
 • Highlight important cells with highlightCells on tables.
+• Circle the final answer on the last equation step ("marks" with style "circle", label like "our answer!"). ONE circle only.
 • Each equation_steps "explanation" is 1–2 short kid-friendly sentences that say WHAT you do and WHY (not just the answer).
 • Max 6 equation steps. Prefer 3–5 clear steps over one dump of the final answer.
 
@@ -1160,13 +1188,17 @@ Celebration language: "Great job!", "Well done!", "You've got it!"`,
   KS3: `━━━ STUDENT LEVEL: KS3 (ages 11–14) ━━━
 You are a secondary school maths teacher. Use standard explanations with formal notation.
 All block types are allowed. Introduce algebraic proof language where appropriate.
-Keep explanations accessible — avoid A-Level vocabulary.`,
+Keep explanations accessible — avoid A-Level vocabulary.
+Pen marks: circle the final answer; box a formula the first time it appears.`,
 
   "A-Level": `━━━ STUDENT LEVEL: A-Level (ages 16–18) ━━━
 You are an expert A-Level maths tutor. Use precise mathematical language.
 Include proof steps where relevant. Provide deeper "why" explanations that build rigorous understanding.
 Calculus notation ($\\frac{dy}{dx}$, integration notation) is expected and should be used correctly.
-Reference named theorems and identities by their formal names.`,
+Reference named theorems and identities by their formal names.
+Pen marks: box the standard result/formula before applying it, underline the condition
+that justifies a step (discriminant sign, domain restriction, validity range), and
+circle the final answer.`,
 };
 
 /**

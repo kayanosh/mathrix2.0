@@ -29,6 +29,13 @@ export const LabeledPointSchema = z.object({
 
 // ── Equation Steps ────────────────────────────────────────────────────────────
 
+export const TeacherMarkSchema = z.object({
+  targetId: z.string().min(1),
+  style: z.enum(["circle", "underline", "box"]),
+  color: z.string().optional(),
+  label: z.string().max(30).optional(),
+});
+
 export const EquationStepSchema = z.object({
   stepNumber: z.number().int().min(1),
   operationLabel: z.string().max(80),
@@ -42,6 +49,8 @@ export const EquationStepSchema = z.object({
   rule: z.string().optional(),
   why: z.string().optional(),
   selfCheck: z.string().optional(),
+  // Teacher pen marks — cap at 2 so emphasis stays meaningful
+  marks: z.array(TeacherMarkSchema).max(2).optional(),
 });
 
 export const EquationStepBlockSchema = z.object({
