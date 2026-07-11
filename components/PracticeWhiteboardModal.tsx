@@ -43,6 +43,7 @@ export default function PracticeWhiteboardModal({
   const [error, setError] = useState<string | null>(null);
   const [watchMode, setWatchMode] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const isKS2 = level === "KS2";
 
   const fetchSolution = useCallback(async () => {
     abortRef.current?.abort();
@@ -153,7 +154,9 @@ export default function PracticeWhiteboardModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h3 className="font-bold text-gray-900 text-sm">AI Tutor — Worked Solution</h3>
+          <h3 className="font-bold text-gray-900 text-sm">
+            {isKS2 ? "Your AI Teacher" : "AI Tutor — Worked Solution"}
+          </h3>
           <div className="flex items-center gap-2">
             {whiteboardData && (
               <button
@@ -170,7 +173,8 @@ export default function PracticeWhiteboardModal({
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
               >
-                <MonitorPlay size={14} /> Watch on Whiteboard
+                <MonitorPlay size={14} />
+                {isKS2 ? "Watch the teacher" : "Watch on Whiteboard"}
               </button>
             )}
             <button
@@ -187,7 +191,9 @@ export default function PracticeWhiteboardModal({
           {loading && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 size={28} className="animate-spin text-indigo-500" />
-              <p className="text-sm text-gray-500">Solving step by step…</p>
+              <p className="text-sm text-gray-500">
+                {isKS2 ? "Getting the whiteboard ready…" : "Solving step by step…"}
+              </p>
             </div>
           )}
 
@@ -205,7 +211,13 @@ export default function PracticeWhiteboardModal({
 
           {whiteboardData && (
             <div className="p-4">
-              <WhiteboardRenderer data={whiteboardData} revealAll />
+              {/* KS2 pupils step through one card at a time with handwriting;
+                  GCSE keeps the full worked solution for quick scanning. */}
+              <WhiteboardRenderer
+                data={whiteboardData}
+                revealAll={!isKS2}
+                writeIn={isKS2}
+              />
             </div>
           )}
         </div>
