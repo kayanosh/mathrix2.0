@@ -19,6 +19,7 @@ import type {
   EquationStepBlock,
 } from "@/types/whiteboard";
 import BlockRenderer from "./whiteboard/BlockRenderer";
+import ColumnMethodRenderer from "./whiteboard/blocks/ColumnMethodRenderer";
 import MathRenderer from "./MathRenderer";
 import InlineMath from "./InlineMath";
 import TermTransferArrow from "./whiteboard/TermTransferArrow";
@@ -554,6 +555,19 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     return map;
   }, [revealedCue, plan, totalCues]);
 
+  // Column-method blocks reveal cell-by-cell: track the highest revealed
+  // teaching-step index per block (cue subIndex maps 1:1 to timeline steps).
+  const columnRevealMap = useMemo(() => {
+    const map = new Map<number, number>();
+    for (let i = 0; i <= revealedCue && i < totalCues; i++) {
+      const cue = plan[i];
+      if (cue.kind === "column" && cue.subIndex !== undefined) {
+        map.set(cue.blockIndex, Math.max(map.get(cue.blockIndex) ?? 0, cue.subIndex));
+      }
+    }
+    return map;
+  }, [revealedCue, plan, totalCues]);
+
   const activeEquationStep = useMemo(() => {
     const cue = plan[activeCue];
     if (cue?.kind === "equation_step")
@@ -912,6 +926,12 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
                           : undefined
                       }
                       setBlockRef={setBlockRef}
+                    />
+                  ) : block.type === "column_method" ? (
+                    <ColumnMethodRenderer
+                      block={block}
+                      baseDelay={0}
+                      revealStep={columnRevealMap.get(bi) ?? 0}
                     />
                   ) : (
                     <BlockRenderer block={block} index={bi} baseDelay={0} />

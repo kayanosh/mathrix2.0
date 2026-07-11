@@ -449,6 +449,13 @@ Rules:
 
 Do NOT add arrows when: expanding brackets (use arrowDirection: "down"), collecting like terms on same side (arrowDirection: "simplify"), or applying operation to both sides without term crossing.
 
+HIGHLIGHTING KEY PARTS (like a teacher's coloured pen):
+In each step's latexAfter, wrap THE ONE thing the student should look at in \\textcolor:
+  • \\textcolor{#dc2626}{...} (red) for the term that changed or moved
+  • \\textcolor{#d97706}{...} (amber) for a carried/borrowed digit or key coefficient
+Example: latexAfter: "2x = \\textcolor{#dc2626}{6}" after dividing.
+Use it on at most ONE term per step — highlighting everything highlights nothing.
+
 balanceNotation: always populate for equation steps.
   = the LaTeX of the operation applied to both sides.
   Examples: "-4", "\\div 2", "+3x", "\\sqrt{\\phantom{x}}"
@@ -592,6 +599,10 @@ Use for long division, column addition, column subtraction, and column multiplic
 For addition/subtraction you MUST include "moves" arrows showing each carry or borrow.
 Use "cellNotes" for subtraction when a digit is crossed out and rewritten after borrowing.
 Row/col indices are 0-indexed from the top-left of the digit grid (same indexing as "carries").
+The player reveals the working column by column with narration computed from your digits,
+so the rows/carries MUST be arithmetically consistent with the question and answer.
+Optional "highlightCells": [{"row": r, "col": c}] draws an amber ring around the key digits
+the student should focus on (e.g. the carried digit, the borrowed column). Use sparingly — 1 to 3 cells.
 
 Column addition example (456 + 278):
 {

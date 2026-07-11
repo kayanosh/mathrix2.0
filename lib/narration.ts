@@ -23,6 +23,7 @@ import type {
   ChartBlock,
   ColumnMethodBlock,
 } from "@/types/whiteboard";
+import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 
 export interface NarrationCue {
   /** Index into WhiteboardResponse.blocks (-1 for intro / conclusion) */
@@ -239,38 +240,17 @@ function cuesForColumn(
   block: ColumnMethodBlock,
   bi: number,
 ) {
-  const methodLabel = block.method.replace(/_/g, " ");
-  cues.push({
-    blockIndex: bi,
-    text: `Let's set up ${block.question} using the ${methodLabel}. Watch the digits line up in columns.`,
-    kind: "column",
-  });
-
-  if (block.method === "column_multiplication" && block.rows.length >= 4) {
-    const partials = block.rows.slice(2, -1);
-    partials.forEach((row, i) => {
-      const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
-      cues.push({
-        blockIndex: bi,
-        text:
-          i === 0
-            ? `First multiply by the ones. That gives ${digits}. Carry any tens to the next column — follow the orange arrow.`
-            : `Next multiply by the tens. Write ${digits} — remember the place-value zero. Then add the partial products.`,
-        kind: "column",
-      });
-    });
-  } else if (block.carries?.length) {
+  // One cue per teaching step, computed deterministically from the digits so
+  // narration always matches what appears on the board. The tutor overlay
+  // builds the SAME timeline and maps cue subIndex → revealed step.
+  const steps = buildColumnRevealTimeline(block);
+  steps.forEach((step, si) => {
     cues.push({
       blockIndex: bi,
-      text: `When a column makes 10 or more, we carry — follow the orange arrows.`,
+      subIndex: si,
+      text: step.narration,
       kind: "column",
     });
-  }
-
-  cues.push({
-    blockIndex: bi,
-    text: `So the answer is ${block.answer}. Well done!`,
-    kind: "column",
   });
 }
 
