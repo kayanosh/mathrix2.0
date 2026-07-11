@@ -281,6 +281,10 @@ export const ColumnMethodBlockSchema = z.object({
     rewrite: z.string().optional(),
   })).optional(),
   separatorAfterRows: z.array(z.number().int().min(0)).optional(),
+  highlightCells: z.array(z.object({
+    row: z.number().int().min(0),
+    col: z.number().int().min(0),
+  })).optional(),
   question: z.string(),
   answer: z.string(),
 });

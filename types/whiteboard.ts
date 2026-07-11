@@ -327,6 +327,8 @@ export interface ColumnMethodBlock {
   cellNotes?: ColumnMethodCellNote[];
   /** Horizontal separator lines after certain rows (0-indexed) */
   separatorAfterRows?: number[];
+  /** Cells to visually emphasise (amber ring) — the key digits to look at */
+  highlightCells?: { row: number; col: number }[];
   /** The original question (e.g. "384 ÷ 12") */
   question: string;
   /** Final answer */
