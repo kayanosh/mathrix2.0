@@ -18,7 +18,11 @@ import { normalizeColumnDigits } from "@/lib/column-method-layout";
 export interface ColumnRevealStep {
   /** What the teacher says while writing this step. */
   narration: string;
-  /** Digit cells written in this step ("row-col"). */
+  /**
+   * Digit cells written in this step ("row-col"), in the order the pen writes
+   * them (e.g. partial products go right-to-left) — renderers stagger the
+   * write-in animation using this order.
+   */
   cellKeys: string[];
   /** Carry slots written in this step ("row-col"). */
   carryKeys: string[];
@@ -409,7 +413,8 @@ function multiplicationTimeline(
 
     steps.push({
       narration,
-      cellKeys: rowCellKeys(ri, row, maxCols),
+      // Partial products are worked out right-to-left, so write them that way.
+      cellKeys: rowCellKeys(ri, row, maxCols).reverse(),
       carryKeys,
       noteKeys: [],
     });
@@ -421,7 +426,8 @@ function multiplicationTimeline(
       .join(" add ");
     steps.push({
       narration: `Finally, add the partial products: ${partialsText} makes ${normalizeColumnDigits(rows[totalRowIndex])}. So ${block.question} equals ${answer}.`,
-      cellKeys: rowCellKeys(totalRowIndex, rows[totalRowIndex], maxCols),
+      // The total is added column by column, right to left.
+      cellKeys: rowCellKeys(totalRowIndex, rows[totalRowIndex], maxCols).reverse(),
       carryKeys: [],
       noteKeys: [],
       showAnswer: true,
@@ -467,10 +473,11 @@ function divisionTimeline(block: ColumnMethodBlock): ColumnRevealStep[] {
     const digits = normalizeColumnDigits(row).replace(/↓/g, "");
     const isSubtract = wi % 2 === 1;
 
-    // Each divide step writes the next quotient digit on top.
+    // Each divide step writes the next quotient digit on top FIRST, then the
+    // multiply-back line underneath — that's the order the pen moves.
     const cellKeys = rowCellKeys(ri, row, maxCols);
     if (!isSubtract && quotientUsed < quotientKeys.length) {
-      cellKeys.push(quotientKeys[quotientUsed]);
+      cellKeys.unshift(quotientKeys[quotientUsed]);
       quotientUsed++;
     }
 
