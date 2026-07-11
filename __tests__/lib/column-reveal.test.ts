@@ -169,9 +169,9 @@ describe("buildColumnRevealTimeline — multiplication", () => {
     expect(last.showAnswer).toBe(true);
   });
 
-  it("reveals whole partial-product rows", () => {
+  it("reveals partial-product rows in writing order (right to left)", () => {
     // "115" occupies grid cols 1..3 of row 2 (maxCols = 4).
-    expect(steps[1].cellKeys).toEqual([cellKey(2, 1), cellKey(2, 2), cellKey(2, 3)]);
+    expect(steps[1].cellKeys).toEqual([cellKey(2, 3), cellKey(2, 2), cellKey(2, 1)]);
   });
 });
 
@@ -187,8 +187,8 @@ describe("buildColumnRevealTimeline — long division", () => {
     expect(steps[0].cellKeys).toEqual(
       expect.arrayContaining([cellKey(1, 0), cellKey(1, 5)]),
     );
-    // First divide step includes a quotient digit from row 0.
-    expect(steps[1].cellKeys.some((k) => k.startsWith("0-"))).toBe(true);
+    // First divide step writes a quotient digit from row 0 FIRST (pen order).
+    expect(steps[1].cellKeys[0].startsWith("0-")).toBe(true);
   });
 
   it("alternates divide and subtract narration", () => {

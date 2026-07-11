@@ -24,6 +24,7 @@ import {
   revealStateAt,
   withResultRow,
 } from "@/lib/column-reveal";
+import { CELL_WRITE_MS } from "@/lib/handwriting";
 
 interface Props {
   block: ColumnMethodBlock;
@@ -63,6 +64,24 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
     () => (stepMode ? revealStateAt(timeline, revealStep ?? 0) : null),
     [stepMode, timeline, revealStep],
   );
+
+  // Pen order within the active step — each newly written element waits for
+  // the previous one, so digits appear one at a time like real handwriting.
+  const writeOrder = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!stepMode || timeline.length === 0) return map;
+    const step = timeline[Math.min(revealStep ?? 0, timeline.length - 1)];
+    let i = 0;
+    // Borrow strikes/rewrites happen first, then digits, then carries.
+    step.noteKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
+    step.cellKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
+    step.carryKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
+    return map;
+  }, [stepMode, timeline, revealStep]);
+
+  /** Seconds to wait before drawing a just-written element (pen order). */
+  const writeDelay = (ri: number, ci: number) =>
+    (writeOrder.get(cellKey(ri, ci)) ?? 0) * (CELL_WRITE_MS / 1000);
 
   const cellVisible = (ri: number, ci: number) =>
     !reveal || reveal.cells.has(cellKey(ri, ci));
@@ -167,8 +186,12 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                 const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
                 const pathD = buildArrowPath(from.x, from.y, to.x, to.y, kind, move.laneIndex);
                 const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
+                // In step mode the arrow follows the pen: it draws right after
+                // its destination digit/carry is written.
                 const delay = stepMode
-                  ? 0.2 + mi * 0.05
+                  ? reveal?.active.has(cellKey(move.toRow, move.toCol))
+                    ? writeDelay(move.toRow, move.toCol) + 0.15
+                    : 0.1
                   : baseDelay + Math.max(move.fromRow, move.toRow) * 0.15 + 0.25 + mi * 0.1;
 
                 return (
@@ -219,7 +242,13 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                         style={{ width: cellW }}
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: visible ? 1 : 0, y: 0 }}
-                        transition={{ delay: stepMode ? 0.15 : baseDelay + ri * 0.15 + 0.1 }}
+                        transition={{
+                          delay: stepMode
+                            ? active
+                              ? writeDelay(ri, ci)
+                              : 0
+                            : baseDelay + ri * 0.15 + 0.1,
+                        }}
                       >
                         {carry && (
                           <motion.span
@@ -292,7 +321,10 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                             style={{ top: 4, right: 6 }}
                             initial={{ opacity: 0, scale: 0.6 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.25 }}
+                            transition={{
+                              duration: 0.25,
+                              delay: active ? writeDelay(ri, ci) : 0,
+                            }}
                           >
                             {note.rewrite}
                           </motion.span>
@@ -307,7 +339,10 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                               ? "rgba(251, 191, 36, 0.35)"
                               : "rgba(251, 191, 36, 0)",
                           }}
-                          transition={{ duration: 0.3 }}
+                          transition={{
+                            duration: 0.3,
+                            delay: active ? writeDelay(ri, ci) : 0,
+                          }}
                           style={{
                             textDecoration: applyNote && note?.strike ? "line-through" : undefined,
                             textDecorationColor: applyNote && note?.strike ? "#ef4444" : undefined,
