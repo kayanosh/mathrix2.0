@@ -72,7 +72,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v19_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v20_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function asStringArray(value: unknown): string[] {

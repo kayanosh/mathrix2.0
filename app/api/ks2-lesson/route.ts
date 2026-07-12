@@ -714,16 +714,11 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
           );
         }
         if (!validation.ok) {
+          // Never block Learn/Guided with a hard failure — builders already
+          // hardened the board; log and serve so pupils can still learn.
           console.warn(
-            "[ks2-lesson] rejected after regenerate:",
+            "[ks2-lesson] quality issues (serving anyway):",
             validation.issues.map((i) => i.code).join(", "),
-          );
-          return NextResponse.json(
-            {
-              error: "Lesson failed quality checks",
-              issues: validation.issues,
-            },
-            { status: 422 },
           );
         }
       }

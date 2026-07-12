@@ -27,21 +27,45 @@ export function detectSkillVisualFamily(
   topic = "",
   skill = "",
 ): KS2SkillVisualFamily {
-  const t = `${question} ${topic} ${skill}`.toLowerCase();
+  // Prefer the worked-example question — topic skill labels (e.g. first
+  // subtopic "Simplify fractions") must not force the wrong visual family
+  // when the example is about a different operation.
+  const q = question.toLowerCase();
+  if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
+    return "fraction_simplify";
+  }
+  if (
+    /\bcompare\b|\border\b|which.*(greater|bigger|smaller)/.test(q) &&
+    /\d+\s*\/\s*\d+/.test(q)
+  ) {
+    return "fraction_compare";
+  }
+  if (/\bpercent|%|hundred square/.test(q)) return "percentages";
+  if (/\bdivid|÷|bus stop|short division|long division/.test(q) && /\d/.test(q))
+    return "division";
+  if (/\bmultipl|×|times|area model/.test(q) && /\d/.test(q))
+    return "multiplication";
+  if (/\bdecimal\b|\d+\.\d+/.test(q)) return "decimals";
+  if (/\bfraction\b|\d+\s*\/\s*\d+/.test(q)) return "fraction_ops";
+  if (/\bangle|perimeter|area|shape|triangle|rectangle/.test(q)) return "geometry";
+  if (/\bword problem|how many|altogether|left over/.test(q)) return "word_problems";
+  if (/\bplace value|round|nearest/.test(q)) return "place_value";
+
+  // Fall back to skill/topic labels only when the question is ambiguous
+  const t = `${topic} ${skill}`.toLowerCase();
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b/.test(t)) {
     return "fraction_simplify";
   }
-  if (/\bcompare\b|\border\b|which.*(greater|bigger|smaller)/.test(t) && /\d+\s*\/\s*\d+/.test(t)) {
+  if (/\bcompare\b|\border\b/.test(t) && /fraction/.test(t)) {
     return "fraction_compare";
   }
-  if (/\bfraction\b|\d+\s*\/\s*\d+/.test(t)) return "fraction_ops";
-  if (/\bpercent|%|hundred square/.test(t)) return "percentages";
-  if (/\bdecimal\b|\d+\.\d+/.test(t)) return "decimals";
-  if (/\bdivid|÷|bus stop|short division|long division/.test(t)) return "division";
-  if (/\bmultipl|×|times|area model/.test(t)) return "multiplication";
-  if (/\bangle|perimeter|area|shape|triangle|rectangle/.test(t)) return "geometry";
-  if (/\bword problem|how many|altogether|left over/.test(t)) return "word_problems";
-  if (/\bplace value|round|nearest/.test(t)) return "place_value";
+  if (/\bfraction\b/.test(t)) return "fraction_ops";
+  if (/\bpercent/.test(t)) return "percentages";
+  if (/\bdecimal/.test(t)) return "decimals";
+  if (/\bdivid/.test(t)) return "division";
+  if (/\bmultipl/.test(t)) return "multiplication";
+  if (/\bangle|perimeter|area|shape/.test(t)) return "geometry";
+  if (/\bplace value|round/.test(t)) return "place_value";
   return "general";
 }
 

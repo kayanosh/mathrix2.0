@@ -77,6 +77,16 @@ describe("KS2 fraction simplify quality gate", () => {
     );
   });
 
+  it("does not force simplify visuals when the example is a different fraction skill", () => {
+    expect(
+      detectSkillVisualFamily(
+        "Calculate 1/4 + 1/2",
+        "Fractions",
+        "Simplify fractions",
+      ),
+    ).toBe("fraction_ops");
+  });
+
   it("accepts the Simplify 12/16 gold-standard lesson", () => {
     const v = validateKS2TeachingLesson(goldLesson(), { maths: true });
     expect(v.ok).toBe(true);
