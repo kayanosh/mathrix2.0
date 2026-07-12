@@ -13,6 +13,7 @@ import {
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
+import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
 import { deepRepairStrings } from "@/lib/validate";
 import { detectPromptInjection, INJECTION_GUARD } from "@/lib/input-safety";
 import type { VisualBlock } from "@/types/whiteboard";
@@ -73,7 +74,10 @@ function tierPhrase(tier: string): string {
       : "Expected Standard (typical year-group difficulty)";
 }
 
-function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhiteboard | undefined {
+function parseWorkedExampleWhiteboard(
+  raw: unknown,
+  question = "",
+): CachedKS2WorkedExampleWhiteboard | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const wb = raw as Record<string, unknown>;
   if (!Array.isArray(wb.blocks) || wb.blocks.length === 0) return undefined;
@@ -84,20 +88,22 @@ function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhite
   });
   // Normalise column_method digit rows (strip spaces between digits)
   // and tolerate incomplete LLM table / number_line sketches.
-  repaired.blocks = repaired.blocks.map((block) => {
+  const normalised: VisualBlock[] = [];
+  for (const block of repaired.blocks) {
     if (block.type === "column_method") {
       const rows = Array.isArray(block.rows) ? block.rows : [];
-      return {
+      normalised.push({
         ...block,
         rows: rows.map((row) => {
           const op = row.match(/^[+\-×x]/)?.[0] ?? "";
           const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
           return op ? `${op}${digits}` : digits;
         }),
-      };
+      });
+      continue;
     }
     if (block.type === "table") {
-      return {
+      normalised.push({
         ...block,
         headers: Array.isArray(block.headers) ? block.headers.map(String) : [],
         rows: Array.isArray(block.rows)
@@ -106,34 +112,72 @@ function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhite
         highlightCells: Array.isArray(block.highlightCells)
           ? block.highlightCells.filter(
               (c): c is [number, number] =>
-                Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])),
+                Array.isArray(c) &&
+                c.length >= 2 &&
+                Number.isFinite(Number(c[0])) &&
+                Number.isFinite(Number(c[1])),
             )
           : undefined,
-      };
+      });
+      continue;
     }
     if (block.type === "number_line") {
-      const range = Array.isArray(block.range) && block.range.length >= 2
-        ? ([Number(block.range[0]), Number(block.range[1])] as [number, number])
-        : ([0, 10] as [number, number]);
-      return {
+      // Never invent a [0,10] placeholder — drop unfit lines via filterFitBlocks.
+      if (!Array.isArray(block.range) || block.range.length < 2) continue;
+      const min = Number(block.range[0]);
+      const max = Number(block.range[1]);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) continue;
+      normalised.push({
         ...block,
-        range,
+        range: [min, max],
         tickInterval:
           typeof block.tickInterval === "number" && block.tickInterval > 0
             ? block.tickInterval
             : 1,
         markers: Array.isArray(block.markers) ? block.markers : [],
-      };
+      });
+      continue;
     }
     if (block.type === "equation_steps") {
-      return {
+      normalised.push({
         ...block,
         steps: Array.isArray(block.steps) ? block.steps : [],
-      };
+      });
+      continue;
     }
-    return block;
-  });
-  return repaired;
+    normalised.push(block);
+  }
+
+  const fit = filterFitBlocks(normalised, question);
+  if (fit.length === 0) return undefined;
+  return {
+    intro: repaired.intro,
+    blocks: fit,
+    conclusion: repaired.conclusion,
+  };
+}
+
+function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: string[]): WorkedExample {
+  let next = example;
+  if (next.whiteboard) {
+    next = {
+      ...next,
+      whiteboard:
+        parseWorkedExampleWhiteboard(next.whiteboard, next.question) || undefined,
+    };
+  }
+  next = applyMethodBuilderToWorkedExample(next, topic, subtopics);
+  if (next.whiteboard?.blocks) {
+    const fit = filterFitBlocks(next.whiteboard.blocks, next.question);
+    next = {
+      ...next,
+      whiteboard:
+        fit.length > 0
+          ? { ...next.whiteboard, blocks: fit }
+          : undefined,
+    };
+  }
+  return next;
 }
 
 /**
@@ -237,17 +281,18 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       const key = ks2LessonCacheKey(topicId, target, tier, kind);
       const cached = await lookupKS2LessonCache(key);
       if (cached) {
-        if (cached.workedExample?.whiteboard) {
-          cached.workedExample.whiteboard =
-            parseWorkedExampleWhiteboard(cached.workedExample.whiteboard) ||
-            cached.workedExample.whiteboard;
-        }
         if (isMaths && cached.workedExample?.question) {
-          cached.workedExample = applyMethodBuilderToWorkedExample(
+          cached.workedExample = hardenWorkedExample(
             cached.workedExample,
             topic,
             subtopics,
           );
+        } else if (cached.workedExample?.whiteboard) {
+          cached.workedExample.whiteboard =
+            parseWorkedExampleWhiteboard(
+              cached.workedExample.whiteboard,
+              cached.workedExample.question || "",
+            ) || undefined;
         }
         return NextResponse.json({ lesson: cached, cached: true });
       }
@@ -339,7 +384,10 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
                   : [],
                 answer: (parsed.workedExample.answer || "").toString(),
                 emoji: parsed.workedExample.emoji ? parsed.workedExample.emoji.toString() : undefined,
-                whiteboard: parseWorkedExampleWhiteboard(parsed.workedExample.whiteboard),
+                whiteboard: parseWorkedExampleWhiteboard(
+                  parsed.workedExample.whiteboard,
+                  (parsed.workedExample.question || "").toString(),
+                ),
               }
             : { question: "", steps: [], answer: "" },
         keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.map((x: unknown) => String(x)) : [],
@@ -359,9 +407,9 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
       return NextResponse.json({ error: "Could not generate lesson" }, { status: 502 });
     }
 
-    // Prefer deterministic method builders for arithmetic working + captions.
+    // Prefer deterministic method builders + drop unfit LLM sketches.
     if (isMaths && lesson.workedExample?.question) {
-      lesson.workedExample = applyMethodBuilderToWorkedExample(
+      lesson.workedExample = hardenWorkedExample(
         lesson.workedExample,
         topic,
         subtopics,

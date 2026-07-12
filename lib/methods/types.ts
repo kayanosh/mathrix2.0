@@ -27,6 +27,8 @@ export type MethodBuilderId =
   | "column_subtraction"
   | "long_division"
   | "place_value_shift"
+  | "place_value_chart"
+  | "rounding_number_line"
   | "fraction_ops"
   | "decimal_column";
 
@@ -36,7 +38,8 @@ export interface MethodBuildResult {
   block:
     | import("@/types/whiteboard").ColumnMethodBlock
     | import("@/types/whiteboard").TableBlock
-    | import("@/types/whiteboard").EquationStepBlock;
+    | import("@/types/whiteboard").EquationStepBlock
+    | import("@/types/whiteboard").NumberLineBlock;
   /** Digit/step teaching script — single source of truth */
   teachingSteps: TeachingStep[];
   /** Short captions for LessonPanel workedExample.steps */

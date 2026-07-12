@@ -20,20 +20,27 @@ import {
 } from "@/lib/methods/long-division";
 import { buildPlaceValueShift, parsePlaceValueShift } from "@/lib/methods/place-value-shift";
 import {
-  buildFractionOps,
-  parseFractionOp,
-} from "@/lib/methods/fraction-ops";
+  buildPlaceValueChart,
+  parsePlaceValueChart,
+} from "@/lib/methods/place-value-chart";
+import {
+  buildRoundingNumberLine,
+  parseRoundingQuestion,
+} from "@/lib/methods/rounding-number-line";
+import { buildFractionOps, parseFractionOp } from "@/lib/methods/fraction-ops";
 import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
+import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
 import { teachingStepsToCaptions, type MethodBuildResult, type TeachingStep } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import type {
   ColumnMethodBlock,
   EquationStepBlock,
+  NumberLineBlock,
   TableBlock,
   VisualBlock,
   WhiteboardResponse,
@@ -139,9 +146,55 @@ function buildFromColumnBlock(block: ColumnMethodBlock): MethodBuildResult | nul
 function buildFromTableBlock(block: TableBlock): MethodBuildResult | null {
   const caption = block.caption || "";
   const pv = parsePlaceValueShift(caption);
-  if (!pv) return null;
+  if (pv) {
+    try {
+      return buildPlaceValueShift(pv.value, pv.factor, pv.operation);
+    } catch {
+      /* fall through */
+    }
+  }
+  const chart = parsePlaceValueChart(caption);
+  if (chart) {
+    try {
+      return buildPlaceValueChart(chart.value, chart.digit);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function buildFromNumberLineBlock(block: NumberLineBlock): MethodBuildResult | null {
+  const labelBlob = [
+    ...(block.markers || []).map((m) => m.label || String(m.value)),
+    block.inequalityLabel || "",
+  ].join(" ");
+  const parsed = parseRoundingQuestion(`round ${labelBlob} to the nearest`);
+  // Prefer reconstructing from marker values when labels are sparse.
+  if (Array.isArray(block.range) && block.range.length >= 2) {
+    const markers = (block.markers || [])
+      .map((m) => m.value)
+      .filter((v) => Number.isFinite(v));
+    const [lo, hi] = block.range;
+    const place = hi - lo;
+    if (
+      markers.length > 0 &&
+      [10, 100, 1000, 10000, 100000, 1000000].includes(place)
+    ) {
+      // Prefer a filled marker that is strictly between the endpoints.
+      const interior = markers.find((v) => v > lo && v < hi);
+      if (interior != null) {
+        try {
+          return buildRoundingNumberLine(interior, place);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+  if (!parsed) return null;
   try {
-    return buildPlaceValueShift(pv.value, pv.factor, pv.operation);
+    return buildRoundingNumberLine(parsed.value, parsed.place);
   } catch {
     return null;
   }
@@ -226,6 +279,10 @@ function resolveBuild(
       const fromTable = buildFromTableBlock(block);
       if (fromTable) return fromTable;
     }
+    if (block.type === "number_line") {
+      const fromLine = buildFromNumberLineBlock(block);
+      if (fromLine && matchesWorkedAnswer(fromLine, example)) return fromLine;
+    }
     if (block.type === "equation_steps") {
       const fromEq = buildFromEquationBlock(block);
       if (fromEq && matchesWorkedAnswer(fromEq, example)) return fromEq;
@@ -297,6 +354,24 @@ function resolveBuild(
       /* ignore */
     }
   }
+  const round = parseRoundingQuestion(blob);
+  if (round) {
+    try {
+      const built = buildRoundingNumberLine(round.value, round.place);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const chart = parsePlaceValueChart(blob);
+  if (chart) {
+    try {
+      const built = buildPlaceValueChart(chart.value, chart.digit);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
 
   return null;
 }
@@ -360,6 +435,10 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       replaced = true;
       return built.block;
     }
+    if (built.block.type === "number_line" && block.type === "number_line") {
+      replaced = true;
+      return built.block;
+    }
     if (built.block.type === "equation_steps" && block.type === "equation_steps") {
       replaced = true;
       return built.block;
@@ -371,6 +450,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     const filtered = blocks.filter((b) => {
       if (built.block.type === "column_method") return b.type !== "column_method";
       if (built.block.type === "table") return b.type !== "table";
+      if (built.block.type === "number_line") return b.type !== "number_line";
       if (built.block.type === "equation_steps") return b.type !== "equation_steps";
       return true;
     });
@@ -407,8 +487,24 @@ export function applyMethodBuilderToWorkedExample<T extends WorkedExampleLike>(
   subtopics?: string[],
 ): T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string } {
   const built = resolveBuild(example, topic, subtopics);
-  if (!built) return example;
-  return applyBuiltToExample(example, built);
+  const next = built ? applyBuiltToExample(example, built) : example;
+  if (!next.whiteboard?.blocks) return next as T & {
+    teachingSteps?: TeachingStep[];
+    steps: string[];
+    answer: string;
+  };
+  const fit = filterFitBlocks(next.whiteboard.blocks, next.question || "");
+  if (fit.length === next.whiteboard.blocks.length) {
+    return next as T & {
+      teachingSteps?: TeachingStep[];
+      steps: string[];
+      answer: string;
+    };
+  }
+  return {
+    ...next,
+    whiteboard: fit.length > 0 ? { ...next.whiteboard, blocks: fit } : undefined,
+  } as T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string };
 }
 
 /**

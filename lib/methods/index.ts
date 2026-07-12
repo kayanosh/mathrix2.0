@@ -24,6 +24,14 @@ import {
   parsePlaceValueShift,
 } from "@/lib/methods/place-value-shift";
 import {
+  buildPlaceValueChart,
+  parsePlaceValueChart,
+} from "@/lib/methods/place-value-chart";
+import {
+  buildRoundingNumberLine,
+  parseRoundingQuestion,
+} from "@/lib/methods/rounding-number-line";
+import {
   buildFractionOps,
   parseFractionOp,
 } from "@/lib/methods/fraction-ops";
@@ -31,6 +39,26 @@ import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
+
+function tryRoundingNumberLine(text: string): MethodBuildResult | null {
+  const parsed = parseRoundingQuestion(text);
+  if (!parsed) return null;
+  try {
+    return buildRoundingNumberLine(parsed.value, parsed.place);
+  } catch {
+    return null;
+  }
+}
+
+function tryPlaceValueChart(text: string): MethodBuildResult | null {
+  const parsed = parsePlaceValueChart(text);
+  if (!parsed) return null;
+  try {
+    return buildPlaceValueChart(parsed.value, parsed.digit);
+  } catch {
+    return null;
+  }
+}
 
 function tryPlaceValueShift(text: string): MethodBuildResult | null {
   const pv = parsePlaceValueShift(text);
@@ -106,6 +134,8 @@ function tryDecimalColumn(text: string): MethodBuildResult | null {
 }
 
 const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | null> = {
+  rounding_number_line: tryRoundingNumberLine,
+  place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
   fraction_ops: tryFractionOps,
   decimal_column: tryDecimalColumn,
@@ -117,6 +147,8 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
 
 /** Default try order when no preference (place-value / fractions / decimals before generic ×÷). */
 const DEFAULT_ORDER: MethodBuilderId[] = [
+  "rounding_number_line",
+  "place_value_chart",
   "place_value_shift",
   "fraction_ops",
   "decimal_column",
@@ -148,6 +180,8 @@ export {
   buildColumnSubtraction,
   buildLongDivision,
   buildPlaceValueShift,
+  buildPlaceValueChart,
+  buildRoundingNumberLine,
   buildFractionOps,
   buildDecimalColumn,
 };

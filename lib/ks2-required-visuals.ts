@@ -72,8 +72,10 @@ workedExample MUST include a "whiteboard" object:
 Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, text.
 • Long / column multiply or divide → column_method WITH "moves" carry arrows + equation_steps explaining each partial product
 • × or ÷ by 10, 100, 1000 → place-value TABLE (Th H T O columns) + equation_steps showing each digit shift (NEVER column_method for this)
+• Round N to the nearest 10/100/1000/10,000 → number_line whose range is the two multiples either side of N (e.g. 50,000–60,000 for nearest 10,000). NEVER a generic 0–10 line.
 • Multiples / skip-counting → number_line with markers at each multiple (preferred) or a clear table with highlightCells
 • Fractions on a line → number_line
+• Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape
 • Short hints between visuals → text (one sentence max)
 

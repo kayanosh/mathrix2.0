@@ -43,6 +43,35 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     notes: "Never use column_method for ×÷ powers of ten — use a place-value table.",
   },
   {
+    id: "place_value_rounding",
+    label: "Rounding on a Number Line",
+    years: "5-6",
+    builderId: "rounding_number_line",
+    requiredBlocks: ["number_line"],
+    keywords:
+      /\bround(?:ing)?\s+[\d,]+\s+to\s+the\s+nearest\b|\bround(?:ing)?\s+(?:to\s+)?(?:the\s+)?nearest\b|\bnearest\s+(?:10|100|1,?000|10,?000|100,?000)\b/i,
+    vocabulary: ["round", "nearest", "halfway", "multiple"],
+    commonMistakes: [
+      "Looking at the wrong digit to decide",
+      "Rounding to the wrong place",
+    ],
+    notes: "Always show the two multiples either side with a halfway marker — never a generic 0–10 line.",
+  },
+  {
+    id: "place_value_chart",
+    label: "Place Value Digit Chart",
+    years: "5-6",
+    builderId: "place_value_chart",
+    requiredBlocks: ["table"],
+    keywords:
+      /\b(?:value of (?:the )?\d in|place[- ]value (?:chart|grid|of each digit)|what is the value of the)\b/i,
+    vocabulary: ["place value", "digit", "column", "thousands", "ones"],
+    commonMistakes: [
+      "Confusing the digit with its place value",
+      "Misreading zeros in large numbers",
+    ],
+  },
+  {
     id: "fractions_compare",
     label: "Compare and Order Fractions",
     years: "5-6",
@@ -267,14 +296,16 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     label: "Place Value (Read, Write, Round)",
     years: "5-6",
     builderId: null,
-    requiredBlocks: ["table", "number_line"],
+    requiredBlocks: ["table"],
     keywords:
-      /\b(place value|numbers to|read,?\s*write|compare and order numbers|round(?:ing)?\s+(?:to|any)|roman numerals|powers of 10|more or less)\b/i,
+      /\b(place value|numbers to|read,?\s*write|compare and order numbers|roman numerals|powers of 10|more or less)\b/i,
     vocabulary: ["place value", "round", "compare", "digit", "million"],
     commonMistakes: [
       "Rounding to the wrong place",
       "Misreading large numbers with zeros",
     ],
+    notes:
+      "Catch-all for Place Value prose. Rounding and digit-value questions are handled by place_value_rounding / place_value_chart builders first.",
   },
   {
     id: "negative_numbers",
@@ -361,6 +392,8 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
 /** Topics that should stop after the first match (most specific first). */
 const STOP_AFTER = new Set([
   "place_value_shift",
+  "place_value_rounding",
+  "place_value_chart",
   "fractions_compare",
   "fraction_ops",
   "decimals_fdp",
