@@ -14,6 +14,10 @@
 
 import type { ColumnMethodBlock } from "@/types/whiteboard";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
+import {
+  buildColumnMultiplication,
+  teachingStepsToReveal,
+} from "@/lib/methods/column-multiplication";
 
 export interface ColumnRevealStep {
   /** What the teacher says while writing this step. */
@@ -30,6 +34,12 @@ export interface ColumnRevealStep {
   noteKeys: string[];
   /** Reveal the final "= answer" line with this step. */
   showAnswer?: boolean;
+  /** Short card title from a method builder (digit-level teaching). */
+  title?: string;
+  /** Pupil-facing explanation (may differ slightly from narration). */
+  explanation?: string;
+  /** Optional "why this works" line. */
+  why?: string;
 }
 
 export interface ColumnRevealState {
@@ -357,19 +367,42 @@ function subtractionTimeline(
 
 // ── Multiplication ───────────────────────────────────────────────────────────
 
+/**
+ * Digit-level timeline from the deterministic builder when operands parse cleanly.
+ * Falls back to a coarser partial-product reveal for malformed / non-integer boards.
+ */
 function multiplicationTimeline(
   block: ColumnMethodBlock,
 ): ColumnRevealStep[] | null {
-  const { rows, carries = [], answer } = block;
+  const { rows } = block;
   if (rows.length < 3) return null;
 
+  const multiplicand = normalizeColumnDigits(rows[0]);
+  const multiplier = normalizeColumnDigits(rows[1]);
+  if (!/^\d+$/.test(multiplicand) || !/^\d+$/.test(multiplier)) return null;
+
+  // Prefer the shared builder script so Learn / Tutor / captions stay in sync.
+  try {
+    const built = buildColumnMultiplication(
+      parseInt(multiplicand, 10),
+      parseInt(multiplier, 10),
+    );
+    return teachingStepsToReveal(built.teachingSteps);
+  } catch {
+    return multiplicationTimelineCoarse(block);
+  }
+}
+
+/** Legacy coarse path: one step per partial-product row. */
+function multiplicationTimelineCoarse(
+  block: ColumnMethodBlock,
+): ColumnRevealStep[] | null {
+  const { rows, carries = [], answer } = block;
   const maxCols = gridMaxCols(rows);
   const multiplicand = normalizeColumnDigits(rows[0]);
   const multiplier = normalizeColumnDigits(rows[1]);
   if (!/^\d+$/.test(multiplicand) || !/^\d+$/.test(multiplier)) return null;
 
-  // rows[2..] are partial products; with 2+ partials the final row is their
-  // total. With a single-digit multiplier, rows[2] IS the product.
   const hasTotalRow = rows.length >= 4;
   const partialRows = hasTotalRow ? rows.slice(2, -1) : rows.slice(2);
   const totalRowIndex = hasTotalRow ? rows.length - 1 : -1;
@@ -382,7 +415,7 @@ function multiplicationTimeline(
     noteKeys: [],
   });
 
-  const multiplierDigits = multiplier.split("").reverse(); // ones digit first
+  const multiplierDigits = multiplier.split("").reverse();
   let carriesRevealed = false;
 
   partialRows.forEach((row, pi) => {
@@ -400,8 +433,6 @@ function multiplicationTimeline(
       narration = `Now multiply ${multiplicand} by the ${place} digit, ${digit}. Because it's really ${digit}${"0".repeat(pi)}, we put ${pi === 1 ? "a zero" : `${pi} zeros`} first to hold the place value. That gives ${product}.`;
     }
 
-    // Carries are written above the top number during the digit-by-digit
-    // working, so reveal them with the first partial-product step.
     let carryKeys: string[] = [];
     if (!carriesRevealed && carries.length > 0) {
       carryKeys = carries.map((c) => cellKey(c.row, c.col));
@@ -413,7 +444,6 @@ function multiplicationTimeline(
 
     steps.push({
       narration,
-      // Partial products are worked out right-to-left, so write them that way.
       cellKeys: rowCellKeys(ri, row, maxCols).reverse(),
       carryKeys,
       noteKeys: [],
@@ -426,7 +456,6 @@ function multiplicationTimeline(
       .join(" add ");
     steps.push({
       narration: `Finally, add the partial products: ${partialsText} makes ${normalizeColumnDigits(rows[totalRowIndex])}. So ${block.question} equals ${answer}.`,
-      // The total is added column by column, right to left.
       cellKeys: rowCellKeys(totalRowIndex, rows[totalRowIndex], maxCols).reverse(),
       carryKeys: [],
       noteKeys: [],

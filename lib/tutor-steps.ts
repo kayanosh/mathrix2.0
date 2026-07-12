@@ -5,6 +5,7 @@
 
 import type { NarrationCue } from "@/lib/narration";
 import type { WhiteboardResponse, EquationStep, VisualBlock } from "@/types/whiteboard";
+import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 
 export interface TutorStepModel {
   cueIndex: number;
@@ -91,11 +92,25 @@ export function buildTutorSteps(
     }
 
     if (cue.kind === "column") {
+      const block = data.blocks[cue.blockIndex];
+      let title = `Working · part ${(cue.subIndex ?? 0) + 1}`;
+      let explanation = narration;
+      let why: string | undefined;
+      if (block?.type === "column_method") {
+        const timeline = buildColumnRevealTimeline(block);
+        const step = timeline[cue.subIndex ?? 0];
+        if (step) {
+          if (step.title) title = step.title;
+          if (step.explanation) explanation = step.explanation;
+          why = step.why;
+        }
+      }
       return {
         cueIndex,
         kind: cue.kind,
-        title: `Working · part ${(cue.subIndex ?? 0) + 1}`,
-        explanation: narration,
+        title,
+        explanation,
+        why,
         narration,
         visual: {
           type: "column",

@@ -12,6 +12,7 @@ import {
   KS2_LESSON_VISUAL_SCHEMA,
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
+import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import { deepRepairStrings } from "@/lib/validate";
 import { detectPromptInjection, INJECTION_GUARD } from "@/lib/input-safety";
 import type { VisualBlock } from "@/types/whiteboard";
@@ -197,6 +198,13 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       const key = ks2LessonCacheKey(topicId, target, tier, kind);
       const cached = await lookupKS2LessonCache(key);
       if (cached) {
+        if (isMaths && cached.workedExample?.question) {
+          cached.workedExample = applyMethodBuilderToWorkedExample(
+            cached.workedExample,
+            topic,
+            subtopics,
+          );
+        }
         return NextResponse.json({ lesson: cached, cached: true });
       }
     }
@@ -305,6 +313,15 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
 
     if (!lesson || (!lesson.intro && lesson.sections.length === 0)) {
       return NextResponse.json({ error: "Could not generate lesson" }, { status: 502 });
+    }
+
+    // Prefer deterministic method builders for arithmetic working + captions.
+    if (isMaths && lesson.workedExample?.question) {
+      lesson.workedExample = applyMethodBuilderToWorkedExample(
+        lesson.workedExample,
+        topic,
+        subtopics,
+      );
     }
 
     if (topicId) {

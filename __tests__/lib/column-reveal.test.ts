@@ -150,28 +150,38 @@ describe("buildColumnRevealTimeline — subtraction with borrow cascade", () => 
 describe("buildColumnRevealTimeline — multiplication", () => {
   const steps = buildColumnRevealTimeline(multiplication);
 
-  it("produces setup + one step per partial product + total", () => {
-    expect(steps).toHaveLength(4);
+  it("produces digit-level steps (more than one per partial product)", () => {
+    // setup + digit steps for ones + place-value + tens digits + total
+    expect(steps.length).toBeGreaterThan(4);
   });
 
-  it("explains each partial product with the right multiplier digit", () => {
-    expect(steps[1].narration).toContain("by the ones digit, 5");
-    expect(steps[1].narration).toContain("115");
-    expect(steps[2].narration).toContain("by the tens digit, 4");
-    expect(steps[2].narration).toContain("zero");
-    expect(steps[2].narration).toContain("920");
+  it("explains ones-digit products digit-by-digit", () => {
+    const joined = steps.map((s) => s.narration).join(" ");
+    expect(joined).toMatch(/ones digit|Ones × 5|5 times 2|5 × 2/i);
+    expect(joined).toMatch(/115|carry/i);
+  });
+
+  it("explains the tens place-value zero before the tens line", () => {
+    const joined = steps.map((s) => s.narration).join(" ");
+    expect(joined).toMatch(/zero/i);
+    expect(joined).toMatch(/920|tens/i);
   });
 
   it("adds the partial products in the final step", () => {
     const last = steps[steps.length - 1];
-    expect(last.narration).toContain("115 add 920");
-    expect(last.narration).toContain("1035");
+    expect(last.narration).toMatch(/115/);
+    expect(last.narration).toMatch(/920/);
+    expect(last.narration).toMatch(/1035/);
     expect(last.showAnswer).toBe(true);
   });
 
-  it("reveals partial-product rows in writing order (right to left)", () => {
-    // "115" occupies grid cols 1..3 of row 2 (maxCols = 4).
-    expect(steps[1].cellKeys).toEqual([cellKey(2, 3), cellKey(2, 2), cellKey(2, 1)]);
+  it("reveals the first ones digit in the ones column", () => {
+    // 23×45 → ones: 5×3=15 write 5 carry 1 at ones of partial row
+    const firstDigit = steps.find((s) =>
+      /5 × 3|5 times 3/i.test(s.narration + (s.explanation || "")),
+    );
+    expect(firstDigit).toBeTruthy();
+    expect(firstDigit!.cellKeys.length).toBeGreaterThan(0);
   });
 });
 

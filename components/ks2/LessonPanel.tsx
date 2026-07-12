@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer, MonitorPlay } from "lucide-react";
 import InlineMath from "@/components/InlineMath";
@@ -9,6 +9,7 @@ import WhiteboardTutor from "@/components/WhiteboardTutor";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
+import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import type { VisualBlock, WhiteboardResponse } from "@/types/whiteboard";
 
 export interface LessonSection {
@@ -49,7 +50,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v4_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v5_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(p: Props): string {
@@ -143,6 +144,28 @@ export default function LessonPanel(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicName, target, tier, kind]);
 
+  const displayExample = useMemo(() => {
+    if (!lesson?.workedExample?.question) return lesson?.workedExample;
+    return applyMethodBuilderToWorkedExample(
+      lesson.workedExample,
+      topicName,
+      subtopics,
+    );
+  }, [lesson?.workedExample, topicName, subtopics]);
+
+  const workedWhiteboard: WhiteboardResponse | null =
+    displayExample?.whiteboard &&
+    displayExample.whiteboard.blocks.length > 0
+      ? {
+          intro: displayExample.whiteboard.intro || displayExample.question,
+          blocks: displayExample.whiteboard.blocks,
+          conclusion:
+            displayExample.whiteboard.conclusion || displayExample.answer,
+          subject: subjectName,
+          topic: topicName,
+        }
+      : null;
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -162,19 +185,6 @@ export default function LessonPanel(props: Props) {
       </div>
     );
   }
-
-  const workedWhiteboard: WhiteboardResponse | null =
-    lesson.workedExample?.whiteboard &&
-    lesson.workedExample.whiteboard.blocks.length > 0
-      ? {
-          intro: lesson.workedExample.whiteboard.intro || lesson.workedExample.question,
-          blocks: lesson.workedExample.whiteboard.blocks,
-          conclusion:
-            lesson.workedExample.whiteboard.conclusion || lesson.workedExample.answer,
-          subject: subjectName,
-          topic: topicName,
-        }
-      : null;
 
   return (
     <>
@@ -253,11 +263,11 @@ export default function LessonPanel(props: Props) {
       ))}
 
       {/* Worked example */}
-      {lesson.workedExample && lesson.workedExample.question && (
+      {displayExample && displayExample.question && (
         <motion.div variants={fadeUp} className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-500">
-              {lesson.workedExample.emoji ? `${lesson.workedExample.emoji} ` : ""}Worked example
+              {displayExample.emoji ? `${displayExample.emoji} ` : ""}Worked example
             </p>
             {workedWhiteboard && (
               <button
@@ -269,7 +279,7 @@ export default function LessonPanel(props: Props) {
               </button>
             )}
           </div>
-          <p className="font-medium text-gray-900 mb-3">{<InlineMath text={lesson.workedExample.question} />}</p>
+          <p className="font-medium text-gray-900 mb-3">{<InlineMath text={displayExample.question} />}</p>
 
           {workedWhiteboard && (
             <div className="mb-4 space-y-3 rounded-xl bg-white/80 p-3 border border-indigo-100">
@@ -283,7 +293,7 @@ export default function LessonPanel(props: Props) {
           )}
 
           <ol className="space-y-1.5">
-            {lesson.workedExample.steps.map((step, i) => (
+            {displayExample.steps.map((step, i) => (
               <motion.li
                 key={i}
                 initial={{ opacity: 0, x: -8 }}
@@ -296,9 +306,9 @@ export default function LessonPanel(props: Props) {
               </motion.li>
             ))}
           </ol>
-          {lesson.workedExample.answer && (
+          {displayExample.answer && (
             <p className="mt-3 flex items-center gap-2 font-semibold text-emerald-700">
-              <CheckCircle2 size={16} /> <InlineMath text={lesson.workedExample.answer} />
+              <CheckCircle2 size={16} /> <InlineMath text={displayExample.answer} />
             </p>
           )}
         </motion.div>
@@ -389,24 +399,24 @@ export default function LessonPanel(props: Props) {
           </div>
         ))}
 
-        {lesson.workedExample?.question && (
+        {displayExample?.question && (
           <div className="ks2-print-question" style={{ marginBottom: "16px", fontSize: "14px", lineHeight: 1.5 }}>
             <div style={{ fontWeight: 700, marginBottom: "6px" }}>
-              {lesson.workedExample.emoji ? `${lesson.workedExample.emoji} ` : ""}Worked example
+              {displayExample.emoji ? `${displayExample.emoji} ` : ""}Worked example
             </div>
             <p style={{ fontWeight: 600, margin: "0 0 8px" }}>
-              <InlineMath text={lesson.workedExample.question} />
+              <InlineMath text={displayExample.question} />
             </p>
             <ol style={{ margin: 0, paddingLeft: "20px" }}>
-              {lesson.workedExample.steps.map((step, i) => (
+              {displayExample.steps.map((step, i) => (
                 <li key={i} style={{ marginBottom: "4px" }}>
                   <InlineMath text={step} />
                 </li>
               ))}
             </ol>
-            {lesson.workedExample.answer && (
+            {displayExample.answer && (
               <p style={{ margin: "8px 0 0", fontWeight: 600 }}>
-                Answer: <InlineMath text={lesson.workedExample.answer} />
+                Answer: <InlineMath text={displayExample.answer} />
               </p>
             )}
           </div>

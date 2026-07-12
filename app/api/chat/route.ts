@@ -46,6 +46,7 @@ import {
   detectKS2RequiredVisuals,
   mergeVisualRequirements,
 } from "@/lib/ks2-required-visuals";
+import { applyMethodBuilderToWhiteboard } from "@/lib/methods/apply-builder";
 import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
@@ -875,6 +876,19 @@ export async function POST(req: NextRequest) {
 
     // At this point result.data is guaranteed to exist — capture the reference
     let solutionData: WhiteboardResponse = result.data;
+
+    // KS2: prefer deterministic method builders for arithmetic working.
+    if (level === "KS2") {
+      const subtopicsArr = Array.isArray(subtopicsContext)
+        ? (subtopicsContext as string[])
+        : undefined;
+      solutionData = applyMethodBuilderToWhiteboard(
+        solutionData,
+        questionText,
+        typeof topicContext === "string" ? topicContext : undefined,
+        subtopicsArr,
+      );
+    }
 
     // Attach uploaded image URL so the whiteboard can display it inline
     if (hasImage && lastUserMsg?.imageUrl) {

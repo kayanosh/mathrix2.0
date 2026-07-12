@@ -3,7 +3,39 @@ import type { ColumnMethodMove } from "@/types/whiteboard";
 export const DEFAULT_CELL_W = 36;
 export const DEFAULT_CELL_H = 44;
 export const DEFAULT_CARRY_H = 28;
+/** Compact spacer when a row has no carry digits (reduces vertical sparseness). */
+export const COMPACT_CARRY_H = 6;
 export const ROW_SEPARATOR_H = 2;
+
+/** Per-row carry-band heights — full height only where carries exist. */
+export function carryHeightsForRows(
+  rowCount: number,
+  carries: { row: number; col: number; digit: string }[] | undefined,
+  method?: string,
+): number[] {
+  const hasCarryOn = new Set((carries || []).map((c) => c.row));
+  // Addition/multiplication always reserve a full band on the multiplicand/top
+  // row when any carries exist, so arrows have room.
+  if (
+    (method === "column_addition" || method === "column_multiplication") &&
+    (carries?.length ?? 0) > 0
+  ) {
+    hasCarryOn.add(0);
+  }
+  return Array.from({ length: rowCount }, (_, ri) =>
+    hasCarryOn.has(ri) ? DEFAULT_CARRY_H : COMPACT_CARRY_H,
+  );
+}
+
+function rowStride(ri: number, cellH: number, carryHeights: number[]): number {
+  return (carryHeights[ri] ?? DEFAULT_CARRY_H) + cellH + ROW_SEPARATOR_H;
+}
+
+function rowOriginY(row: number, cellH: number, carryHeights: number[]): number {
+  let y = 0;
+  for (let r = 0; r < row; r++) y += rowStride(r, cellH, carryHeights);
+  return y;
+}
 
 /** Centre point of a digit cell in the column grid (px, top-left origin). */
 export function cellCenter(
@@ -12,9 +44,14 @@ export function cellCenter(
   _maxCols: number,
   cellW = DEFAULT_CELL_W,
   cellH = DEFAULT_CELL_H,
-  carryH = DEFAULT_CARRY_H
+  carryH: number | number[] = DEFAULT_CARRY_H
 ): { x: number; y: number } {
   const x = col * cellW + cellW / 2;
+  if (Array.isArray(carryH)) {
+    const origin = rowOriginY(row, cellH, carryH);
+    const band = carryH[row] ?? DEFAULT_CARRY_H;
+    return { x, y: origin + band + cellH / 2 };
+  }
   const y = row * (carryH + cellH + ROW_SEPARATOR_H) + carryH + cellH / 2;
   return { x, y };
 }
@@ -25,9 +62,14 @@ export function carrySlotCenter(
   col: number,
   cellW = DEFAULT_CELL_W,
   cellH = DEFAULT_CELL_H,
-  carryH = DEFAULT_CARRY_H
+  carryH: number | number[] = DEFAULT_CARRY_H
 ): { x: number; y: number } {
   const x = col * cellW + cellW / 2;
+  if (Array.isArray(carryH)) {
+    const origin = rowOriginY(row, cellH, carryH);
+    const band = carryH[row] ?? DEFAULT_CARRY_H;
+    return { x, y: origin + band / 2 };
+  }
   const y = row * (carryH + cellH + ROW_SEPARATOR_H) + carryH / 2;
   return { x, y };
 }
@@ -36,8 +78,13 @@ export function carrySlotCenter(
 export function gridHeight(
   rowCount: number,
   cellH = DEFAULT_CELL_H,
-  carryH = DEFAULT_CARRY_H
+  carryH: number | number[] = DEFAULT_CARRY_H
 ): number {
+  if (Array.isArray(carryH)) {
+    let h = 0;
+    for (let r = 0; r < rowCount; r++) h += rowStride(r, cellH, carryH);
+    return h;
+  }
   return rowCount * (carryH + cellH + ROW_SEPARATOR_H);
 }
 

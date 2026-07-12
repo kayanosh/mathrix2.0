@@ -345,6 +345,8 @@ export interface ColumnMethodBlock {
   separatorAfterRows?: number[];
   /** Cells to visually emphasise (amber ring) — the key digits to look at */
   highlightCells?: { row: number; col: number }[];
+  /** Optional place-value headers above the digit grid, e.g. ["H","T","O"] */
+  placeValueHeaders?: string[];
   /** The original question (e.g. "384 ÷ 12") */
   question: string;
   /** Final answer */

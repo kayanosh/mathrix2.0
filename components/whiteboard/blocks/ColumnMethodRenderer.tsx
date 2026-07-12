@@ -6,9 +6,9 @@ import type { ColumnMethodBlock, ColumnMethodCellNote } from "@/types/whiteboard
 import {
   arrowheadPoints,
   buildArrowPath,
+  carryHeightsForRows,
   carrySlotCenter,
   cellCenter,
-  DEFAULT_CARRY_H,
   DEFAULT_CELL_H,
   DEFAULT_CELL_W,
   gridHeight,
@@ -49,11 +49,15 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
   const block = useMemo(() => withResultRow(rawBlock), [rawBlock]);
   const { rows, carries, moves, cellNotes, separatorAfterRows, question, answer, method } = block;
   const separators = new Set(separatorAfterRows || []);
+  const placeValueHeaders = block.placeValueHeaders;
 
   const maxCols = Math.max(...rows.map((r) => normalizeColumnDigits(r).length), 1);
   const cellW = DEFAULT_CELL_W;
   const cellH = DEFAULT_CELL_H;
-  const carryH = DEFAULT_CARRY_H;
+  const carryHeights = useMemo(
+    () => carryHeightsForRows(rows.length, carries, method),
+    [rows.length, carries, method],
+  );
 
   const stepMode = revealStep !== undefined;
   const timeline = useMemo(
@@ -140,7 +144,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
   };
 
   const svgW = gridWidth(maxCols, cellW);
-  const svgH = gridHeight(rows.length, cellH, carryH);
+  const svgH = gridHeight(rows.length, cellH, carryHeights);
 
   const operatorRow =
     method === "column_addition" || method === "column_subtraction"
@@ -178,11 +182,11 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
               {resolvedMoves.map((move, mi) => {
                 if (!moveVisible(move)) return null;
                 const kind = move.kind ?? "carry";
-                const from = cellCenter(move.fromRow, move.fromCol, maxCols, cellW, cellH, carryH);
+                const from = cellCenter(move.fromRow, move.fromCol, maxCols, cellW, cellH, carryHeights);
                 const to =
                   kind === "carry"
-                    ? carrySlotCenter(move.toRow, move.toCol, cellW, cellH, carryH)
-                    : cellCenter(move.toRow, move.toCol, maxCols, cellW, cellH, carryH);
+                    ? carrySlotCenter(move.toRow, move.toCol, cellW, cellH, carryHeights)
+                    : cellCenter(move.toRow, move.toCol, maxCols, cellW, cellH, carryHeights);
                 const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
                 const pathD = buildArrowPath(from.x, from.y, to.x, to.y, kind, move.laneIndex);
                 const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
@@ -223,10 +227,31 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
             </svg>
           )}
 
+          {placeValueHeaders && placeValueHeaders.length > 0 && (
+            <div className="flex justify-end items-center mb-1" style={{ marginRight: 2 }}>
+              {Array.from({ length: maxCols }, (_, ci) => {
+                const header =
+                  placeValueHeaders[
+                    ci - (maxCols - placeValueHeaders.length)
+                  ] || "";
+                return (
+                  <div
+                    key={`pv-${ci}`}
+                    className="flex items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400"
+                    style={{ width: cellW }}
+                  >
+                    {header}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {rows.map((row, ri) => {
             const cleaned = normalizeColumnDigits(row);
             const showOperator = ri === operatorRow && operatorChar;
             const operatorVisible = !reveal || cellVisible(ri, maxCols - cleaned.length);
+            const carryH = carryHeights[ri] ?? 6;
 
             return (
               <div key={ri}>
