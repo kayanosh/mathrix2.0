@@ -1,5 +1,10 @@
 import { supabaseAdmin } from "./supabase/admin";
 import type { VisualBlock } from "@/types/whiteboard";
+import type {
+  KS2CommonMistake,
+  KS2PracticeItem,
+  KS2TeachingBlock,
+} from "@/types/ks2-lesson";
 
 export interface CachedKS2WorkedExampleWhiteboard {
   intro: string;
@@ -20,16 +25,31 @@ export interface CachedKS2Lesson {
   };
   keyPoints: string[];
   tryThis?: { question: string; answer: string };
+
+  /** Teaching Engine (schema v2) — optional for legacy cache rows */
+  schemaVersion?: 2;
+  learningObjective?: string;
+  prerequisiteKnowledge?: string[];
+  teachingBlocks?: KS2TeachingBlock[];
+  commonMistakes?: KS2CommonMistake[];
+  guidedPractice?: KS2PracticeItem[];
+  independentPractice?: KS2PracticeItem[];
+  quickCheck?: KS2PracticeItem;
+  recap?: string;
+  yearGroup?: string;
+  strand?: string;
+  skill?: string;
+  method?: string;
 }
 
-/** Stable cache key: one shared lesson per topic + target + tier + kind. v16 = fraction number-line + topic builders. */
+/** Stable cache key. v17 = teaching-engine schema + new KS2 visuals. */
 export function ks2LessonCacheKey(
   topicId: string,
   target: string,
   tier: string,
   kind: string
 ): string {
-  return `v16|${topicId}|${target}|${tier}|${kind}`;
+  return `v17|${topicId}|${target}|${tier}|${kind}`;
 }
 
 export async function lookupKS2LessonCache(

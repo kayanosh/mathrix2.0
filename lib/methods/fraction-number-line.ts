@@ -6,6 +6,8 @@
 import type {
   EquationStep,
   EquationStepBlock,
+  FractionBarBlock,
+  FractionWallBlock,
   NumberLineBlock,
   TableBlock,
 } from "@/types/whiteboard";
@@ -246,12 +248,44 @@ export function buildFractionNumberLine(fractions: Fraction[]): MethodBuildResul
       noteKeys: [],
       showAnswer: true,
     },
+    {
+      title: "Watch out",
+      explanation:
+        "Do not compare only the denominators. Equal-sized pieces (common denominator) make a fair comparison.",
+      why: "A larger denominator means smaller pieces — 1/2 is not smaller than 1/4 only because 2 < 4.",
+      narration:
+        "Remember: do not compare only the denominators.",
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+    },
   ];
+
+  const fractionBars: FractionBarBlock[] = fractions.map((f) => ({
+    type: "fraction_bar",
+    numerator: f.n,
+    denominator: f.d,
+    label: plain(f),
+    shaded: f.n,
+  }));
+
+  const wall: FractionWallBlock = {
+    type: "fraction_wall",
+    caption: `Pieces of size 1/${lcd}`,
+    rows: [
+      { denominator: lcd, label: `Equal parts of 1/${lcd} (LCD ${lcd})` },
+      ...fractions.map((f) => ({
+        denominator: f.d,
+        highlightIndex: Math.min(f.n - 1, f.d - 1),
+        label: plain(f),
+      })),
+    ],
+  };
 
   return {
     builderId: "fraction_number_line",
     block: line,
-    extraBlocks: [table, equationBlock],
+    extraBlocks: [table, ...fractionBars, wall, equationBlock],
     teachingSteps,
     captions: teachingSteps.map((s) => `${s.title}: ${s.explanation}`),
     answer: orderedPlain,

@@ -11,6 +11,14 @@ import NumberLineRenderer from "./blocks/NumberLineRenderer";
 import TableRenderer from "./blocks/TableRenderer";
 import ChartRenderer from "./blocks/ChartRenderer";
 import ColumnMethodRenderer from "./blocks/ColumnMethodRenderer";
+import {
+  AreaModelRenderer,
+  BarModelRenderer,
+  FractionBarRenderer,
+  FractionWallRenderer,
+  HundredSquareRenderer,
+  KeyInfoRenderer,
+} from "./blocks/KS2TeachingVisuals";
 
 interface Props {
   block: VisualBlock;
@@ -32,6 +40,18 @@ export default function BlockRenderer({ block, index, baseDelay }: Props) {
       return <VennDiagramRenderer block={block} baseDelay={baseDelay} />;
     case "number_line":
       return <NumberLineRenderer block={block} baseDelay={baseDelay} />;
+    case "fraction_bar":
+      return <FractionBarRenderer block={block} baseDelay={baseDelay} />;
+    case "fraction_wall":
+      return <FractionWallRenderer block={block} baseDelay={baseDelay} />;
+    case "bar_model":
+      return <BarModelRenderer block={block} baseDelay={baseDelay} />;
+    case "hundred_square":
+      return <HundredSquareRenderer block={block} baseDelay={baseDelay} />;
+    case "area_model":
+      return <AreaModelRenderer block={block} baseDelay={baseDelay} />;
+    case "key_info":
+      return <KeyInfoRenderer block={block} baseDelay={baseDelay} />;
     case "table":
       return <TableRenderer block={block} baseDelay={baseDelay} />;
     case "chart":

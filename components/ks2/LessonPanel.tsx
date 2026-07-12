@@ -6,12 +6,18 @@ import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer, MonitorPlay 
 import InlineMath from "@/components/InlineMath";
 import BlockRenderer from "@/components/whiteboard/BlockRenderer";
 import WhiteboardTutor from "@/components/WhiteboardTutor";
+import StepController from "@/components/ks2/StepController";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import type { TeachingStep } from "@/lib/methods/types";
 import type { VisualBlock, WhiteboardResponse } from "@/types/whiteboard";
+import type {
+  KS2CommonMistake,
+  KS2PracticeItem,
+  KS2TeachingBlock,
+} from "@/types/ks2-lesson";
 
 export interface LessonSection {
   heading: string;
@@ -39,6 +45,19 @@ export interface KS2Lesson {
   workedExample: WorkedExample;
   keyPoints: string[];
   tryThis?: { question: string; answer: string };
+  schemaVersion?: 2;
+  learningObjective?: string;
+  prerequisiteKnowledge?: string[];
+  teachingBlocks?: KS2TeachingBlock[];
+  commonMistakes?: KS2CommonMistake[];
+  guidedPractice?: KS2PracticeItem[];
+  independentPractice?: KS2PracticeItem[];
+  quickCheck?: KS2PracticeItem;
+  recap?: string;
+  yearGroup?: string;
+  strand?: string;
+  skill?: string;
+  method?: string;
 }
 
 interface Props {
@@ -53,7 +72,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v16_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v17_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function asStringArray(value: unknown): string[] {
@@ -299,6 +318,40 @@ export default function LessonPanel(props: Props) {
         )}
       </motion.div>
 
+      {/* Teaching engine: objective + prior knowledge */}
+      {lesson.learningObjective && (
+        <motion.div
+          variants={fadeUp}
+          className="rounded-2xl border border-sky-200 bg-sky-50/70 p-4"
+        >
+          <p className="text-[12px] font-bold uppercase tracking-wide text-sky-600 mb-1">
+            Learning objective
+          </p>
+          <p className="text-gray-900 font-medium">
+            <InlineMath text={lesson.learningObjective} />
+          </p>
+          {lesson.method && (
+            <p className="mt-1 text-[13px] text-sky-800">Method: {lesson.method}</p>
+          )}
+        </motion.div>
+      )}
+      {Array.isArray(lesson.prerequisiteKnowledge) &&
+        lesson.prerequisiteKnowledge.length > 0 && (
+          <motion.div variants={fadeUp} className="rounded-2xl bg-gray-50 border border-gray-200 p-4">
+            <p className="text-[12px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+              You should already know
+            </p>
+            <ul className="space-y-1">
+              {lesson.prerequisiteKnowledge.map((p, i) => (
+                <li key={i} className="text-gray-700 text-sm flex gap-2">
+                  <span className="text-gray-400">•</span>
+                  <InlineMath text={p} />
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+
       {/* Sections */}
       {(Array.isArray(lesson.sections) ? lesson.sections : []).map((s, i) => (
         <motion.div key={i} variants={fadeUp} className="flex gap-3">
@@ -319,6 +372,35 @@ export default function LessonPanel(props: Props) {
           </div>
         </motion.div>
       ))}
+
+      {/* Extra teaching blocks (tips, definitions) */}
+      {(lesson.teachingBlocks || [])
+        .filter((b) =>
+          ["definition", "teacherExplanation", "teacherTip", "conceptExplanation"].includes(
+            b.type,
+          ),
+        )
+        .map((b, i) => (
+          <motion.div
+            key={`tb-${i}`}
+            variants={fadeUp}
+            className="rounded-xl border border-gray-100 bg-white p-3"
+          >
+            {b.title && (
+              <p className="text-[12px] font-bold uppercase tracking-wide text-gray-500 mb-1">
+                {b.title}
+              </p>
+            )}
+            <p className="text-gray-800 text-sm">
+              <InlineMath text={b.body} />
+            </p>
+            {b.visual && (
+              <div className="mt-2">
+                <BlockRenderer block={b.visual} index={i} baseDelay={0.05} />
+              </div>
+            )}
+          </motion.div>
+        ))}
 
       {/* Worked example */}
       {displayExample && displayExample.question && (
@@ -350,52 +432,59 @@ export default function LessonPanel(props: Props) {
             </div>
           )}
 
-          <ol className="space-y-2.5">
-            {(asTeachingSteps(displayExample.teachingSteps).length > 0
-              ? asTeachingSteps(displayExample.teachingSteps)
-              : asStringArray(displayExample.steps).map(
-                  (step): TeachingStep => ({
-                    title: "",
-                    explanation: step,
-                    narration: step,
-                    cellKeys: [],
-                    carryKeys: [],
-                    noteKeys: [],
-                  }),
-                )
-            ).map((step, i) => (
-              <motion.li
-                key={i}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 + i * 0.12 }}
-                className="flex gap-2 text-gray-700"
-              >
-                <span className="font-bold text-indigo-500 shrink-0">{i + 1}.</span>
-                <div className="min-w-0 space-y-0.5">
-                  {step.title ? (
-                    <p className="font-semibold text-gray-900 text-[15px]">
-                      {step.title}
+          {asTeachingSteps(displayExample.teachingSteps).length > 0 ? (
+            <StepController
+              steps={asTeachingSteps(displayExample.teachingSteps)}
+              answer={displayExample.answer}
+            />
+          ) : (
+            <>
+              <ol className="space-y-2.5">
+                {asStringArray(displayExample.steps).map((step, i) => (
+                  <motion.li
+                    key={i}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 + i * 0.12 }}
+                    className="flex gap-2 text-gray-700"
+                  >
+                    <span className="font-bold text-indigo-500 shrink-0">{i + 1}.</span>
+                    <p>
+                      <InlineMath text={step} />
                     </p>
-                  ) : null}
-                  <p className="text-gray-700">
-                    <InlineMath text={step.explanation} />
-                  </p>
-                  {step.why ? (
-                    <p className="text-[13px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
-                      <span className="font-semibold text-amber-700">Why: </span>
-                      {step.why}
-                    </p>
-                  ) : null}
-                </div>
-              </motion.li>
-            ))}
-          </ol>
-          {displayExample.answer && (
-            <p className="mt-3 flex items-center gap-2 font-semibold text-emerald-700">
-              <CheckCircle2 size={16} /> <InlineMath text={displayExample.answer} />
-            </p>
+                  </motion.li>
+                ))}
+              </ol>
+              {displayExample.answer && (
+                <p className="mt-3 flex items-center gap-2 font-semibold text-emerald-700">
+                  <CheckCircle2 size={16} /> <InlineMath text={displayExample.answer} />
+                </p>
+              )}
+            </>
           )}
+        </motion.div>
+      )}
+
+      {/* Common mistakes */}
+      {Array.isArray(lesson.commonMistakes) && lesson.commonMistakes.length > 0 && (
+        <motion.div variants={fadeUp} className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-rose-600 mb-2">
+            Common mistake
+          </p>
+          <ul className="space-y-3">
+            {lesson.commonMistakes.map((m, i) => (
+              <li key={i} className="text-sm space-y-1">
+                <p className="text-rose-900">
+                  <span className="font-semibold">Watch out: </span>
+                  <InlineMath text={m.mistake} />
+                </p>
+                <p className="text-emerald-800">
+                  <span className="font-semibold">Instead: </span>
+                  <InlineMath text={m.correction} />
+                </p>
+              </li>
+            ))}
+          </ul>
         </motion.div>
       )}
 
@@ -419,6 +508,44 @@ export default function LessonPanel(props: Props) {
               </motion.li>
             ))}
           </ul>
+        </motion.div>
+      )}
+
+      {lesson.recap && (
+        <motion.div variants={fadeUp} className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-violet-600 mb-1">
+            Recap
+          </p>
+          <p className="text-gray-800">
+            <InlineMath text={lesson.recap} />
+          </p>
+        </motion.div>
+      )}
+
+      {/* Independent / quick check */}
+      {Array.isArray(lesson.independentPractice) &&
+        lesson.independentPractice.length > 0 && (
+          <motion.div variants={fadeUp} className="rounded-2xl border border-gray-200 bg-white p-4">
+            <p className="text-[12px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+              Independent practice
+            </p>
+            <ul className="space-y-2">
+              {lesson.independentPractice.map((item, i) => (
+                <li key={i} className="text-sm text-gray-800">
+                  <InlineMath text={item.question} />
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      {lesson.quickCheck?.question && (
+        <motion.div variants={fadeUp} className="rounded-2xl border border-indigo-200 bg-indigo-50/40 p-4">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-600 mb-1">
+            Quick check
+          </p>
+          <p className="font-medium text-gray-900">
+            <InlineMath text={lesson.quickCheck.question} />
+          </p>
         </motion.div>
       )}
 

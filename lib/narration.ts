@@ -91,6 +91,53 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
       case "column_method":
         cuesForColumn(cues, block, bi);
         break;
+      case "fraction_bar":
+        cues.push({
+          blockIndex: bi,
+          text: block.label
+            ? `Look at the fraction bar for ${block.label}.`
+            : `Look at this fraction bar showing ${block.numerator} out of ${block.denominator}.`,
+          kind: "hint",
+        });
+        break;
+      case "fraction_wall":
+        cues.push({
+          blockIndex: bi,
+          text: block.caption || "Compare the rows on this fraction wall.",
+          kind: "hint",
+        });
+        break;
+      case "bar_model":
+        cues.push({
+          blockIndex: bi,
+          text: block.caption || "Use this bar model to see the parts.",
+          kind: "hint",
+        });
+        break;
+      case "hundred_square":
+        cues.push({
+          blockIndex: bi,
+          text: block.label || `${block.shaded} out of 100 on the hundred square.`,
+          kind: "hint",
+        });
+        break;
+      case "area_model":
+        cues.push({
+          blockIndex: bi,
+          text:
+            block.labels?.product ||
+            block.caption ||
+            `An area model with ${block.rows} by ${block.cols}.`,
+          kind: "hint",
+        });
+        break;
+      case "key_info":
+        cues.push({
+          blockIndex: bi,
+          text: block.caption || "Highlight the key information in the question.",
+          kind: "hint",
+        });
+        break;
       default: {
         const _: never = block;
         void _;

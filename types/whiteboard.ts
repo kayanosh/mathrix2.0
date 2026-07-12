@@ -248,6 +248,75 @@ export interface NumberLineBlock {
   inequalityLabel?: string;
 }
 
+// ── KS2 teaching visuals ──────────────────────────────────────────────────────
+
+export interface FractionBarBlock {
+  type: "fraction_bar";
+  numerator: number;
+  denominator: number;
+  label?: string;
+  /** How many equal parts are shaded (defaults to numerator) */
+  shaded?: number;
+}
+
+export interface FractionWallRow {
+  denominator: number;
+  /** Optional highlight of one cell index (0-based) */
+  highlightIndex?: number;
+  label?: string;
+}
+
+export interface FractionWallBlock {
+  type: "fraction_wall";
+  rows: FractionWallRow[];
+  caption?: string;
+}
+
+export interface BarModelPart {
+  label: string;
+  value?: number;
+  /** Relative width weight (default 1) */
+  weight?: number;
+  shaded?: boolean;
+}
+
+export interface BarModelBlock {
+  type: "bar_model";
+  parts: BarModelPart[];
+  totalLabel?: string;
+  caption?: string;
+}
+
+export interface HundredSquareBlock {
+  type: "hundred_square";
+  /** Number of cells shaded (0–100) */
+  shaded: number;
+  label?: string;
+}
+
+export interface AreaModelBlock {
+  type: "area_model";
+  rows: number;
+  cols: number;
+  /** Optional partition breaks along each axis */
+  rowSplits?: number[];
+  colSplits?: number[];
+  labels?: { top?: string; side?: string; product?: string };
+  caption?: string;
+}
+
+export interface KeyInfoHighlight {
+  text: string;
+  kind?: "number" | "operation" | "unit" | "other";
+}
+
+export interface KeyInfoBlock {
+  type: "key_info";
+  stem: string;
+  highlights: KeyInfoHighlight[];
+  caption?: string;
+}
+
 // ── Block: Table ──────────────────────────────────────────────────────────────
 
 export interface TableBlock {
@@ -399,6 +468,12 @@ export type VisualBlock =
   | ProbabilityTreeBlock
   | VennDiagramBlock
   | NumberLineBlock
+  | FractionBarBlock
+  | FractionWallBlock
+  | BarModelBlock
+  | HundredSquareBlock
+  | AreaModelBlock
+  | KeyInfoBlock
   | TableBlock
   | ChartBlock
   | ColumnMethodBlock

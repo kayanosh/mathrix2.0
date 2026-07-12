@@ -69,7 +69,7 @@ workedExample MUST include a "whiteboard" object:
   "conclusion": "one sentence stating the answer clearly"
 }
 
-Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, text.
+Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, fraction_bar, fraction_wall, bar_model, hundred_square, area_model, key_info, chart, coordinate_graph, text.
 • Long / column multiply or divide → column_method WITH "moves" carry arrows + equation_steps explaining each partial product
 • × or ÷ by 10, 100, 1000 → place-value TABLE (Th H T O columns) + equation_steps showing each digit shift (NEVER column_method for this)
 • Round N to the nearest 10/100/1000/10,000 → number_line whose range is the two multiples either side of N (e.g. 50,000–60,000 for nearest 10,000). NEVER a generic 0–10 line.

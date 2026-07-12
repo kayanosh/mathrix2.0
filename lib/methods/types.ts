@@ -49,16 +49,9 @@ export type MethodBuilderId =
 export interface MethodBuildResult {
   builderId: MethodBuilderId;
   /** Primary whiteboard block */
-  block:
-    | import("@/types/whiteboard").ColumnMethodBlock
-    | import("@/types/whiteboard").TableBlock
-    | import("@/types/whiteboard").EquationStepBlock
-    | import("@/types/whiteboard").NumberLineBlock
-    | import("@/types/whiteboard").LabeledShapeBlock
-    | import("@/types/whiteboard").CoordinateGraphBlock
-    | import("@/types/whiteboard").ChartBlock;
+  block: import("@/types/whiteboard").VisualBlock;
   /** Optional companion boards (table + steps beside a number line, etc.) */
-  extraBlocks?: MethodBuildResult["block"][];
+  extraBlocks?: import("@/types/whiteboard").VisualBlock[];
   /** Digit/step teaching script — single source of truth */
   teachingSteps: TeachingStep[];
   /** Short captions for LessonPanel workedExample.steps */

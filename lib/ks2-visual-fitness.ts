@@ -114,6 +114,45 @@ function equationStepsFit(block: VisualBlock): boolean {
   return Array.isArray(block.steps) && block.steps.length > 0;
 }
 
+function fractionBarFit(block: VisualBlock): boolean {
+  if (block.type !== "fraction_bar") return false;
+  return (
+    Number.isFinite(block.numerator) &&
+    Number.isFinite(block.denominator) &&
+    block.denominator > 0
+  );
+}
+
+function fractionWallFit(block: VisualBlock): boolean {
+  if (block.type !== "fraction_wall") return false;
+  return Array.isArray(block.rows) && block.rows.length > 0;
+}
+
+function barModelFit(block: VisualBlock): boolean {
+  if (block.type !== "bar_model") return false;
+  return Array.isArray(block.parts) && block.parts.length > 0;
+}
+
+function hundredSquareFit(block: VisualBlock): boolean {
+  if (block.type !== "hundred_square") return false;
+  return Number.isFinite(block.shaded) && block.shaded >= 0 && block.shaded <= 100;
+}
+
+function areaModelFit(block: VisualBlock): boolean {
+  if (block.type !== "area_model") return false;
+  return Number.isFinite(block.rows) && Number.isFinite(block.cols) && block.rows > 0 && block.cols > 0;
+}
+
+function keyInfoFit(block: VisualBlock): boolean {
+  if (block.type !== "key_info") return false;
+  return (
+    typeof block.stem === "string" &&
+    block.stem.trim().length > 0 &&
+    Array.isArray(block.highlights) &&
+    block.highlights.length > 0
+  );
+}
+
 /** True when the block is safe to show for this question. */
 export function isBlockFit(block: VisualBlock, question: string): boolean {
   switch (block.type) {
@@ -125,6 +164,18 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return columnMethodFit(block);
     case "equation_steps":
       return equationStepsFit(block);
+    case "fraction_bar":
+      return fractionBarFit(block);
+    case "fraction_wall":
+      return fractionWallFit(block);
+    case "bar_model":
+      return barModelFit(block);
+    case "hundred_square":
+      return hundredSquareFit(block);
+    case "area_model":
+      return areaModelFit(block);
+    case "key_info":
+      return keyInfoFit(block);
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
     default:
