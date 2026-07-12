@@ -11,10 +11,11 @@ describe("normalizeMathText", () => {
 
 describe("parseMultiplicationOperands with LaTeX", () => {
   it("parses $23 \\times 47$", () => {
-    expect(parseMultiplicationOperands("Calculate $23 \\times 47$ using long multiplication")).toEqual({
-      a: 23,
-      b: 47,
-    });
+    expect(
+      parseMultiplicationOperands(
+        "Calculate $23 \\times 47$ using long multiplication",
+      ),
+    ).toEqual({ a: 23, b: 47 });
   });
 
   it("parses '23 by 47' from intro prose", () => {

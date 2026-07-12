@@ -4,6 +4,7 @@
 
 import type { ColumnMethodBlock, ColumnMethodMove } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 function cellKey(row: number, col: number): string {
   return `${row}-${col}`;
@@ -227,8 +228,6 @@ function digitAt(numStr: string, gridCols: number, col: number): number {
   if (idx < 0 || idx >= numStr.length) return 0;
   return Number(numStr[idx]);
 }
-
-import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 export function parseAdditionOperands(
   text: string,

@@ -5,6 +5,7 @@
 
 import type { ColumnMethodBlock, ColumnMethodMove } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 const PLACE = ["ones", "tens", "hundreds", "thousands", "ten-thousands"];
 
@@ -308,19 +309,24 @@ export function buildColumnMultiplication(
   };
 }
 
-import { normalizeMathText } from "@/lib/methods/normalize-math-text";
-
-/** Parse "36 × 15" / "36x15" / "$36 \\times 15$" / "36 by 15" from question text. */
+/** Parse symbolic, LaTeX, and written multiplication from question text. */
 export function parseMultiplicationOperands(
   text: string,
 ): { a: number; b: number } | null {
   const normalized = normalizeMathText(text);
-  const m =
-    normalized.match(/(\d{1,6})\s*[×x*]\s*(\d{1,6})/) ||
-    normalized.match(/(\d{1,6})\s+by\s+(\d{1,6})/i);
-  if (!m) return null;
-  const a = parseInt(m[1], 10);
-  const b = parseInt(m[2], 10);
+  const m = normalized.match(
+    /(\d{1,6})\s*(?:[×x*]|times\b|multiplied\s+by\b)\s*(\d{1,6})/i,
+  );
+  const by = normalized.match(
+    /(?:multiplication|product)\s+of\s+(\d{1,6})\s+by\s+(\d{1,6})/i,
+  );
+  const productOf = normalized.match(
+    /product\s+of\s+(\d{1,6})\s+and\s+(\d{1,6})/i,
+  );
+  const match = m || by || productOf;
+  if (!match) return null;
+  const a = parseInt(match[1], 10);
+  const b = parseInt(match[2], 10);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   return { a, b };
 }

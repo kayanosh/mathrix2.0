@@ -1,4 +1,5 @@
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
+import type { ColumnMethodBlock } from "@/types/whiteboard";
 
 describe("applyMethodBuilderToWorkedExample", () => {
   it("replaces LLM column board + vague captions for 45 × 23", () => {
@@ -31,8 +32,9 @@ describe("applyMethodBuilderToWorkedExample", () => {
     const block = out.whiteboard?.blocks.find((b) => b.type === "column_method");
     expect(block?.type).toBe("column_method");
     if (block?.type === "column_method") {
-      expect(block.placeValueHeaders).toEqual(["Th", "H", "T", "O"]);
-      expect(block.carries?.[0]).toMatchObject({ row: 0, digit: "1" });
+      const column = block as ColumnMethodBlock;
+      expect(column.placeValueHeaders).toEqual(["Th", "H", "T", "O"]);
+      expect(column.carries?.[0]).toMatchObject({ row: 0, digit: "1" });
       expect(block.rows).toEqual(["45", "×23", "135", "900", "1035"]);
     }
   });
@@ -65,54 +67,44 @@ describe("applyMethodBuilderToWorkedExample", () => {
     expect(out.answer).toBe("540");
   });
 
-  it("uses the main question (LaTeX) not sub-step operands like 3 × 7", () => {
+  it("uses the full LaTeX question instead of a digit sub-calculation", () => {
     const out = applyMethodBuilderToWorkedExample(
       {
-        question: "Calculate $23 \\times 47$ using long multiplication",
+        question: "Calculate $23 \\\\times 47$ using long multiplication.",
         steps: [
-          "Write 7 on top and 3 underneath, lining up ones under ones.",
-          "$3 \\times 7 = 21$. Write 1 (and 2 in the next column).",
+          "First calculate $7 \\\\times 3 = 21$.",
+          "Continue with the remaining digits.",
         ],
+        // Mirrors a cached worksheet corrupted by the old sub-step selector.
         answer: "21",
         whiteboard: {
-          intro: "Let's break down the multiplication of 23 by 47.",
+          intro: "Let's break the multiplication down.",
           blocks: [
             {
               type: "column_method",
               method: "column_multiplication",
+              // Mirrors the bad production worksheet: only the first digit sum.
               rows: ["7", "×3", "21"],
               question: "7 × 3",
               answer: "21",
             },
-            {
-              type: "equation_steps",
-              steps: [
-                {
-                  stepNumber: 1,
-                  operationLabel: "Ones",
-                  explanation: "Multiply ones: 3 × 7 = 21",
-                  latexBefore: "3 \\times 7",
-                  latexAfter: "21",
-                  arrowDirection: "none",
-                },
-              ],
-            },
           ],
-          conclusion: "21",
+          conclusion: "The answer is 1081.",
         },
       },
-      "Multiplication & Division",
+      "Multiplication and Division",
       ["Long multiplication"],
     );
 
     expect(out.answer).toBe("1081");
     const block = out.whiteboard?.blocks.find((b) => b.type === "column_method");
+    expect(block?.type).toBe("column_method");
     if (block?.type === "column_method") {
       expect(block.question).toBe("23 × 47");
+      expect(block.rows).toEqual(["23", "×47", "161", "920", "1081"]);
       expect(block.answer).toBe("1081");
-      expect(block.rows[0]).toBe("23");
     }
-    expect(out.steps.some((s) => /23/.test(s) || /47/.test(s))).toBe(true);
-    expect(out.steps.every((s) => !/^Write 7 on top/.test(s))).toBe(true);
+    expect(out.steps.some((step) => step.includes("7 × 3"))).toBe(true);
+    expect(out.steps.some((step) => /161 \+ 920/.test(step))).toBe(true);
   });
 });

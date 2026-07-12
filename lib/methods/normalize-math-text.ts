@@ -5,9 +5,9 @@
 export function normalizeMathText(text: string): string {
   return text
     .replace(/\$+/g, "")
-    .replace(/\\times/gi, "×")
-    .replace(/\\cdot/gi, "×")
-    .replace(/\\div/gi, "÷")
+    .replace(/\\+times/gi, "×")
+    .replace(/\\+cdot/gi, "×")
+    .replace(/\\+div/gi, "÷")
     .replace(/[−–]/g, "-")
     .replace(/\s+/g, " ")
     .trim();

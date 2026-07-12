@@ -4,6 +4,7 @@
 
 import type { ColumnMethodBlock } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 export function buildLongDivision(
   dividend: number,
@@ -111,7 +112,9 @@ export function buildLongDivision(
 export function parseDivisionOperands(
   text: string,
 ): { a: number; b: number } | null {
-  const m = text.match(/(\d{1,6})\s*[÷/]\s*(\d{1,6})/);
+  const m = normalizeMathText(text).match(
+    /(\d{1,6})\s*(?:[÷/]|divided\s+by\b)\s*(\d{1,6})/i,
+  );
   if (!m) return null;
   const a = parseInt(m[1], 10);
   const b = parseInt(m[2], 10);

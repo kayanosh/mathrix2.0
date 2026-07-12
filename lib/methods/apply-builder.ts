@@ -11,7 +11,13 @@ import {
 import {
   buildColumnAddition,
   buildColumnSubtraction,
+  parseAdditionOperands,
+  parseSubtractionOperands,
 } from "@/lib/methods/column-addition";
+import {
+  buildLongDivision,
+  parseDivisionOperands,
+} from "@/lib/methods/long-division";
 import { buildPlaceValueShift, parsePlaceValueShift } from "@/lib/methods/place-value-shift";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
 import { teachingStepsToCaptions, type MethodBuildResult } from "@/lib/methods/types";
@@ -36,11 +42,11 @@ export interface WorkedExampleLike {
 }
 
 /**
- * Authoritative sources for the MAIN worked example only.
- * Never scan step captions or equation_steps — they contain sub-operations
- * (e.g. "3 × 7") that would replace the real problem (23 × 47).
+ * Authoritative sources for the complete worked example.
+ * Deliberately excludes step captions/equation steps: those contain small
+ * sub-calculations such as 7 × 3, not the worksheet question 23 × 47.
  */
-function primarySourceTexts(example: WorkedExampleLike): string[] {
+function collectCandidateTexts(example: WorkedExampleLike): string[] {
   const texts: string[] = [];
   if (example.question) texts.push(example.question);
   const wb = example.whiteboard;
@@ -54,11 +60,41 @@ function primarySourceTexts(example: WorkedExampleLike): string[] {
       texts.push(block.caption);
     }
   }
-  return texts;
+  return texts.map(normalizeMathText);
 }
 
 /** Rebuild from an existing column_method board when prose has no operands. */
 function buildFromColumnBlock(block: ColumnMethodBlock): MethodBuildResult | null {
+  // The block question describes the complete calculation. Prefer it over rows:
+  // an LLM sometimes puts only the first digit calculation (e.g. 7 × 3) in
+  // the rows even though the worked-example question is 23 × 47.
+  try {
+    switch (block.method) {
+      case "column_multiplication": {
+        const operands = parseMultiplicationOperands(block.question || "");
+        if (operands) return buildColumnMultiplication(operands.a, operands.b);
+        break;
+      }
+      case "column_addition": {
+        const operands = parseAdditionOperands(block.question || "");
+        if (operands) return buildColumnAddition(operands.a, operands.b);
+        break;
+      }
+      case "column_subtraction": {
+        const operands = parseSubtractionOperands(block.question || "");
+        if (operands) return buildColumnSubtraction(operands.a, operands.b);
+        break;
+      }
+      case "long_division": {
+        const operands = parseDivisionOperands(block.question || "");
+        if (operands) return buildLongDivision(operands.a, operands.b);
+        break;
+      }
+    }
+  } catch {
+    // Fall through to recovering operands from the rows.
+  }
+
   const a = parseInt(normalizeColumnDigits(block.rows[0] || ""), 10);
   const b = parseInt(normalizeColumnDigits(block.rows[1] || ""), 10);
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
@@ -71,6 +107,16 @@ function buildFromColumnBlock(block: ColumnMethodBlock): MethodBuildResult | nul
         return buildColumnAddition(a, b);
       case "column_subtraction":
         return a >= b ? buildColumnSubtraction(a, b) : null;
+      case "long_division": {
+        // Prefer parsing "12)384" style from the bracket row
+        const bracket = block.rows.find((r) => r.includes(")"));
+        if (bracket) {
+          const m = bracket.match(/(\d+)\s*\)\s*(\d+)/);
+          if (m) return buildLongDivision(parseInt(m[2], 10), parseInt(m[1], 10));
+        }
+        const q = parseDivisionOperands(block.question || "");
+        return q ? buildLongDivision(q.a, q.b) : null;
+      }
       default:
         return null;
     }
@@ -90,6 +136,22 @@ function buildFromTableBlock(block: TableBlock): MethodBuildResult | null {
   }
 }
 
+function expectedNumericAnswer(answer: string): string | null {
+  const matches = answer.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/g);
+  return matches?.length ? matches[matches.length - 1] : null;
+}
+
+/** Reject a sub-calculation when it clearly disagrees with the stated answer. */
+function matchesWorkedAnswer(
+  built: MethodBuildResult,
+  example: WorkedExampleLike,
+): boolean {
+  const expected = expectedNumericAnswer(example.answer || "");
+  if (!expected || built.block.type !== "column_method") return true;
+  const actual = (built.block.answer || "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
+  return !actual || Number(actual) === Number(expected);
+}
+
 function resolveBuild(
   example: WorkedExampleLike,
   topic?: string,
@@ -101,20 +163,20 @@ function resolveBuild(
     subtopics,
   );
 
-  // Pass 1: worked-example question / intro / board question (never sub-steps).
-  for (const raw of primarySourceTexts(example)) {
-    const text = normalizeMathText(raw);
-    const built = buildMethodForQuestion(text, preferred);
-    if (built) return built;
-    const any = buildMethodForQuestion(text, null);
-    if (any) return any;
-  }
+  // 1. The visible worked-example question is authoritative.
+  const fromQuestion =
+    buildMethodForQuestion(example.question, preferred) ||
+    buildMethodForQuestion(example.question, null);
+  // The visible question is authoritative even if an older cached worksheet
+  // contains the wrong answer produced by the previous sub-step bug.
+  if (fromQuestion) return fromQuestion;
 
-  // Pass 2: operands encoded in the column/table board itself.
+  // 2. Recover the complete calculation from the main board before scanning
+  // explanatory steps, which contain smaller calculations such as 7 × 3.
   for (const block of example.whiteboard?.blocks || []) {
     if (block.type === "column_method") {
       const fromBlock = buildFromColumnBlock(block);
-      if (fromBlock) return fromBlock;
+      if (fromBlock && matchesWorkedAnswer(fromBlock, example)) return fromBlock;
     }
     if (block.type === "table") {
       const fromTable = buildFromTableBlock(block);
@@ -122,12 +184,49 @@ function resolveBuild(
     }
   }
 
-  // Pass 3: one-shot parse from joined primary sources (still no step captions).
-  const blob = primarySourceTexts(example).map(normalizeMathText).join(" ");
+  // 3. Inspect only complete-problem prose (never digit-level sub-steps).
+  for (const text of collectCandidateTexts(example)) {
+    const built = buildMethodForQuestion(text, preferred);
+    if (built && matchesWorkedAnswer(built, example)) return built;
+    // Also try without preferred lock in case topic mis-routes
+    const any = buildMethodForQuestion(text, null);
+    if (any && matchesWorkedAnswer(any, example)) return any;
+  }
+
+  // Last resort: parse operands with loose helpers from the joined blob
+  const blob = collectCandidateTexts(example).join(" ");
   const mult = parseMultiplicationOperands(blob);
   if (mult && ![10, 100, 1000].includes(mult.b)) {
     try {
-      return buildColumnMultiplication(mult.a, mult.b);
+      const built = buildColumnMultiplication(mult.a, mult.b);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const add = parseAdditionOperands(blob);
+  if (add) {
+    try {
+      const built = buildColumnAddition(add.a, add.b);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const sub = parseSubtractionOperands(blob);
+  if (sub) {
+    try {
+      const built = buildColumnSubtraction(sub.a, sub.b);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const div = parseDivisionOperands(blob);
+  if (div && ![10, 100, 1000].includes(div.b)) {
+    try {
+      const built = buildLongDivision(div.a, div.b);
+      if (matchesWorkedAnswer(built, example)) return built;
     } catch {
       /* ignore */
     }
@@ -140,6 +239,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   example: T,
   built: MethodBuildResult,
 ): T {
+  // Keep the full digit-level script — do not truncate mid-method.
   const captions = teachingStepsToCaptions(built.teachingSteps);
   const answer =
     built.block.type === "column_method"
@@ -182,6 +282,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     return block;
   });
   if (!replaced) {
+    // Drop competing LLM column/table sketches, then insert builder block first.
     const filtered = blocks.filter((b) => {
       if (built.block.type === "column_method") return b.type !== "column_method";
       if (built.block.type === "table") return b.type !== "table";
