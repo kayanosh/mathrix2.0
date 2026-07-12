@@ -877,8 +877,8 @@ export async function POST(req: NextRequest) {
     // At this point result.data is guaranteed to exist — capture the reference
     let solutionData: WhiteboardResponse = result.data;
 
-    // KS2: prefer deterministic method builders for arithmetic working.
-    if (level === "KS2") {
+    // Prefer deterministic method builders (KS2 arithmetic + algebra arrows).
+    if (level === "KS2" || category === "algebra") {
       const subtopicsArr = Array.isArray(subtopicsContext)
         ? (subtopicsContext as string[])
         : undefined;

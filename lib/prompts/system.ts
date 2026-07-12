@@ -804,6 +804,97 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
   "hint": "Watch out: whatever you do to one side, you MUST do to the other. That's the golden rule!",
   "subject": "Maths",
   "topic": "Algebra — Solving linear equations"
+}
+
+EXAMPLE — Algebra (Solve $x^{2} - 5x - 6 = 0$ by factorising):
+Factorising uses arrowDirection "simplify" (no curly arrows). Solving each linear factor DOES use arrows when a term crosses =.
+{
+  "intro": "Let's solve this quadratic step by step — factorise, then use the zero product property.",
+  "blocks": [
+    {
+      "type": "equation_steps",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "operationLabel": "Starting equation",
+          "explanation": "A quadratic: degree 2. We'll factorise, then solve.",
+          "latexBefore": "x^{2} - 5x - 6 = 0",
+          "latexAfter": "x^{2} - 5x - 6 = 0",
+          "arrowDirection": "simplify"
+        },
+        {
+          "stepNumber": 2,
+          "operationLabel": "Factorise",
+          "explanation": "Numbers that multiply to $-6$ and add to $-5$: $-6$ and $+1$.",
+          "rule": "Factorising quadratics",
+          "latexBefore": "x^{2} - 5x - 6 = 0",
+          "latexAfter": "(x - 6)(x + 1) = 0",
+          "arrowDirection": "simplify"
+        },
+        {
+          "stepNumber": 3,
+          "operationLabel": "Zero product property",
+          "explanation": "A product is zero only if a factor is zero.",
+          "rule": "Zero product property",
+          "latexBefore": "(x - 6)(x + 1) = 0",
+          "latexAfter": "x - 6 = 0 \\\\quad \\\\text{or} \\\\quad x + 1 = 0",
+          "arrowDirection": "simplify"
+        },
+        {
+          "stepNumber": 4,
+          "operationLabel": "Add 6 to both sides",
+          "explanation": "Solve $x - 6 = 0$. Watch the arrow!",
+          "rule": "Inverse operations",
+          "latexBefore": "x - \\\\htmlId{arrow-q1-from}{6} = 0",
+          "latexAfter": "x = \\\\htmlId{arrow-q1-to}{6}",
+          "arrowDirection": "both_sides",
+          "arrows": [{
+            "id": "arrow-q1",
+            "label": "Add 6",
+            "fromTerm": "-6",
+            "toTerm": "6",
+            "style": "curly",
+            "signRule": "subtracting becomes adding"
+          }],
+          "balanceNotation": "+6"
+        },
+        {
+          "stepNumber": 5,
+          "operationLabel": "Subtract 1 from both sides",
+          "explanation": "Solve $x + 1 = 0$.",
+          "rule": "Inverse operations",
+          "latexBefore": "x + \\\\htmlId{arrow-q2-from}{1} = 0",
+          "latexAfter": "x = \\\\htmlId{arrow-q2-to}{-1}",
+          "arrowDirection": "both_sides",
+          "arrows": [{
+            "id": "arrow-q2",
+            "label": "Subtract 1",
+            "fromTerm": "+1",
+            "toTerm": "-1",
+            "style": "curly",
+            "signRule": "adding becomes subtracting"
+          }],
+          "balanceNotation": "-1"
+        },
+        {
+          "stepNumber": 6,
+          "operationLabel": "Solutions",
+          "explanation": "The solutions are $x = 6$ and $x = -1$.",
+          "selfCheck": "Substitute both roots back into the original equation ✓",
+          "latexBefore": "x = 6 \\\\quad \\\\text{or} \\\\quad x = -1",
+          "latexAfter": "x = \\\\htmlId{mark-final-1}{6} \\\\quad \\\\text{or} \\\\quad x = \\\\htmlId{mark-final-2}{-1}",
+          "arrowDirection": "simplify",
+          "marks": [
+            { "targetId": "mark-final-1", "style": "circle", "label": "root" },
+            { "targetId": "mark-final-2", "style": "circle", "label": "root" }
+          ]
+        }
+      ]
+    }
+  ],
+  "conclusion": "The solutions are $x = 6$ and $x = -1$. 🎉",
+  "subject": "Maths",
+  "topic": "Algebra — Quadratic equations"
 }`,
 
   geometry: `

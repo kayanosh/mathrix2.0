@@ -1,5 +1,5 @@
 /**
- * Resolve a KS2 maths question to a deterministic method build when possible.
+ * Resolve a maths question to a deterministic method build when possible.
  * `preferred` is tried first, then every other builder — so combined topics
  * like "Addition & Subtraction" still resolve subtraction examples correctly.
  */
@@ -39,6 +39,34 @@ import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
+import {
+  buildLinearEquation,
+  parseLinearEquation,
+} from "@/lib/methods/linear-equation";
+import {
+  buildQuadraticFactorSolve,
+  parseQuadraticEquation,
+} from "@/lib/methods/quadratic-solve";
+
+function tryQuadraticSolve(text: string): MethodBuildResult | null {
+  const parsed = parseQuadraticEquation(text);
+  if (!parsed) return null;
+  try {
+    return buildQuadraticFactorSolve(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function tryLinearEquation(text: string): MethodBuildResult | null {
+  const parsed = parseLinearEquation(text);
+  if (!parsed) return null;
+  try {
+    return buildLinearEquation(parsed);
+  } catch {
+    return null;
+  }
+}
 
 function tryRoundingNumberLine(text: string): MethodBuildResult | null {
   const parsed = parseRoundingQuestion(text);
@@ -134,6 +162,8 @@ function tryDecimalColumn(text: string): MethodBuildResult | null {
 }
 
 const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | null> = {
+  quadratic_solve: tryQuadraticSolve,
+  linear_equation: tryLinearEquation,
   rounding_number_line: tryRoundingNumberLine,
   place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
@@ -145,8 +175,10 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   long_division: tryLongDivision,
 };
 
-/** Default try order when no preference (place-value / fractions / decimals before generic ×÷). */
+/** Default try order — algebra before KS2 arithmetic. */
 const DEFAULT_ORDER: MethodBuilderId[] = [
+  "quadratic_solve",
+  "linear_equation",
   "rounding_number_line",
   "place_value_chart",
   "place_value_shift",
@@ -184,4 +216,6 @@ export {
   buildRoundingNumberLine,
   buildFractionOps,
   buildDecimalColumn,
+  buildLinearEquation,
+  buildQuadraticFactorSolve,
 };

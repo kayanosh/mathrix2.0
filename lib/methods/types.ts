@@ -30,7 +30,9 @@ export type MethodBuilderId =
   | "place_value_chart"
   | "rounding_number_line"
   | "fraction_ops"
-  | "decimal_column";
+  | "decimal_column"
+  | "linear_equation"
+  | "quadratic_solve";
 
 export interface MethodBuildResult {
   builderId: MethodBuilderId;
