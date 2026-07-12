@@ -303,7 +303,7 @@ function resolveBuild(
 function applyBuiltToExample<T extends WorkedExampleLike>(
   example: T,
   built: MethodBuildResult,
-): T {
+): T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string } {
   // Keep the full digit-level script — do not truncate mid-method.
   const captions = teachingStepsToCaptions(built.teachingSteps);
   const answer =
@@ -312,14 +312,16 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       ? built.block.answer || example.answer
       : example.answer);
 
-  const next: T = {
+  const teachingSteps =
+    built.teachingSteps.length > 0
+      ? built.teachingSteps.filter((s) => s.title !== "Answer")
+      : example.teachingSteps;
+
+  const next = {
     ...example,
     steps: captions.length > 0 ? captions : example.steps,
     answer,
-    teachingSteps:
-      built.teachingSteps.length > 0
-        ? built.teachingSteps.filter((s) => s.title !== "Answer")
-        : example.teachingSteps,
+    teachingSteps,
   };
 
   const wb = example.whiteboard;
@@ -398,7 +400,7 @@ export function applyMethodBuilderToWorkedExample<T extends WorkedExampleLike>(
   example: T,
   topic?: string,
   subtopics?: string[],
-): T {
+): T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string } {
   const built = resolveBuild(example, topic, subtopics);
   if (!built) return example;
   return applyBuiltToExample(example, built);

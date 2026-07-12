@@ -300,14 +300,16 @@ export default function LessonPanel(props: Props) {
           <ol className="space-y-2.5">
             {(displayExample.teachingSteps && displayExample.teachingSteps.length > 0
               ? displayExample.teachingSteps
-              : displayExample.steps.map((step) => ({
-                  title: "",
-                  explanation: step,
-                  narration: step,
-                  cellKeys: [] as string[],
-                  carryKeys: [] as string[],
-                  noteKeys: [] as string[],
-                }))
+              : displayExample.steps.map(
+                  (step): TeachingStep => ({
+                    title: "",
+                    explanation: step,
+                    narration: step,
+                    cellKeys: [],
+                    carryKeys: [],
+                    noteKeys: [],
+                  }),
+                )
             ).map((step, i) => (
               <motion.li
                 key={i}
