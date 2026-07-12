@@ -157,7 +157,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
       "Misaligning partial products",
     ],
     notes:
-      "Carries sit above the multiplicand while forming each partial product (UK primary).",
+      "Carries sit above the multiplicand while forming each partial product (UK primary). Teach: write ones in the column, carry tens left as a small digit, add the carry on the next multiply.",
   },
   {
     id: "long_division",

@@ -433,6 +433,7 @@ export function applyMethodBuilderToWhiteboard(
   const applied = applyBuiltToExample(fake, built);
   return {
     ...data,
+    intro: applied.whiteboard?.intro || data.intro,
     blocks: applied.whiteboard?.blocks || data.blocks,
     conclusion: applied.whiteboard?.conclusion || data.conclusion,
   };

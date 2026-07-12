@@ -493,6 +493,16 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
           </span>
         </motion.div>
       )}
+
+      {(carries?.length ?? 0) > 0 &&
+        (method === "column_multiplication" || method === "column_addition") && (
+          <p className="mt-3 text-center text-[12px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 leading-snug">
+            <span className="font-semibold text-amber-700">Carries: </span>
+            {method === "column_multiplication"
+              ? "Small amber digits above the working are tens carried left. Write the ones digit in the column; carry the tens; add the carry when you multiply the next digit."
+              : "Small amber digits are tens carried into the next column to the left."}
+          </p>
+        )}
     </div>
   );
 }

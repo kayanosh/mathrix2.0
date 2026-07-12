@@ -120,20 +120,36 @@ function appendPartialDigitSteps(args: PartialDigitArgs): void {
 
     const writePlace = placeLabel(i + colOffset);
     const carryPlace = placeLabel(i + colOffset + 1);
+    const productAlone = ad * digit;
+    let explanation: string;
+    let why: string;
+    let narration: string;
+
+    if (carryOut > 0 && !isLast) {
+      explanation =
+        runningCarry > 0
+          ? `${digit} × ${ad} = ${productAlone}, plus the carry ${runningCarry} is ${raw}. ${raw} is ${carryOut} ${carryPlace} and ${writeDigit} ${writePlace}. Write ${writeDigit} in the ${writePlace}, and carry ${carryOut} (small amber digit) above the ${carryPlace}.`
+          : `${digit} × ${ad} = ${raw}. ${raw} is ${carryOut} ${carryPlace} and ${writeDigit} ${writePlace}. Write ${writeDigit} in the ${writePlace}, and carry ${carryOut} (small amber digit) above the ${carryPlace}.`;
+      why = `Because ${raw} is 10 or more, keep ${writeDigit} in the ${writePlace} and carry ${carryOut} left into the ${carryPlace}. Add that carry when you multiply the next digit.`;
+      narration =
+        runningCarry > 0
+          ? `${digit} times ${ad} is ${productAlone}, plus the ${runningCarry} we carried makes ${raw}. Write ${writeDigit} in the ${writePlace} and carry ${carryOut} above the ${carryPlace}.`
+          : `${digit} times ${ad} is ${raw}. Write ${writeDigit} in the ${writePlace}, and carry ${carryOut} as a small digit above the ${carryPlace}.`;
+    } else if (runningCarry > 0) {
+      explanation = `${digit} × ${ad} = ${productAlone}, plus the carry ${runningCarry} is ${raw}. Write ${writeDigit}${carryOut > 0 ? ` (and ${carryOut} in the next column)` : ""}.`;
+      why = `Remember to add the ${runningCarry} we carried from the previous column.`;
+      narration = `Now ${digit} times ${ad} is ${productAlone}, plus the carry ${runningCarry} makes ${raw}. Write ${writeDigit}${carryOut > 0 ? ` and put ${carryOut} next door` : ""}.`;
+    } else {
+      explanation = `${digit} × ${ad} = ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` (and ${carryOut} in the next column)` : ` and carry ${carryOut}`) : ""}.`;
+      why = `We multiply the ${writePlace} digit of ${a} by ${digit}.`;
+      narration = `Multiply ${digit} by ${ad}: that's ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut} into the ${carryPlace}`) : ""}.`;
+    }
+
     teachingSteps.push({
       title,
-      explanation:
-        runningCarry > 0
-          ? `${digit} × ${ad} = ${ad * digit}, plus carry ${runningCarry} is ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` (and ${carryOut} in the next column)` : ` and carry ${carryOut}`) : ""}.`
-          : `${digit} × ${ad} = ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` (and ${carryOut} in the next column)` : ` and carry ${carryOut}`) : ""}.`,
-      why:
-        carryOut > 0 && !isLast
-          ? `When we get ${raw}, the ${writeDigit} stays in the ${writePlace} and we carry ${carryOut} into the ${carryPlace}.`
-          : `We multiply the ${writePlace} digit of ${a} by ${digit}.`,
-      narration:
-        runningCarry > 0
-          ? `Now ${digit} times ${ad} is ${ad * digit}, plus the carry ${runningCarry} makes ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut} into the ${carryPlace}`) : ""}.`
-          : `Multiply ${digit} by ${ad}: that's ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut} into the ${carryPlace}`) : ""}.`,
+      explanation,
+      why,
+      narration,
       cellKeys,
       carryKeys,
       noteKeys: [],
@@ -324,6 +340,18 @@ export function buildColumnMultiplication(
     noteKeys: [],
   });
 
+  teachingSteps.push({
+    title: "How we carry when multiplying",
+    explanation:
+      "If a multiply makes 10 or more, split it into tens and ones: write the ones digit in this column, and write the tens digit as a small amber carry above the next column to the left. When you multiply the next digit, add that carry in.",
+    why: "Ten ones make one ten — so anything 10 or bigger must move one place left. The small amber digit reminds us what to add next.",
+    narration:
+      "Before we start: when a times makes 10 or more, write the ones here and carry the tens as a small amber digit above the next column. We'll add that carry when we do the next digit.",
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+  });
+
   const aDigitsRtl = aStr.split("").map(Number).reverse();
 
   // Collect carries per partial line (don't clear mid-build — store per line)
@@ -470,8 +498,8 @@ export function buildColumnMultiplication(
     captions: teachingStepsToCaptions(teachingSteps),
     intro:
       partials.length > 1
-        ? `We'll break ${a} × ${b} into parts: ${partList}, then add those lines. The small amber digits above the working are carries.`
-        : `We'll multiply ${a} × ${b} digit by digit. The small amber digits are carries.`,
+        ? `We'll break ${a} × ${b} into parts: ${partList}, then add those lines. When a multiply makes 10 or more, write the ones digit in the column and carry the tens as a small amber digit above the next column — add that carry on the next multiply.`
+        : `We'll multiply ${a} × ${b} digit by digit. When a product is 10 or more, write the ones digit here and carry the tens as a small amber digit above the next column.`,
   };
 }
 

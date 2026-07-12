@@ -82,8 +82,10 @@ column_method RULES (critical for accuracy):
 • Put the × on the multiplier row only
 • carries sit ABOVE the multiplicand row (row 0) while forming each partial product — UK primary convention
 • Always include "moves" arrows for every carry
+• Teach carrying clearly: if a × b ≥ 10, write the ones digit in the column and put the tens digit as a small carry above the next column left; add that carry on the next digit
 • separatorAfterRows after the multiplier and before the final sum
 • Prefer placeValueHeaders like ["T","O"] or ["H","T","O"] when helpful
+• Optional rowLabels beside partial products, e.g. "36 × 5 = 180"
 
 column_method example for 36 × 15:
 {
