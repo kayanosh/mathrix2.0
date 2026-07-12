@@ -98,6 +98,7 @@ export default function LessonPanel(props: Props) {
   const [includeTryAnswer, setIncludeTryAnswer] = useState(true);
   const [fromLibrary, setFromLibrary] = useState(false);
   const [watchMode, setWatchMode] = useState(false);
+  const [tryWatchMode, setTryWatchMode] = useState(false);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
@@ -143,6 +144,8 @@ export default function LessonPanel(props: Props) {
   }
 
   useEffect(() => {
+    setShowTryAnswer(false);
+    setTryWatchMode(false);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicName, target, tier, kind]);
@@ -166,6 +169,42 @@ export default function LessonPanel(props: Props) {
           blocks: displayExample.whiteboard.blocks,
           conclusion:
             displayExample.whiteboard.conclusion || displayExample.answer,
+          subject: subjectName,
+          topic: topicName,
+        }
+      : null;
+
+  /** Full solution for "Now you try" — builder board + steps when maths parses. */
+  const trySolution = useMemo((): WorkedExample | null => {
+    if (!lesson?.tryThis?.question) return null;
+    if (subjectId !== "maths") {
+      return {
+        question: lesson.tryThis.question,
+        steps: [],
+        answer: lesson.tryThis.answer || "",
+      };
+    }
+    return applyMethodBuilderToWorkedExample(
+      {
+        question: lesson.tryThis.question,
+        steps: [],
+        answer: lesson.tryThis.answer || "",
+      },
+      topicName,
+      subtopics,
+    );
+  }, [lesson?.tryThis, topicName, subtopics, subjectId]);
+
+  const tryWhiteboard: WhiteboardResponse | null =
+    trySolution?.whiteboard && trySolution.whiteboard.blocks.length > 0
+      ? {
+          intro: trySolution.whiteboard.intro || trySolution.question,
+          blocks: trySolution.whiteboard.blocks,
+          conclusion:
+            trySolution.whiteboard.conclusion ||
+            trySolution.answer ||
+            lesson?.tryThis?.answer ||
+            "",
           subject: subjectName,
           topic: topicName,
         }
@@ -195,6 +234,9 @@ export default function LessonPanel(props: Props) {
     <>
       {watchMode && workedWhiteboard && (
         <WhiteboardTutor data={workedWhiteboard} onClose={() => setWatchMode(false)} />
+      )}
+      {tryWatchMode && tryWhiteboard && (
+        <WhiteboardTutor data={tryWhiteboard} onClose={() => setTryWatchMode(false)} />
       )}
     <motion.div
       initial="hidden"
@@ -375,13 +417,93 @@ export default function LessonPanel(props: Props) {
           <p className="text-[12px] font-bold uppercase tracking-wide text-emerald-600 mb-1">Now you try</p>
           <p className="font-medium text-gray-900 mb-3">{<InlineMath text={lesson.tryThis.question} />}</p>
           {showTryAnswer ? (
-            <motion.p
+            <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 font-semibold text-emerald-700"
+              className="space-y-3"
             >
-              <CheckCircle2 size={16} /> <InlineMath text={lesson.tryThis.answer} />
-            </motion.p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[12px] font-bold uppercase tracking-wide text-emerald-700">
+                  Full solution
+                </p>
+                {tryWhiteboard && (
+                  <button
+                    type="button"
+                    onClick={() => setTryWatchMode(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-[12px] font-semibold text-emerald-800 hover:bg-emerald-200"
+                  >
+                    <MonitorPlay size={14} /> Watch me solve it
+                  </button>
+                )}
+              </div>
+
+              {trySolution?.whiteboard && trySolution.whiteboard.blocks.length > 0 && (
+                <div className="space-y-3 rounded-xl bg-white/90 p-3 border border-emerald-100">
+                  {trySolution.whiteboard.intro && (
+                    <p className="text-sm text-gray-600">
+                      <InlineMath text={trySolution.whiteboard.intro} />
+                    </p>
+                  )}
+                  {trySolution.whiteboard.blocks.map((block, bi) => (
+                    <BlockRenderer
+                      key={bi}
+                      block={block}
+                      index={bi}
+                      baseDelay={0.05 + bi * 0.15}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {(trySolution?.teachingSteps?.length || trySolution?.steps?.length) ? (
+                <ol className="space-y-2.5">
+                  {(trySolution.teachingSteps && trySolution.teachingSteps.length > 0
+                    ? trySolution.teachingSteps
+                    : (trySolution.steps || []).map(
+                        (step): TeachingStep => ({
+                          title: "",
+                          explanation: step,
+                          narration: step,
+                          cellKeys: [],
+                          carryKeys: [],
+                          noteKeys: [],
+                        }),
+                      )
+                  ).map((step, i) => (
+                    <li key={i} className="flex gap-2 text-gray-700">
+                      <span className="font-bold text-emerald-600 shrink-0">{i + 1}.</span>
+                      <div className="min-w-0 space-y-0.5">
+                        {step.title ? (
+                          <p className="font-semibold text-gray-900 text-[15px]">
+                            {step.title}
+                          </p>
+                        ) : null}
+                        <p className="text-gray-700">
+                          <InlineMath text={step.explanation} />
+                        </p>
+                        {step.why ? (
+                          <p className="text-[13px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                            <span className="font-semibold text-amber-700">Why: </span>
+                            {step.why}
+                          </p>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+
+              <p className="flex items-center gap-2 font-semibold text-emerald-700">
+                <CheckCircle2 size={16} />{" "}
+                <InlineMath
+                  text={
+                    trySolution?.answer ||
+                    lesson.tryThis.answer ||
+                    "Check with your teacher."
+                  }
+                />
+              </p>
+            </motion.div>
           ) : (
             <button
               onClick={() => setShowTryAnswer(true)}
@@ -473,10 +595,29 @@ export default function LessonPanel(props: Props) {
             <p style={{ margin: "0 0 8px" }}>
               <InlineMath text={lesson.tryThis.question} />
             </p>
-            {includeTryAnswer && lesson.tryThis.answer && (
-              <p style={{ margin: 0, fontWeight: 600 }}>
-                Answer: <InlineMath text={lesson.tryThis.answer} />
-              </p>
+            {includeTryAnswer && (
+              <>
+                {(trySolution?.teachingSteps?.length || trySolution?.steps?.length) ? (
+                  <ol style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
+                    {(trySolution.teachingSteps && trySolution.teachingSteps.length > 0
+                      ? trySolution.teachingSteps.map((s) => s.explanation)
+                      : trySolution.steps || []
+                    ).map((step, i) => (
+                      <li key={i} style={{ marginBottom: "4px" }}>
+                        <InlineMath text={step} />
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+                {(trySolution?.answer || lesson.tryThis.answer) && (
+                  <p style={{ margin: 0, fontWeight: 600 }}>
+                    Answer:{" "}
+                    <InlineMath
+                      text={trySolution?.answer || lesson.tryThis.answer}
+                    />
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
