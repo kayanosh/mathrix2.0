@@ -25,7 +25,9 @@ import {
 } from "@/lib/methods/place-value-chart";
 import {
   buildRoundingNumberLine,
+  buildDecimalRounding,
   parseRoundingQuestion,
+  parseDecimalRoundingQuestion,
 } from "@/lib/methods/rounding-number-line";
 import { buildFractionOps, parseFractionOp } from "@/lib/methods/fraction-ops";
 import {
@@ -349,6 +351,18 @@ function resolveBuild(
   if (dec) {
     try {
       const built = buildDecimalColumn(dec);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const decRound = parseDecimalRoundingQuestion(blob);
+  if (decRound) {
+    try {
+      const built = buildDecimalRounding(
+        decRound.value,
+        decRound.decimalPlaces,
+      );
       if (matchesWorkedAnswer(built, example)) return built;
     } catch {
       /* ignore */

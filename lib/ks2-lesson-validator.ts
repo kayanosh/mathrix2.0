@@ -17,6 +17,7 @@ import {
 } from "@/lib/ks2-skill-visuals";
 import {
   KS2StrictLessonSchema,
+  coerceCanonicalLessonKeys,
   type KS2MicroStep,
   type KS2StrictLesson,
 } from "@/lib/ks2-lesson-zod";
@@ -122,6 +123,12 @@ function mistakeMatchesSkill(
   if (family === "fraction_compare") {
     return /denominator|equivalent|common|numerators without/.test(blob);
   }
+  if (family === "rounding") {
+    if (/add(?:ing)? fractions|hcf|simplif|multiply|bus.?stop/.test(blob)) {
+      return false;
+    }
+    return /round|digit|decimal|nearest|truncat|place/.test(blob);
+  }
   void prose;
   return true;
 }
@@ -138,6 +145,44 @@ function explainsHcfWhenNeeded(
   const listsFactors = /factors?\s+of/.test(blob);
   const namesHcf = /\bhcf\b|highest common factor/.test(blob);
   return listsFactors && namesHcf;
+}
+
+function explainsRoundingWhenNeeded(
+  family: string,
+  we: KS2WorkedExample | undefined,
+  prose: string,
+): boolean {
+  if (family !== "rounding") return true;
+  const blob = `${prose}\n${(we?.teachingSteps || [])
+    .map((s) => `${s.title} ${s.explanation} ${s.why || ""}`)
+    .join("\n")}`.toLowerCase();
+  const deciding = /decid(?:e|ing)\s+digit|look(?:s|ing)?\s+(?:at\s+)?(?:the\s+)?(?:next|digit)|digit\s+(?:to\s+the\s+)?right|one place to the right/.test(
+    blob,
+  );
+  const fiveRule = /5\s+or\s+more|five\s+or\s+more|≥\s*5|>=\s*5/.test(blob);
+  return deciding && fiveRule;
+}
+
+/** Flag when declared skill and worked example clearly teach different skills. */
+function mixedSkill(
+  skill: string | undefined,
+  question: string,
+): boolean {
+  if (!skill || !question) return false;
+  const skillFam = detectSkillVisualFamily("", "", skill);
+  const qFam = detectSkillVisualFamily(question, "", "");
+  if (skillFam === "general" || qFam === "general") return false;
+  if (skillFam === "place_value" && qFam === "rounding") return false;
+  if (skillFam === "rounding" && qFam === "place_value") return false;
+  if (skillFam === "decimals" && qFam === "rounding") return false;
+  // FDP equivalence can look like percentages or fraction_ops depending on wording
+  if (
+    (skillFam === "percentages" || skillFam === "fraction_ops" || skillFam === "decimals") &&
+    (qFam === "percentages" || qFam === "fraction_ops" || qFam === "decimals")
+  ) {
+    return false;
+  }
+  return skillFam !== qFam;
 }
 
 /** Validate a teaching lesson. Visuals required for maths only (unless requireVisual set). */
@@ -255,13 +300,33 @@ export function validateKS2TeachingLesson(
     });
   }
 
+  if (isMaths && !explainsRoundingWhenNeeded(family, we, prose)) {
+    issues.push({
+      code: "rounding_not_explained",
+      message:
+        "Rounding lessons must explain the deciding digit and the 5-or-more rule.",
+    });
+  }
+
+  if (isMaths && mixedSkill(lesson.skill, we?.question || "")) {
+    issues.push({
+      code: "mixed_skill",
+      message:
+        "Lesson skill and worked example teach different skills — teach one skill only.",
+    });
+  }
+
   if (
     isMaths &&
     lesson.recap &&
     (/today we practised/i.test(lesson.recap) ||
       (/well done/i.test(lesson.recap) && lesson.recap.length < 60))
   ) {
-    if (!/hcf|factor|simplif|equivalent|method|denominator|numerator/i.test(lesson.recap)) {
+    if (
+      !/hcf|factor|simplif|equivalent|method|denominator|numerator|round|digit|decimal|place/i.test(
+        lesson.recap,
+      )
+    ) {
       issues.push({
         code: "generic_recap",
         message: "Recap must be linked to the skill, not a generic remember box.",
@@ -415,7 +480,10 @@ export function validateStrictKS2Lesson(
   if (VAGUE.test(prose)) {
     issues.push({ code: "vague_language", message: "Vague language found." });
   }
-  for (const ex of lesson.workedExamples) {
+  const examples =
+    lesson.workedExamples ||
+    (lesson.workedExample ? [lesson.workedExample] : []);
+  for (const ex of examples) {
     if (ex.steps.length < 6) {
       issues.push({
         code: "few_steps",
@@ -432,7 +500,7 @@ export function assertNoGcd(text: string): boolean {
 
 /** Soft-normalize LLM/legacy payloads into a teaching lesson shape. */
 export function normalizeToTeachingLesson(
-  raw: Record<string, unknown>,
+  rawIn: Record<string, unknown>,
   meta: {
     topic: string;
     yearGroup?: string;
@@ -441,6 +509,7 @@ export function normalizeToTeachingLesson(
     method?: string;
   },
 ): KS2TeachingLesson {
+  const raw = coerceCanonicalLessonKeys(rawIn);
   const workedRaw =
     (raw.workedExample as Record<string, unknown> | undefined) ||
     (Array.isArray(raw.workedExamples)

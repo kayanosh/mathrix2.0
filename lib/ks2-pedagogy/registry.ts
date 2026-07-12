@@ -92,7 +92,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "fraction_number_line",
     requiredBlocks: ["number_line"],
     keywords:
-      /\b(compare\s*\/?\s*order|compare\s+fractions?|order\s+fractions?|order\s+\d+\s*\/|compare\s+\d+\s*\/|equivalent fractions?|fraction.*number line|number line.*fraction|fractions?\s+between|fractions?\s+on\s+a\s+number\s+line|which\s+(?:fraction\s+)?is\s+(?:greater|bigger|smaller))\b/i,
+      /\b(compare\s*\/?\s*order|compare\s+fractions?|order\s+fractions?|order\s+\d+\s*\/|compare\s+\d+\s*\/|fraction.*number line|number line.*fraction|fractions?\s+between|fractions?\s+on\s+a\s+number\s+line|which\s+(?:fraction\s+)?is\s+(?:greater|bigger|smaller))\b/i,
     vocabulary: ["numerator", "denominator", "equivalent", "improper", "mixed number"],
     commonMistakes: [
       "Counting tick marks instead of intervals",

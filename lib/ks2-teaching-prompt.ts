@@ -1,5 +1,5 @@
 /**
- * Strict KS2 teaching-engine prompt fragments (all teaching-engine subjects).
+ * Strict KS2 teaching-engine prompt — single-skill UK Y5/Y6 maths teacher.
  */
 
 import { taxonomyPromptFragment, type KS2TaxonomyNode } from "@/lib/ks2-taxonomy";
@@ -7,7 +7,32 @@ import { visualRulePrompt } from "@/lib/ks2-visual-rules";
 import {
   detectSkillVisualFamily,
   skillVisualPrompt,
+  type KS2SkillVisualFamily,
 } from "@/lib/ks2-skill-visuals";
+
+function skillPedagogyExtras(family: KS2SkillVisualFamily): string {
+  if (family === "rounding") {
+    return `
+ROUNDING DECIMALS / PLACE VALUE (mandatory for this skill):
+- Explain the target place value (tenths, hundredths, decimal places, etc.).
+- Show a place value chart AND a number line.
+- Explain the deciding digit (one place to the right of the target).
+- Explain why 5 or more rounds up (and why less than 5 rounds down).
+- Explain why the final answer has the correct number of decimal places.
+- Common mistake must be about rounding only (e.g. looking at the wrong digit, truncating instead of rounding, wrong number of decimal places).
+`;
+  }
+  if (family === "fraction_simplify") {
+    return `
+SIMPLIFYING FRACTIONS (mandatory for this skill):
+- Explain that simplifying means writing an equivalent fraction with smaller numbers.
+- List factors of numerator and denominator before naming the HCF.
+- Use HCF (highest common factor), never GCD.
+- Common mistake: dividing only the numerator (not both parts by the same HCF).
+`;
+  }
+  return "";
+}
 
 export function ks2TeachingEnginePrompt(
   taxonomy: KS2TaxonomyNode | null,
@@ -15,84 +40,117 @@ export function ks2TeachingEnginePrompt(
   subjectLabel = "maths",
 ): string {
   const isMaths = /math/i.test(subjectLabel);
+  const skill = taxonomy?.skill || "";
   const tax = taxonomy
     ? taxonomyPromptFragment(taxonomy)
     : `Teach one clear Year 5/6 ${subjectLabel} skill with a patient method.`;
   const rule = taxonomy ? visualRulePrompt(taxonomy.visualRuleId) : "";
-  const family = detectSkillVisualFamily(
-    taxonomy?.skill || "",
-    taxonomy?.topic || "",
-    taxonomy?.skill || "",
-  );
+  const family = detectSkillVisualFamily(skill, taxonomy?.topic || "", skill);
   const skillVisual = isMaths ? skillVisualPrompt(family) : "";
+  const pedagogy = isMaths ? skillPedagogyExtras(family) : "";
 
-  const visualLine = isMaths
-    ? `- workedExample with whiteboard.blocks AND at least 6 micro-steps in "steps" (patient teacher pace)`
-    : `- workedExample with at least 4 micro-steps in "steps" (optional table/key_info whiteboard when helpful)`;
-
-  const allowedVisuals = isMaths
-    ? `Allowed whiteboard types: fraction_bar, fraction_grid, fraction_wall, bar_model, hundred_square, area_model, key_info, number_line, table, column_method, equation_steps, labeled_shape, chart, coordinate_graph.`
-    : `Preferred non-maths visuals when helpful: key_info, table, text, labeled_shape, chart. Do NOT invent maths column methods or number lines.`;
-
-  const ukMaths = isMaths
-    ? `
-UK PRIMARY MATHS RULES (mandatory):
-- Use UK terminology only: HCF (highest common factor), NOT GCD; numerator and denominator (explain in child-friendly language).
-- Teach like a patient Year 5/6 teacher — never a short textbook note.
-- Explain WHAT the skill means before doing calculations (e.g. simplifying = equivalent fraction with smaller numbers).
-- Show HOW you find each fact (list factors before naming the HCF — never state HCF without showing factors).
-- Every worked example needs ≥6 micro-steps; each step is one small teaching move.
-- Common mistakes MUST match this exact skill (e.g. simplifying → dividing only the numerator; NOT adding fractions).
-- Recap must name the skill/method (not "today we practised" generic boxes).
-- Include renderable visual data (numerators, denominators, shaded parts, labels) — empty diagrams are forbidden.
-- ${skillVisual}
-`
-    : "";
-
-  return `
+  if (!isMaths) {
+    return `
 KS2 ${subjectLabel.toUpperCase()} TEACHING ENGINE — return ONLY valid JSON (no markdown fences).
 ${tax}
 ${rule}
-${ukMaths}
 
-Every lesson MUST include:
-- learningObjective (one clear sentence)
-- prerequisiteKnowledge (array of short strings — subject-appropriate)
-- conceptExplanation or sections (3-5 teacher explanations — concrete, no vague words)
-${visualLine}
-- commonMistakes: [{ "mistake": "...", "correction": "..." }] (at least one, skill-matched)
-- guidedPractice: [{ "question", "hint?", "answer" }] (1-2 items)
-- independentPractice: [{ "question", "answer" }] (1-2 items)
-- quickCheck: { "question", "answer" }
-- recap (2-3 sentences linked to THIS skill)
-- tryThis (same as first guidedPractice if helpful)
-- keyPoints (2-4)
+Teach ONE skill only. Every block must match that skill.
+Include: learningObjective, priorKnowledge (or prerequisiteKnowledge), coreExplanation (or conceptExplanation),
+workedExample with ≥4 micro-steps, commonMistake, guidedPractice, independentPractice, quickCheck, recap.
+Never write a generic recap. Never use a common mistake from another skill.
+${kind === "guided" ? "GUIDED practice: lean on hints and tryThis." : "LEARN: teach the idea first, then steps."}
+`;
+  }
 
-Ban vague phrases: "it is easy", "simply", "obviously", "just".
-Never put the final answer as the first step — teach the method first.
-Explain WHY the method works in at least one step or in a teachingBlocks "teacherTip".
-Never use GCSE language — this is Key Stage 2 only.
-${isMaths ? "Never write GCD or 'greatest common divisor' — always HCF." : ""}
+  return `
+You are a UK Year 5 and Year 6 maths teacher.
+Return valid JSON only.
+
+Teach ONE skill only: "${skill || taxonomy?.topic || "the named skill"}".
+Do not mix nearby topics.
+
+Every block must match the same skill:
+- learningObjective
+- priorKnowledge
+- coreExplanation
+- visualModel
+- workedExample
+- commonMistake
+- guidedPractice
+- independentPractice
+- quickCheck
+- recap
+
+Never give a common mistake from another skill.
+Never write a generic recap.
+Every worked example must have at least 6 small teaching steps.
+
+${tax}
+${rule}
+${skillVisual}
+${pedagogy}
+
+UK PRIMARY RULES:
+- Use UK terminology (HCF not GCD; numerator/denominator in child-friendly language).
+- Explain why the method works.
+- Ban vague phrases: "it is easy", "simply", "obviously", "just".
+- Never put the final answer as the first step.
+- Never use GCSE language.
 
 ${kind === "guided" ? "This is GUIDED practice: lean on hints and tryThis." : "This is LEARN: teach the idea clearly first (I do), then steps."}
 
-${allowedVisuals}
+Allowed whiteboard types: fraction_bar, fraction_grid, fraction_wall, bar_model, hundred_square, area_model, key_info, number_line, table, column_method, equation_steps, labeled_shape, chart, coordinate_graph.
 `;
 }
 
 export const KS2_TEACHING_JSON_SHAPE = `
-Also include these teaching fields alongside the usual intro/sections/workedExample/keyPoints/tryThis:
+Return JSON matching this canonical shape (aliases in parentheses also accepted):
 {
+  "keyStage": "KS2",
+  "yearGroup": "Year 5 or Year 6",
+  "strand": "...",
+  "topic": "...",
+  "skill": "ONE skill only",
+  "method": "...",
   "learningObjective": "...",
-  "prerequisiteKnowledge": ["..."],
-  "conceptExplanation": "...",
-  "commonMistakes": [{ "mistake": "...", "correction": "..." }],
+  "priorKnowledge": ["..."],
+  "coreExplanation": "what the skill means and why the method works",
+  "visualModel": { "types": ["table", "number_line"], "data": {} },
+  "workedExample": {
+    "question": "...",
+    "method": "...",
+    "steps": [
+      {
+        "stepNumber": 1,
+        "title": "...",
+        "teacherText": "at least one clear teaching sentence",
+        "calculation": "optional",
+        "visualInstruction": "optional",
+        "highlightedValues": ["optional"],
+        "misconceptionWarning": "optional",
+        "why": "optional"
+      }
+    ],
+    "finalAnswer": "...",
+    "check": "how we know the answer is right",
+    "whiteboard": {
+      "intro": "...",
+      "blocks": [{ "type": "number_line", "...": "..." }],
+      "conclusion": "..."
+    }
+  },
+  "commonMistake": { "mistake": "...", "correction": "..." },
   "guidedPractice": [{ "question": "...", "hint": "...", "answer": "..." }],
   "independentPractice": [{ "question": "...", "answer": "..." }],
   "quickCheck": { "question": "...", "answer": "..." },
-  "recap": "...",
-  "teachingBlocks": [{ "type": "teacherTip", "title": "...", "body": "..." }]
+  "recap": "2-3 sentences naming THIS skill and method",
+  "intro": "friendly opener",
+  "heroEmoji": "one emoji",
+  "sections": [{ "heading": "Core idea", "body": "same as coreExplanation", "emoji": "..." }],
+  "keyPoints": ["...", "..."],
+  "tryThis": { "question": "...", "answer": "..." }
 }
-For maths, workedExample.steps MUST have 6 to 10 short micro-steps (UK primary teacher pace).
-For non-maths, 4 to 8 micro-steps.
+workedExample.steps MUST be 6 to 10 rich micro-steps (objects), not a short textbook list.
+(Aliases: prerequisiteKnowledge, conceptExplanation, commonMistakes[], answer instead of finalAnswer.)
 `;

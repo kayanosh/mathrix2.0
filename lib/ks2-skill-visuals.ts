@@ -12,6 +12,7 @@ export type KS2SkillVisualFamily =
   | "percentages"
   | "geometry"
   | "word_problems"
+  | "rounding"
   | "place_value"
   | "general";
 
@@ -27,9 +28,6 @@ export function detectSkillVisualFamily(
   topic = "",
   skill = "",
 ): KS2SkillVisualFamily {
-  // Prefer the worked-example question — topic skill labels (e.g. first
-  // subtopic "Simplify fractions") must not force the wrong visual family
-  // when the example is about a different operation.
   const q = question.toLowerCase();
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
     return "fraction_simplify";
@@ -40,6 +38,13 @@ export function detectSkillVisualFamily(
   ) {
     return "fraction_compare";
   }
+  if (
+    /\bround(?:ing)?\b/.test(q) ||
+    /\bto\s+the\s+nearest\b/.test(q) ||
+    /\bround\b[\s\S]{0,40}\bto\s+\d+\s*(?:d\.?p\.?|decimal\s*places?)\b/i.test(q)
+  ) {
+    return "rounding";
+  }
   if (/\bpercent|%|hundred square/.test(q)) return "percentages";
   if (/\bdivid|÷|bus stop|short division|long division/.test(q) && /\d/.test(q))
     return "division";
@@ -49,9 +54,8 @@ export function detectSkillVisualFamily(
   if (/\bfraction\b|\d+\s*\/\s*\d+/.test(q)) return "fraction_ops";
   if (/\bangle|perimeter|area|shape|triangle|rectangle/.test(q)) return "geometry";
   if (/\bword problem|how many|altogether|left over/.test(q)) return "word_problems";
-  if (/\bplace value|round|nearest/.test(q)) return "place_value";
+  if (/\bplace value\b/.test(q)) return "place_value";
 
-  // Fall back to skill/topic labels only when the question is ambiguous
   const t = `${topic} ${skill}`.toLowerCase();
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b/.test(t)) {
     return "fraction_simplify";
@@ -59,17 +63,22 @@ export function detectSkillVisualFamily(
   if (/\bcompare\b|\border\b/.test(t) && /fraction/.test(t)) {
     return "fraction_compare";
   }
-  if (/\bfraction\b/.test(t)) return "fraction_ops";
+  if (/\bround|to the nearest|decimal places/.test(t) && /\bround|nearest/.test(t))
+    return "rounding";
   if (/\bpercent/.test(t)) return "percentages";
-  if (/\bdecimal/.test(t)) return "decimals";
   if (/\bdivid/.test(t)) return "division";
   if (/\bmultipl/.test(t)) return "multiplication";
+  if (/\bfraction\b/.test(t)) return "fraction_ops";
+  if (/\bdecimal/.test(t)) return "decimals";
   if (/\bangle|perimeter|area|shape/.test(t)) return "geometry";
-  if (/\bplace value|round/.test(t)) return "place_value";
+  if (/\bplace value/.test(t)) return "place_value";
   return "general";
 }
 
-export const KS2_SKILL_VISUALS: Record<KS2SkillVisualFamily, KS2SkillVisualRequirement> = {
+export const KS2_SKILL_VISUALS: Record<
+  KS2SkillVisualFamily,
+  KS2SkillVisualRequirement
+> = {
   fraction_simplify: {
     family: "fraction_simplify",
     requiredAnyOf: ["fraction_bar", "fraction_grid"],
@@ -118,10 +127,17 @@ export const KS2_SKILL_VISUALS: Record<KS2SkillVisualFamily, KS2SkillVisualRequi
     requiredAnyOf: ["key_info", "bar_model"],
     guidance: "Highlight key information; add a bar model when useful.",
   },
+  rounding: {
+    family: "rounding",
+    requiredAnyOf: ["table"],
+    requiredAllOf: ["table", "number_line"],
+    guidance:
+      "Show a place-value chart AND a number line; mark the deciding digit and the rounded value.",
+  },
   place_value: {
     family: "place_value",
     requiredAnyOf: ["table", "number_line"],
-    guidance: "Use a place-value chart or rounding number line.",
+    guidance: "Use a place-value chart or number line.",
   },
   general: {
     family: "general",

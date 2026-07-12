@@ -46,6 +46,15 @@ function sampleQuestion(tax: KS2TaxonomyNode): string {
   if (tax.pedagogyId === "fractions_compare") {
     return "Compare/order 1/2, 3/4, 2/3";
   }
+  if (
+    tax.pedagogyId === "place_value_rounding" ||
+    /\bround\b/i.test(tax.skill)
+  ) {
+    if (/decimal/i.test(tax.skill + tax.topic)) {
+      return "Round 3.456 to 2 decimal places";
+    }
+    return "Round 57,892 to the nearest 10,000";
+  }
   return tax.skill;
 }
 

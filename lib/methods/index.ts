@@ -30,6 +30,8 @@ import {
 import {
   buildRoundingNumberLine,
   parseRoundingQuestion,
+  parseDecimalRoundingQuestion,
+  buildDecimalRounding,
 } from "@/lib/methods/rounding-number-line";
 import {
   buildFractionOps,
@@ -108,6 +110,14 @@ function tryLinearEquation(text: string): MethodBuildResult | null {
 }
 
 function tryRoundingNumberLine(text: string): MethodBuildResult | null {
+  const dec = parseDecimalRoundingQuestion(text);
+  if (dec) {
+    try {
+      return buildDecimalRounding(dec.value, dec.decimalPlaces);
+    } catch {
+      /* fall through */
+    }
+  }
   const parsed = parseRoundingQuestion(text);
   if (!parsed) return null;
   try {
@@ -409,6 +419,7 @@ export {
   buildPlaceValueShift,
   buildPlaceValueChart,
   buildRoundingNumberLine,
+  buildDecimalRounding,
   buildFractionOps,
   buildFractionNumberLine,
   buildFractionSimplify,

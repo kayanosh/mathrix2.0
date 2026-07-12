@@ -88,7 +88,11 @@ function dryRunFixture(topicId: string): LogRow {
         ? "Simplify 12/16"
         : tax.pedagogyId === "fractions_compare"
           ? "Compare/order 1/2, 3/4, 2/3"
-          : tax.skill
+          : tax.pedagogyId === "place_value_rounding" || /\bround\b/i.test(tax.skill)
+            ? /decimal/i.test(tax.skill + tax.topic)
+              ? "Round 3.456 to 2 decimal places"
+              : "Round 57,892 to the nearest 10,000"
+            : tax.skill
       : tax.subjectId === "english"
         ? "Find evidence that shows how the character feels."
         : tax.subjectId === "science"

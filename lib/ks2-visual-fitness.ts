@@ -13,6 +13,14 @@ export function extractQuestionNumbers(question: string): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+/** Extract decimal / float tokens (e.g. 3.456) from question text. */
+export function extractQuestionDecimals(question: string): number[] {
+  const matches = question.replace(/,/g, "").match(/\d+\.\d+/g) || [];
+  return matches
+    .map((m) => parseFloat(m))
+    .filter((n) => Number.isFinite(n));
+}
+
 /** Extract a/b fraction tokens from question text. */
 export function extractQuestionFractions(
   question: string,
@@ -74,6 +82,22 @@ function numberLineFit(block: VisualBlock, question: string): boolean {
   if (fractions.length >= 1) {
     if (!markersCoverFractions(markers, fractions)) return false;
     return true;
+  }
+
+  const decimals = extractQuestionDecimals(question);
+  if (decimals.length >= 1) {
+    const tol = Math.max(0.0005, (max - min) * 0.05);
+    const covers = decimals.some((d) =>
+      markers.some(
+        (mk) =>
+          typeof mk.value === "number" &&
+          Number.isFinite(mk.value) &&
+          Math.abs(mk.value - d) <= tol,
+      ),
+    );
+    // Decimal rounding lines: accept if the value sits in the range
+    const inRange = decimals.some((d) => d >= min && d <= max);
+    return covers || inRange;
   }
 
   const nums = extractQuestionNumbers(question);

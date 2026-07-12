@@ -25,6 +25,7 @@ import {
   normalizeToTeachingLesson,
   validateKS2TeachingLesson,
 } from "@/lib/ks2-lesson-validator";
+import { coerceCanonicalLessonKeys } from "@/lib/ks2-lesson-zod";
 import {
   KS2_TEACHING_JSON_SHAPE,
   ks2TeachingEnginePrompt,
@@ -467,22 +468,23 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       }
     }
 
-    const subtopicLine = subtopics.length
-      ? `Cover these objectives: ${subtopics.join("; ")}.`
+    const focusSkill = (subtopics[0] || topic || "").toString();
+    const subtopicLine = focusSkill
+      ? `Teach ONLY this one skill: "${focusSkill}". Do not mix nearby skills or cover the whole topic list.`
       : "";
 
     const guidedExtra =
       kind === "guided"
-        ? `This is a GUIDED PRACTICE lesson: focus the sections on worked examples with helpful HINTS, and always include "tryThis" (a question the pupil attempts, with its answer). Steps are hints that teach the method.`
-        : `This is a LEARN lesson: teach the idea clearly from the start ("I do"), then name each step. Include "tryThis" if it helps.`;
+        ? `This is a GUIDED PRACTICE lesson: focus on worked examples with helpful HINTS for THIS skill only, and always include "tryThis".`
+        : `This is a LEARN lesson: teach THIS one skill clearly from the start ("I do"), then name each step.`;
 
     const taxonomy = topicId
-      ? resolveKS2Taxonomy(topicId, subtopics[0])
+      ? resolveKS2Taxonomy(topicId, focusSkill || undefined)
       : null;
 
     const teachingEngineExtra = teachingSubject
       ? `
-${isMaths ? `MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:\n${ks2LessonVisualsPrompt(topic, subtopics)}\n${KS2_LESSON_VISUAL_SCHEMA}\n` : ""}
+${isMaths ? `MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:\n${ks2LessonVisualsPrompt(topic, [focusSkill].filter(Boolean))}\n${KS2_LESSON_VISUAL_SCHEMA}\n` : ""}
 ${ks2TeachingEnginePrompt(taxonomy, kind, subject)}
 ${KS2_TEACHING_JSON_SHAPE}
 `
@@ -490,19 +492,28 @@ ${KS2_TEACHING_JSON_SHAPE}
 
     const workedExampleShape = isMaths
       ? `"workedExample": {
-    "question": "an example question",
-    "steps": ["micro-step 1", "micro-step 2", "micro-step 3", "micro-step 4"],
-    "answer": "the final answer",
+    "question": "an example for THIS skill only",
+    "method": "the method for this skill",
+    "steps": [
+      { "stepNumber": 1, "title": "...", "teacherText": "small teaching step" },
+      { "stepNumber": 2, "title": "...", "teacherText": "..." },
+      { "stepNumber": 3, "title": "...", "teacherText": "..." },
+      { "stepNumber": 4, "title": "...", "teacherText": "..." },
+      { "stepNumber": 5, "title": "...", "teacherText": "..." },
+      { "stepNumber": 6, "title": "...", "teacherText": "..." }
+    ],
+    "finalAnswer": "the final answer",
+    "check": "how we know it is right",
     "emoji": "a single emoji",
     "whiteboard": {
       "intro": "one sentence before the diagram",
-      "blocks": [{ "type": "column_method", "...": "..." }],
+      "blocks": [{ "type": "number_line", "...": "..." }],
       "conclusion": "one sentence with the answer"
     }
   }`
       : teachingSubject
         ? `"workedExample": {
-    "question": "an example question",
+    "question": "an example question for THIS skill",
     "steps": ["micro-step 1", "micro-step 2", "micro-step 3", "micro-step 4"],
     "answer": "the final answer",
     "emoji": "a single emoji",
@@ -516,26 +527,47 @@ ${KS2_TEACHING_JSON_SHAPE}
 
     const teachingFieldsShape = teachingSubject
       ? `,
-  "learningObjective": "one clear sentence",
-  "prerequisiteKnowledge": ["short prior skill"],
-  "commonMistakes": [{ "mistake": "...", "correction": "..." }],
+  "skill": "${focusSkill.replace(/"/g, "")}",
+  "learningObjective": "one clear sentence for this skill only",
+  "priorKnowledge": ["short prior skill"],
+  "coreExplanation": "what this skill means and why the method works",
+  "commonMistake": { "mistake": "...", "correction": "..." },
   "guidedPractice": [{ "question": "...", "hint": "...", "answer": "..." }],
   "independentPractice": [{ "question": "...", "answer": "..." }],
   "quickCheck": { "question": "...", "answer": "..." },
-  "recap": "2-3 sentences summarising the method"
+  "recap": "2-3 sentences naming THIS skill and method"
 `
       : "";
 
     const subjectExtras = [
-      englishLessonExtra(subject, topic, subtopics),
-      scienceLessonExtra(subject, topic, subtopics),
-      computingLessonExtra(subject, topic, subtopics),
-      arabicLessonExtra(subject, topic, subtopics),
+      englishLessonExtra(subject, topic, [focusSkill].filter(Boolean)),
+      scienceLessonExtra(subject, topic, [focusSkill].filter(Boolean)),
+      computingLessonExtra(subject, topic, [focusSkill].filter(Boolean)),
+      arabicLessonExtra(subject, topic, [focusSkill].filter(Boolean)),
     ]
       .filter(Boolean)
       .join("\n");
 
-    const sys = `You are a warm, encouraging UK primary school teacher creating a ${targetPhrase(target)} lesson for a Year 5/6 pupil.
+    const sys = isMaths
+      ? `You are a UK Year 5 and Year 6 maths teacher creating a ${targetPhrase(target)} lesson.
+Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
+Difficulty: ${tierPhrase(tier)}.
+${guidedExtra}
+Return valid JSON only. Teach one skill only. Do not mix nearby topics.
+${mathsRule}
+${teachingEngineExtra}
+${subjectExtras}
+Return ONLY valid JSON in exactly this shape (no markdown fences):
+{
+  "intro": "1-2 friendly sentences introducing THIS skill",
+  "heroEmoji": "a single emoji",
+  "sections": [{ "heading": "Core idea", "body": "core explanation for this skill", "emoji": "a single emoji" }],
+  ${workedExampleShape},
+  "keyPoints": ["short thing to remember", "another"],
+  "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }${teachingFieldsShape}
+}
+Use 3-5 sections, 6-10 worked-example micro-steps, and 2-4 key points.`
+      : `You are a warm, encouraging UK primary school teacher creating a ${targetPhrase(target)} lesson for a Year 5/6 pupil.
 Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
 Difficulty: ${tierPhrase(tier)}.
 ${guidedExtra}
@@ -569,7 +601,10 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
 
       const raw = completion.choices[0]?.message?.content || "{}";
       try {
-        const parsed = deepRepairStrings(JSON.parse(raw));
+        const parsed = coerceCanonicalLessonKeys(
+          deepRepairStrings(JSON.parse(raw)) as Record<string, unknown>,
+        );
+        const weRaw = parsed.workedExample as Record<string, unknown> | undefined;
         const built: KS2Lesson = {
           intro: (parsed.intro || "").toString(),
           heroEmoji: parsed.heroEmoji ? parsed.heroEmoji.toString() : undefined,
@@ -584,21 +619,32 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
                   body: s.body.toString(),
                   emoji: s.emoji ? s.emoji.toString() : undefined,
                 }))
-            : [],
+            : parsed.conceptExplanation || parsed.coreExplanation
+              ? [
+                  {
+                    heading: "Core idea",
+                    body: String(
+                      parsed.conceptExplanation || parsed.coreExplanation,
+                    ),
+                  },
+                ]
+              : [],
           workedExample:
-            parsed.workedExample && typeof parsed.workedExample === "object"
+            weRaw && typeof weRaw === "object"
               ? {
-                  question: (parsed.workedExample.question || "").toString(),
-                  steps: Array.isArray(parsed.workedExample.steps)
-                    ? parsed.workedExample.steps.map((x: unknown) => String(x))
+                  question: (weRaw.question || "").toString(),
+                  steps: Array.isArray(weRaw.steps)
+                    ? weRaw.steps.map((x: unknown) => String(x))
                     : [],
-                  answer: (parsed.workedExample.answer || "").toString(),
-                  emoji: parsed.workedExample.emoji
-                    ? parsed.workedExample.emoji.toString()
-                    : undefined,
+                  answer: (
+                    weRaw.answer ||
+                    weRaw.finalAnswer ||
+                    ""
+                  ).toString(),
+                  emoji: weRaw.emoji ? weRaw.emoji.toString() : undefined,
                   whiteboard: parseWorkedExampleWhiteboard(
-                    parsed.workedExample.whiteboard,
-                    (parsed.workedExample.question || "").toString(),
+                    weRaw.whiteboard,
+                    (weRaw.question || "").toString(),
                   ),
                 }
               : { question: "", steps: [], answer: "" },
@@ -608,10 +654,14 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
           tryThis:
             parsed.tryThis &&
             typeof parsed.tryThis === "object" &&
-            parsed.tryThis.question
+            (parsed.tryThis as { question?: string }).question
               ? {
-                  question: parsed.tryThis.question.toString(),
-                  answer: (parsed.tryThis.answer || "").toString(),
+                  question: String(
+                    (parsed.tryThis as { question: string }).question,
+                  ),
+                  answer: String(
+                    (parsed.tryThis as { answer?: string }).answer || "",
+                  ),
                 }
               : undefined,
           learningObjective: parsed.learningObjective
@@ -619,21 +669,27 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
             : undefined,
           prerequisiteKnowledge: Array.isArray(parsed.prerequisiteKnowledge)
             ? parsed.prerequisiteKnowledge.map(String)
-            : undefined,
+            : Array.isArray(parsed.priorKnowledge)
+              ? parsed.priorKnowledge.map(String)
+              : undefined,
           commonMistakes: Array.isArray(parsed.commonMistakes)
             ? parsed.commonMistakes
-            : undefined,
+            : parsed.commonMistake
+              ? [parsed.commonMistake]
+              : undefined,
           guidedPractice: Array.isArray(parsed.guidedPractice)
             ? parsed.guidedPractice
             : undefined,
           independentPractice: Array.isArray(parsed.independentPractice)
             ? parsed.independentPractice
             : undefined,
-          quickCheck: parsed.quickCheck,
+          quickCheck: parsed.quickCheck as KS2Lesson["quickCheck"],
           recap: parsed.recap ? String(parsed.recap) : undefined,
           teachingBlocks: Array.isArray(parsed.teachingBlocks)
             ? parsed.teachingBlocks
             : undefined,
+          skill: parsed.skill ? String(parsed.skill) : focusSkill || undefined,
+          method: parsed.method ? String(parsed.method) : undefined,
         };
         return built;
       } catch {
@@ -648,11 +704,12 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
     }
 
     // Prefer deterministic method builders (maths) + enrich teaching fields.
+    const skillSubs = [focusSkill].filter(Boolean);
     if (isMaths && lesson.workedExample?.question) {
       lesson.workedExample = hardenWorkedExample(
         lesson.workedExample,
         topic,
-        subtopics,
+        skillSubs,
       );
     } else if (lesson.workedExample?.whiteboard) {
       lesson.workedExample.whiteboard =
@@ -666,19 +723,19 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
       lesson = enrichTeachingFields(
         lesson,
         topic,
-        subtopics,
+        skillSubs,
         topicId,
         subjectId,
       );
 
       const taxMeta = topicId
-        ? resolveKS2Taxonomy(topicId, subtopics[0])
+        ? resolveKS2Taxonomy(topicId, focusSkill || undefined)
         : null;
       const teaching = normalizeToTeachingLesson(
         lesson as unknown as Record<string, unknown>,
         {
           topic,
-          skill: subtopics[0] || taxMeta?.skill,
+          skill: focusSkill || taxMeta?.skill,
           yearGroup: taxMeta?.yearGroup,
           strand: taxMeta?.strand,
           method: taxMeta?.method,
@@ -695,20 +752,20 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
             retry.workedExample = hardenWorkedExample(
               retry.workedExample,
               topic,
-              subtopics,
+              skillSubs,
             );
           }
           lesson = enrichTeachingFields(
             retry,
             topic,
-            subtopics,
+            skillSubs,
             topicId,
             subjectId,
           );
           validation = validateKS2TeachingLesson(
             normalizeToTeachingLesson(
               lesson as unknown as Record<string, unknown>,
-              { topic, skill: subtopics[0] },
+              { topic, skill: focusSkill },
             ),
             { subject: subjectId, requireVisual: isMaths },
           );
