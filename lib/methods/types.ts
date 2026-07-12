@@ -43,6 +43,8 @@ export interface MethodBuildResult {
   captions: string[];
   /** Canonical answer when the block has no answer field (e.g. equation_steps) */
   answer?: string;
+  /** Replaces vague LLM whiteboard.intro when the builder owns the method */
+  intro?: string;
 }
 
 export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {

@@ -35,6 +35,8 @@ describe("applyMethodBuilderToWorkedExample", () => {
     expect(out.teachingSteps?.[0]?.title).toMatch(/Set up/i);
     expect(out.teachingSteps?.some((s) => !!s.why)).toBe(true);
     expect(out.steps[0]).toMatch(/^Set up the columns:/);
+    expect(out.whiteboard?.intro).toMatch(/45 × 3/i);
+    expect(out.whiteboard?.intro).toMatch(/carries/i);
     const block = out.whiteboard?.blocks.find((b) => b.type === "column_method");
     expect(block?.type).toBe("column_method");
     if (block?.type === "column_method") {
@@ -42,6 +44,13 @@ describe("applyMethodBuilderToWorkedExample", () => {
       expect(column.placeValueHeaders).toEqual(["Th", "H", "T", "O"]);
       expect(column.carries?.[0]).toMatchObject({ row: 0, digit: "1" });
       expect(block.rows).toEqual(["45", "×23", "135", "900", "1035"]);
+      expect(column.rowLabels).toEqual(
+        expect.arrayContaining([
+          "45 × 3 = 135",
+          "45 × 20 = 900",
+          "Add both lines",
+        ]),
+      );
     }
   });
 

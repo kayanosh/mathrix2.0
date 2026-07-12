@@ -51,6 +51,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
   const { rows, carries, moves, cellNotes, separatorAfterRows, question, answer, method } = block;
   const separators = new Set(separatorAfterRows || []);
   const placeValueHeaders = block.placeValueHeaders;
+  const rowLabels = block.rowLabels;
 
   const maxCols = Math.max(...rows.map((r) => normalizeColumnDigits(r).length), 1);
   const cellW = DEFAULT_CELL_W;
@@ -200,7 +201,8 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
             </div>
           )}
 
-          <div className="relative" style={{ width: svgW, minHeight: svgH }}>
+          <div className="relative" style={{ minHeight: svgH }}>
+            <div className="relative" style={{ width: svgW }}>
             {/* Tutor step-mode only: animated carry arrows. Static Learn shows digits alone. */}
             {stepMode && resolvedMoves.length > 0 && (
               <svg
@@ -436,6 +438,20 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                         </div>
                       );
                     })}
+
+                    {rowLabels?.[ri] ? (
+                      <motion.span
+                        className="ml-3 text-[12px] font-medium text-slate-500 whitespace-nowrap"
+                        style={{ height: cellH, lineHeight: `${cellH}px` }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{
+                          delay: stepMode ? 0.1 : baseDelay + ri * 0.15 + 0.1,
+                        }}
+                      >
+                        ← {rowLabels[ri]}
+                      </motion.span>
+                    ) : null}
                   </motion.div>
 
                   {separators.has(ri) && (
@@ -458,6 +474,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
       </div>

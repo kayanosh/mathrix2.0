@@ -347,6 +347,11 @@ export interface ColumnMethodBlock {
   highlightCells?: { row: number; col: number }[];
   /** Optional place-value headers above the digit grid, e.g. ["H","T","O"] */
   placeValueHeaders?: string[];
+  /**
+   * Optional short label to the right of each working row
+   * (e.g. "23 × 7", "23 × 40", "add both lines").
+   */
+  rowLabels?: string[];
   /** The original question (e.g. "384 ÷ 12") */
   question: string;
   /** Final answer */

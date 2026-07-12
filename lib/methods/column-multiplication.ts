@@ -443,15 +443,35 @@ export function buildColumnMultiplication(
     moves: moves.filter((m) => m.fromCol >= 0 && m.toCol >= 0),
     separatorAfterRows: seps,
     placeValueHeaders: headers ? [...headers] : undefined,
+    rowLabels: [
+      "",
+      "",
+      ...partials.map((p, i) => {
+        const factor = bDigitsRtl[i] * 10 ** i;
+        return `${a} × ${factor} = ${p}`;
+      }),
+      ...(partials.length > 1 ? ["Add both lines"] : []),
+    ],
     question: `${a} × ${b}`,
     answer: String(product),
   };
+
+  const partList = partials
+    .map((p, i) => {
+      const factor = bDigitsRtl[i] * 10 ** i;
+      return `${a} × ${factor} (= ${p})`;
+    })
+    .join(partials.length === 2 ? ", then " : ", ");
 
   return {
     builderId: "column_multiplication",
     block,
     teachingSteps,
     captions: teachingStepsToCaptions(teachingSteps),
+    intro:
+      partials.length > 1
+        ? `We'll break ${a} × ${b} into parts: ${partList}, then add those lines. The small amber digits above the working are carries.`
+        : `We'll multiply ${a} × ${b} digit by digit. The small amber digits are carries.`,
   };
 }
 

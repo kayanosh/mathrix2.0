@@ -295,6 +295,7 @@ export const ColumnMethodBlockSchema = z.object({
     col: z.number().int().min(0),
   })).optional(),
   placeValueHeaders: z.array(z.string()).optional(),
+  rowLabels: z.array(z.string()).optional(),
   question: z.string(),
   answer: z.string(),
 });

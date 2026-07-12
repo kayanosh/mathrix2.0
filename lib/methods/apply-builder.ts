@@ -325,17 +325,22 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   };
 
   const wb = example.whiteboard;
+  const boardIntro =
+    built.intro ||
+    wb?.intro ||
+    `Let's work out ${example.question}.`;
+  const boardConclusion =
+    built.block.type === "column_method"
+      ? `${built.block.question} = ${built.block.answer}`
+      : `${example.question} = ${answer}`;
+
   if (!wb || !Array.isArray(wb.blocks) || wb.blocks.length === 0) {
     return {
       ...next,
       whiteboard: {
-        intro: wb?.intro || `Let's work out ${example.question}.`,
+        intro: boardIntro,
         blocks: [built.block],
-        conclusion:
-          wb?.conclusion ||
-          (built.block.type === "column_method"
-            ? `${built.block.question} = ${built.block.answer}`
-            : `${example.question} = ${answer}`),
+        conclusion: boardConclusion,
       },
     };
   }
@@ -370,11 +375,9 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       ...next,
       whiteboard: {
         ...wb,
+        intro: boardIntro,
         blocks: filtered,
-        conclusion:
-          built.block.type === "column_method"
-            ? `${built.block.question} = ${built.block.answer}`
-            : `${example.question} = ${answer}`,
+        conclusion: boardConclusion,
       },
     };
   }
@@ -383,11 +386,9 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     ...next,
     whiteboard: {
       ...wb,
+      intro: boardIntro,
       blocks,
-      conclusion:
-        built.block.type === "column_method"
-          ? `${built.block.question} = ${built.block.answer}`
-          : `${example.question} = ${answer}`,
+      conclusion: boardConclusion,
     },
   };
 }

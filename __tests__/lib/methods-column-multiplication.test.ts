@@ -114,12 +114,18 @@ describe("buildColumnMultiplication — 23 × 47 carries match captions", () => 
     expect(summaries[1].explanation).toMatch(/23 × 40 = 920/);
   });
 
-  it("names both partial-product lines in the add-intro step", () => {
-    const add = result.teachingSteps.find((s) =>
-      /Add the partial products/i.test(s.title),
-    );
-    expect(add?.explanation).toMatch(/ones line \(161\)/);
-    expect(add?.explanation).toMatch(/tens line \(920\)/);
+  it("labels each working row and provides a board intro", () => {
+    expect(result.intro).toMatch(/23 × 7/i);
+    expect(result.intro).toMatch(/23 × 40/i);
+    expect(result.intro).toMatch(/carries/i);
+    if (result.block.type !== "column_method") return;
+    expect(result.block.rowLabels).toEqual([
+      "",
+      "",
+      "23 × 7 = 161",
+      "23 × 40 = 920",
+      "Add both lines",
+    ]);
   });
 
   it("exposes matching carryKeys on the reveal timeline", () => {
