@@ -251,9 +251,20 @@ export async function POST(req: NextRequest) {
 
       if (cached) {
         console.log(`[Cache] HIT for hash ${qHash.slice(0, 12)}...`);
+        // Overlay deterministic builders even on cache hits — otherwise stale
+        // prose-only boards (pre-algebra-builder) keep serving forever.
+        const subtopicsArr = Array.isArray(subtopicsContext)
+          ? (subtopicsContext as string[])
+          : undefined;
+        const board = applyMethodBuilderToWhiteboard(
+          cached.response_json,
+          questionText,
+          typeof topicContext === "string" ? topicContext : undefined,
+          subtopicsArr,
+        );
         send("solver_done", {
-          whiteboard: cached.response_json,
-          response: whiteboardToLegacy(cached.response_json),
+          whiteboard: board,
+          response: whiteboardToLegacy(board),
           category: cached.category,
           validationWarnings: [],
         });
@@ -264,7 +275,7 @@ export async function POST(req: NextRequest) {
             criticVerified: true,
             toolChecksPassed: true,
           },
-          whiteboard: cached.response_json,
+          whiteboard: board,
         });
 
         // Still increment usage
@@ -867,8 +878,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // If still invalid, return fallback
+    // If still invalid, try a deterministic builder before falling back to prose.
     if (!result.ok || !result.data) {
+      const subtopicsArr = Array.isArray(subtopicsContext)
+        ? (subtopicsContext as string[])
+        : undefined;
+      const builderRescue = applyMethodBuilderToWhiteboard(
+        {
+          intro: "Let me walk you through this step by step.",
+          blocks: [],
+          conclusion: "",
+          subject: "Maths",
+        },
+        questionText,
+        typeof topicContext === "string" ? topicContext : undefined,
+        subtopicsArr,
+      );
+      const rescued = (builderRescue.blocks || []).some(
+        (b) =>
+          b.type === "equation_steps" ||
+          b.type === "column_method" ||
+          b.type === "table" ||
+          b.type === "number_line",
+      );
+      if (rescued) {
+        send("solver_done", {
+          whiteboard: builderRescue,
+          response: whiteboardToLegacy(builderRescue),
+          category,
+          validationWarnings: result.errors || ["Recovered with method builder"],
+        });
+        controller.close();
+        return;
+      }
       sendFallback(send, rawContent, category, result.errors);
       controller.close();
       return;
@@ -877,8 +919,9 @@ export async function POST(req: NextRequest) {
     // At this point result.data is guaranteed to exist — capture the reference
     let solutionData: WhiteboardResponse = result.data;
 
-    // Prefer deterministic method builders (KS2 arithmetic + algebra arrows).
-    if (level === "KS2" || category === "algebra") {
+    // Prefer deterministic method builders whenever the question parses
+    // (algebra arrows, KS2 column methods, place value, etc.).
+    {
       const subtopicsArr = Array.isArray(subtopicsContext)
         ? (subtopicsContext as string[])
         : undefined;

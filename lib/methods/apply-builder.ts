@@ -447,11 +447,14 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   });
   if (!replaced) {
     // Drop competing LLM sketches of the same family, then insert builder block first.
+    // For equation_steps, also drop bare text dumps so prose fallbacks don't linger.
     const filtered = blocks.filter((b) => {
       if (built.block.type === "column_method") return b.type !== "column_method";
       if (built.block.type === "table") return b.type !== "table";
       if (built.block.type === "number_line") return b.type !== "number_line";
-      if (built.block.type === "equation_steps") return b.type !== "equation_steps";
+      if (built.block.type === "equation_steps") {
+        return b.type !== "equation_steps" && b.type !== "text";
+      }
       return true;
     });
     filtered.unshift(built.block);
@@ -466,12 +469,18 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     };
   }
 
+  // Replaced an equation_steps block — still strip leftover prose dumps.
+  const cleaned =
+    built.block.type === "equation_steps"
+      ? blocks.filter((b) => b.type !== "text")
+      : blocks;
+
   return {
     ...next,
     whiteboard: {
       ...wb,
       intro: boardIntro,
-      blocks,
+      blocks: cleaned,
       conclusion: boardConclusion,
     },
   };

@@ -111,7 +111,28 @@ describe("applyMethodBuilderToWhiteboard algebra overlay", () => {
       | undefined;
     expect(eq).toBeTruthy();
     expect(eq!.steps.some((s) => (s.arrows?.length ?? 0) > 0)).toBe(true);
+    expect(out.blocks.some((b) => b.type === "text")).toBe(false);
     expect(out.intro).toMatch(/quadratic|factor/i);
+  });
+
+  it("upgrades a cached prose board on the same question", () => {
+    const cachedProse = {
+      intro: "Let's solve this quadratic equation step by step.",
+      blocks: [
+        {
+          type: "text" as const,
+          content:
+            "This is a quadratic in the form ax^2+bx+c=0.\nFind two numbers...\nThe solutions are x=6 and x=-1.",
+        },
+      ],
+      conclusion: "The solutions are x = 6 and x = -1.",
+    };
+    const out = applyMethodBuilderToWhiteboard(
+      cachedProse,
+      "Solve $x^2 - 5x - 6 = 0$",
+    );
+    expect(out.blocks[0].type).toBe("equation_steps");
+    expect(out.blocks.every((b) => b.type !== "text")).toBe(true);
   });
 
   it("replaces a weak board for a linear equation", () => {
