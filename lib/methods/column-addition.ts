@@ -228,10 +228,12 @@ function digitAt(numStr: string, gridCols: number, col: number): number {
   return Number(numStr[idx]);
 }
 
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+
 export function parseAdditionOperands(
   text: string,
 ): { a: number; b: number } | null {
-  const m = text.match(/(\d{1,6})\s*\+\s*(\d{1,6})/);
+  const m = normalizeMathText(text).match(/(\d{1,6})\s*\+\s*(\d{1,6})/);
   if (!m) return null;
   return { a: parseInt(m[1], 10), b: parseInt(m[2], 10) };
 }
@@ -239,7 +241,7 @@ export function parseAdditionOperands(
 export function parseSubtractionOperands(
   text: string,
 ): { a: number; b: number } | null {
-  const m = text.match(/(\d{1,6})\s*[−\-–]\s*(\d{1,6})/);
+  const m = normalizeMathText(text).match(/(\d{1,6})\s*-\s*(\d{1,6})/);
   if (!m) return null;
   const a = parseInt(m[1], 10);
   const b = parseInt(m[2], 10);

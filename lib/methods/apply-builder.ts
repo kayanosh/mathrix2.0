@@ -11,17 +11,12 @@ import {
 import {
   buildColumnAddition,
   buildColumnSubtraction,
-  parseAdditionOperands,
-  parseSubtractionOperands,
 } from "@/lib/methods/column-addition";
-import {
-  buildLongDivision,
-  parseDivisionOperands,
-} from "@/lib/methods/long-division";
 import { buildPlaceValueShift, parsePlaceValueShift } from "@/lib/methods/place-value-shift";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
 import { teachingStepsToCaptions, type MethodBuildResult } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import type {
   ColumnMethodBlock,
   TableBlock,
@@ -40,12 +35,14 @@ export interface WorkedExampleLike {
   };
 }
 
-/** Try every text source that might contain "36 × 15" etc. */
-function collectCandidateTexts(example: WorkedExampleLike): string[] {
+/**
+ * Authoritative sources for the MAIN worked example only.
+ * Never scan step captions or equation_steps — they contain sub-operations
+ * (e.g. "3 × 7") that would replace the real problem (23 × 47).
+ */
+function primarySourceTexts(example: WorkedExampleLike): string[] {
   const texts: string[] = [];
   if (example.question) texts.push(example.question);
-  if (example.answer) texts.push(example.answer);
-  for (const step of example.steps || []) texts.push(step);
   const wb = example.whiteboard;
   if (wb?.intro) texts.push(wb.intro);
   if (wb?.conclusion) texts.push(wb.conclusion);
@@ -55,13 +52,6 @@ function collectCandidateTexts(example: WorkedExampleLike): string[] {
     }
     if (block.type === "table" && block.caption) {
       texts.push(block.caption);
-    }
-    if (block.type === "equation_steps") {
-      for (const s of block.steps || []) {
-        if (s.latexBefore) texts.push(s.latexBefore);
-        if (s.latexAfter) texts.push(s.latexAfter);
-        if (s.explanation) texts.push(s.explanation);
-      }
     }
   }
   return texts;
@@ -81,16 +71,6 @@ function buildFromColumnBlock(block: ColumnMethodBlock): MethodBuildResult | nul
         return buildColumnAddition(a, b);
       case "column_subtraction":
         return a >= b ? buildColumnSubtraction(a, b) : null;
-      case "long_division": {
-        // Prefer parsing "12)384" style from the bracket row
-        const bracket = block.rows.find((r) => r.includes(")"));
-        if (bracket) {
-          const m = bracket.match(/(\d+)\s*\)\s*(\d+)/);
-          if (m) return buildLongDivision(parseInt(m[2], 10), parseInt(m[1], 10));
-        }
-        const q = parseDivisionOperands(block.question || "");
-        return q ? buildLongDivision(q.a, q.b) : null;
-      }
       default:
         return null;
     }
@@ -121,14 +101,16 @@ function resolveBuild(
     subtopics,
   );
 
-  for (const text of collectCandidateTexts(example)) {
+  // Pass 1: worked-example question / intro / board question (never sub-steps).
+  for (const raw of primarySourceTexts(example)) {
+    const text = normalizeMathText(raw);
     const built = buildMethodForQuestion(text, preferred);
     if (built) return built;
-    // Also try without preferred lock in case topic mis-routes
     const any = buildMethodForQuestion(text, null);
     if (any) return any;
   }
 
+  // Pass 2: operands encoded in the column/table board itself.
   for (const block of example.whiteboard?.blocks || []) {
     if (block.type === "column_method") {
       const fromBlock = buildFromColumnBlock(block);
@@ -140,36 +122,12 @@ function resolveBuild(
     }
   }
 
-  // Last resort: parse operands with loose helpers from the joined blob
-  const blob = collectCandidateTexts(example).join(" ");
+  // Pass 3: one-shot parse from joined primary sources (still no step captions).
+  const blob = primarySourceTexts(example).map(normalizeMathText).join(" ");
   const mult = parseMultiplicationOperands(blob);
   if (mult && ![10, 100, 1000].includes(mult.b)) {
     try {
       return buildColumnMultiplication(mult.a, mult.b);
-    } catch {
-      /* ignore */
-    }
-  }
-  const add = parseAdditionOperands(blob);
-  if (add) {
-    try {
-      return buildColumnAddition(add.a, add.b);
-    } catch {
-      /* ignore */
-    }
-  }
-  const sub = parseSubtractionOperands(blob);
-  if (sub) {
-    try {
-      return buildColumnSubtraction(sub.a, sub.b);
-    } catch {
-      /* ignore */
-    }
-  }
-  const div = parseDivisionOperands(blob);
-  if (div && ![10, 100, 1000].includes(div.b)) {
-    try {
-      return buildLongDivision(div.a, div.b);
     } catch {
       /* ignore */
     }
@@ -182,7 +140,6 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   example: T,
   built: MethodBuildResult,
 ): T {
-  // Keep the full digit-level script — do not truncate mid-method.
   const captions = teachingStepsToCaptions(built.teachingSteps);
   const answer =
     built.block.type === "column_method"
@@ -225,7 +182,6 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     return block;
   });
   if (!replaced) {
-    // Drop competing LLM column/table sketches, then insert builder block first.
     const filtered = blocks.filter((b) => {
       if (built.block.type === "column_method") return b.type !== "column_method";
       if (built.block.type === "table") return b.type !== "table";

@@ -308,11 +308,16 @@ export function buildColumnMultiplication(
   };
 }
 
-/** Parse "36 × 15" / "36x15" / "36 * 15" from question text. */
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+
+/** Parse "36 × 15" / "36x15" / "$36 \\times 15$" / "36 by 15" from question text. */
 export function parseMultiplicationOperands(
   text: string,
 ): { a: number; b: number } | null {
-  const m = text.match(/(\d{1,6})\s*[×x*]\s*(\d{1,6})/);
+  const normalized = normalizeMathText(text);
+  const m =
+    normalized.match(/(\d{1,6})\s*[×x*]\s*(\d{1,6})/) ||
+    normalized.match(/(\d{1,6})\s+by\s+(\d{1,6})/i);
   if (!m) return null;
   const a = parseInt(m[1], 10);
   const b = parseInt(m[2], 10);

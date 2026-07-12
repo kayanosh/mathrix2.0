@@ -101,10 +101,13 @@ export function buildPlaceValueShift(
   };
 }
 
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+
 export function parsePlaceValueShift(
   text: string,
 ): { value: number; factor: 10 | 100 | 1000; operation: "multiply" | "divide" } | null {
-  const mult = text.match(/(\d{1,6})\s*[×x*]\s*(10|100|1000)\b/);
+  const normalized = normalizeMathText(text);
+  const mult = normalized.match(/(\d{1,6})\s*[×x*]\s*(10|100|1000)\b/);
   if (mult) {
     return {
       value: parseInt(mult[1], 10),
@@ -112,7 +115,7 @@ export function parsePlaceValueShift(
       operation: "multiply",
     };
   }
-  const div = text.match(/(\d{1,6})\s*[÷/]\s*(10|100|1000)\b/);
+  const div = normalized.match(/(\d{1,6})\s*[÷/]\s*(10|100|1000)\b/);
   if (div) {
     const value = parseInt(div[1], 10);
     const factor = parseInt(div[2], 10) as 10 | 100 | 1000;
