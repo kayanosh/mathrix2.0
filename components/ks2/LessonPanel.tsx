@@ -53,8 +53,16 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v13_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v14_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((x) => String(x)) : [];
+}
+
+function asTeachingSteps(value: unknown): TeachingStep[] {
+  return Array.isArray(value) ? (value as TeachingStep[]) : [];
+}
 
 function cacheKey(p: Props): string {
   return `${CACHE_PREFIX}${p.topicId}|${p.target}|${p.tier}|${p.kind}`;
@@ -163,6 +171,7 @@ export default function LessonPanel(props: Props) {
 
   const workedWhiteboard: WhiteboardResponse | null =
     displayExample?.whiteboard &&
+    Array.isArray(displayExample.whiteboard.blocks) &&
     displayExample.whiteboard.blocks.length > 0
       ? {
           intro: displayExample.whiteboard.intro || displayExample.question,
@@ -196,7 +205,9 @@ export default function LessonPanel(props: Props) {
   }, [lesson?.tryThis, topicName, subtopics, subjectId]);
 
   const tryWhiteboard: WhiteboardResponse | null =
-    trySolution?.whiteboard && trySolution.whiteboard.blocks.length > 0
+    trySolution?.whiteboard &&
+    Array.isArray(trySolution.whiteboard.blocks) &&
+    trySolution.whiteboard.blocks.length > 0
       ? {
           intro: trySolution.whiteboard.intro || trySolution.question,
           blocks: trySolution.whiteboard.blocks,
@@ -289,7 +300,7 @@ export default function LessonPanel(props: Props) {
       </motion.div>
 
       {/* Sections */}
-      {lesson.sections.map((s, i) => (
+      {(Array.isArray(lesson.sections) ? lesson.sections : []).map((s, i) => (
         <motion.div key={i} variants={fadeUp} className="flex gap-3">
           {s.emoji && (
             <motion.span
@@ -333,16 +344,16 @@ export default function LessonPanel(props: Props) {
               {workedWhiteboard.intro && (
                 <p className="text-sm text-gray-600">{<InlineMath text={workedWhiteboard.intro} />}</p>
               )}
-              {workedWhiteboard.blocks.map((block, bi) => (
+              {(workedWhiteboard.blocks || []).map((block, bi) => (
                 <BlockRenderer key={bi} block={block} index={bi} baseDelay={0.1 + bi * 0.2} />
               ))}
             </div>
           )}
 
           <ol className="space-y-2.5">
-            {(displayExample.teachingSteps && displayExample.teachingSteps.length > 0
-              ? displayExample.teachingSteps
-              : displayExample.steps.map(
+            {(asTeachingSteps(displayExample.teachingSteps).length > 0
+              ? asTeachingSteps(displayExample.teachingSteps)
+              : asStringArray(displayExample.steps).map(
                   (step): TeachingStep => ({
                     title: "",
                     explanation: step,
@@ -389,13 +400,13 @@ export default function LessonPanel(props: Props) {
       )}
 
       {/* Key points */}
-      {lesson.keyPoints.length > 0 && (
+      {asStringArray(lesson.keyPoints).length > 0 && (
         <motion.div variants={fadeUp} className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
           <p className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-wide text-amber-600 mb-2">
             <Lightbulb size={14} /> Remember
           </p>
           <ul className="space-y-1">
-            {lesson.keyPoints.map((k, i) => (
+            {asStringArray(lesson.keyPoints).map((k, i) => (
               <motion.li
                 key={i}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -437,7 +448,9 @@ export default function LessonPanel(props: Props) {
                 )}
               </div>
 
-              {trySolution?.whiteboard && trySolution.whiteboard.blocks.length > 0 && (
+              {trySolution?.whiteboard &&
+                Array.isArray(trySolution.whiteboard.blocks) &&
+                trySolution.whiteboard.blocks.length > 0 && (
                 <div className="space-y-3 rounded-xl bg-white/90 p-3 border border-emerald-100">
                   {trySolution.whiteboard.intro && (
                     <p className="text-sm text-gray-600">
@@ -455,11 +468,12 @@ export default function LessonPanel(props: Props) {
                 </div>
               )}
 
-              {(trySolution?.teachingSteps?.length || trySolution?.steps?.length) ? (
+              {(asTeachingSteps(trySolution?.teachingSteps).length ||
+                asStringArray(trySolution?.steps).length) ? (
                 <ol className="space-y-2.5">
-                  {(trySolution.teachingSteps && trySolution.teachingSteps.length > 0
-                    ? trySolution.teachingSteps
-                    : (trySolution.steps || []).map(
+                  {(asTeachingSteps(trySolution?.teachingSteps).length > 0
+                    ? asTeachingSteps(trySolution?.teachingSteps)
+                    : asStringArray(trySolution?.steps).map(
                         (step): TeachingStep => ({
                           title: "",
                           explanation: step,
@@ -539,7 +553,7 @@ export default function LessonPanel(props: Props) {
           </p>
         )}
 
-        {lesson.sections.map((s, i) => (
+        {(Array.isArray(lesson.sections) ? lesson.sections : []).map((s, i) => (
           <div key={i} className="ks2-print-question" style={{ marginBottom: "14px", fontSize: "14px", lineHeight: 1.5 }}>
             {s.heading && (
               <div style={{ fontWeight: 700, marginBottom: "4px" }}>
@@ -562,7 +576,7 @@ export default function LessonPanel(props: Props) {
               <InlineMath text={displayExample.question} />
             </p>
             <ol style={{ margin: 0, paddingLeft: "20px" }}>
-              {displayExample.steps.map((step, i) => (
+              {asStringArray(displayExample.steps).map((step, i) => (
                 <li key={i} style={{ marginBottom: "4px" }}>
                   <InlineMath text={step} />
                 </li>
@@ -576,11 +590,11 @@ export default function LessonPanel(props: Props) {
           </div>
         )}
 
-        {lesson.keyPoints.length > 0 && (
+        {asStringArray(lesson.keyPoints).length > 0 && (
           <div className="ks2-print-question" style={{ marginBottom: "16px", fontSize: "14px", lineHeight: 1.5 }}>
             <div style={{ fontWeight: 700, marginBottom: "6px" }}>Remember</div>
             <ul style={{ margin: 0, paddingLeft: "20px" }}>
-              {lesson.keyPoints.map((k, i) => (
+              {asStringArray(lesson.keyPoints).map((k, i) => (
                 <li key={i} style={{ marginBottom: "4px" }}>
                   <InlineMath text={k} />
                 </li>
@@ -597,11 +611,12 @@ export default function LessonPanel(props: Props) {
             </p>
             {includeTryAnswer && (
               <>
-                {(trySolution?.teachingSteps?.length || trySolution?.steps?.length) ? (
+                {(asTeachingSteps(trySolution?.teachingSteps).length ||
+                  asStringArray(trySolution?.steps).length) ? (
                   <ol style={{ margin: "0 0 8px", paddingLeft: "20px" }}>
-                    {(trySolution.teachingSteps && trySolution.teachingSteps.length > 0
-                      ? trySolution.teachingSteps.map((s) => s.explanation)
-                      : trySolution.steps || []
+                    {(asTeachingSteps(trySolution?.teachingSteps).length > 0
+                      ? asTeachingSteps(trySolution?.teachingSteps).map((s) => s.explanation)
+                      : asStringArray(trySolution?.steps)
                     ).map((step, i) => (
                       <li key={i} style={{ marginBottom: "4px" }}>
                         <InlineMath text={step} />

@@ -388,7 +388,8 @@ function collectSearchText(
   topic?: string,
   subtopics?: string[],
 ): string {
-  return [question, topic, ...(subtopics || [])].filter(Boolean).join(" ");
+  const subs = Array.isArray(subtopics) ? subtopics : [];
+  return [question, topic, ...subs].filter(Boolean).join(" ");
 }
 
 export function lookupPedagogy(

@@ -190,10 +190,11 @@ function resolveBuild(
   topic?: string,
   subtopics?: string[],
 ): MethodBuildResult | null {
+  const subs = Array.isArray(subtopics) ? subtopics : [];
   const preferred = preferredBuilderId(
-    [example.question, topic, ...(subtopics || [])].filter(Boolean).join(" "),
+    [example.question, topic, ...subs].filter(Boolean).join(" "),
     topic,
-    subtopics,
+    subs,
   );
 
   // 1. The visible worked-example question is authoritative.
@@ -317,9 +318,12 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       ? built.teachingSteps.filter((s) => s.title !== "Answer")
       : example.teachingSteps;
 
+  const fallbackSteps = Array.isArray(example.steps)
+    ? example.steps
+    : [];
   const next = {
     ...example,
-    steps: captions.length > 0 ? captions : example.steps,
+    steps: captions.length > 0 ? captions : fallbackSteps,
     answer,
     teachingSteps,
   };

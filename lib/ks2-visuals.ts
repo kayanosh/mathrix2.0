@@ -2,10 +2,9 @@
  * Child-friendly visuals for the KS2 scheme.
  *
  * Every topic gets a bright accent colour and a Lucide icon (chosen by keyword),
- * plus an optional hero illustration. Drop a PNG at
- * `public/ks2/illustrations/<topicId>.png` and it is used automatically;
- * otherwise the coloured icon is shown. This keeps the UI lively out of the box
- * and lets richer illustrations land progressively.
+ * plus an optional hero illustration. Add the topic id to `ILLUSTRATION_IDS`
+ * when you drop a PNG at `public/ks2/illustrations/<topicId>.png`; otherwise
+ * the coloured icon badge is shown (no 404 requests for missing files).
  */
 import type { LucideIcon } from "lucide-react";
 import {
@@ -71,10 +70,21 @@ export interface KS2Accent {
 export interface KS2Visual {
   Icon: LucideIcon;
   accent: KS2Accent;
-  heroImage: string;
+  /**
+   * Optional hero illustration path. Only set when a real PNG exists under
+   * `public/ks2/illustrations/` — otherwise TopicCard uses the icon badge.
+   */
+  heroImage: string | null;
 }
 
-/* Bright, kid-friendly palette. Full literal class strings so Tailwind keeps them. */
+/**
+ * Topic ids that have a committed PNG under public/ks2/illustrations/.
+ * Add an id here when you drop the matching file so cards can load it.
+ */
+const ILLUSTRATION_IDS = new Set<string>([
+  // e.g. "y5m-fractions",
+]);
+
 const PALETTE: KS2Accent[] = [
   { text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-200", gradient: "from-rose-400 to-rose-500", hex: "#f43f5e" },
   { text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200", gradient: "from-orange-400 to-amber-500", hex: "#f97316" },
@@ -161,13 +171,15 @@ function pickIcon(topicId: string, topicName: string, subjectId: KS2SubjectId): 
   return SUBJECT_FALLBACK_ICON[subjectId] ?? Sparkles;
 }
 
-/** Returns the icon, accent colour, and hero-image path for a topic. */
+/** Returns the icon, accent colour, and optional hero-image path for a topic. */
 export function getTopicVisual(topicId: string, topicName: string, subjectId: KS2SubjectId): KS2Visual {
   const accent = PALETTE[hashString(topicId) % PALETTE.length];
   return {
     Icon: pickIcon(topicId, topicName, subjectId),
     accent,
-    heroImage: `/ks2/illustrations/${topicId}.png`,
+    heroImage: ILLUSTRATION_IDS.has(topicId)
+      ? `/ks2/illustrations/${topicId}.png`
+      : null,
   };
 }
 

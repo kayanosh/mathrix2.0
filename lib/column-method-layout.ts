@@ -132,10 +132,10 @@ export function normalizeColumnDigits(row: string): string {
  * Prevents final-add carries from inheriting a high global lane and lofting into digits.
  */
 export function movesWithLanes(
-  moves: ColumnMethodMove[],
+  moves: ColumnMethodMove[] | undefined | null,
 ): Array<ColumnMethodMove & { laneIndex: number }> {
   const byRow = new Map<number, ColumnMethodMove[]>();
-  for (const move of moves) {
+  for (const move of moves || []) {
     const key = move.toRow;
     const list = byRow.get(key) || [];
     list.push(move);

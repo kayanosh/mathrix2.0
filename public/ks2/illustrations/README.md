@@ -1,8 +1,8 @@
 # KS2 hero illustrations
 
-Drop a PNG here named after the topic id to give a topic a hero illustration on
-its card and pathway page. If no file exists, a bright coloured icon is shown
-instead (see `lib/ks2-visuals.ts`), so the UI always looks complete.
+Drop a PNG here named after the topic id, **and** add that id to
+`ILLUSTRATION_IDS` in `lib/ks2-visuals.ts`. Until both exist, topic cards use
+the coloured icon badge only (so the browser never 404s on missing PNGs).
 
 Naming: `<topicId>.png` — for example:
 

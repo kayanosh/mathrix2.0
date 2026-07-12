@@ -83,16 +83,55 @@ function parseWorkedExampleWhiteboard(raw: unknown): CachedKS2WorkedExampleWhite
     conclusion: (wb.conclusion || "").toString(),
   });
   // Normalise column_method digit rows (strip spaces between digits)
+  // and tolerate incomplete LLM table / number_line sketches.
   repaired.blocks = repaired.blocks.map((block) => {
-    if (block.type !== "column_method") return block;
-    return {
-      ...block,
-      rows: block.rows.map((row) => {
-        const op = row.match(/^[+\-×x]/)?.[0] ?? "";
-        const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
-        return op ? `${op}${digits}` : digits;
-      }),
-    };
+    if (block.type === "column_method") {
+      const rows = Array.isArray(block.rows) ? block.rows : [];
+      return {
+        ...block,
+        rows: rows.map((row) => {
+          const op = row.match(/^[+\-×x]/)?.[0] ?? "";
+          const digits = row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "");
+          return op ? `${op}${digits}` : digits;
+        }),
+      };
+    }
+    if (block.type === "table") {
+      return {
+        ...block,
+        headers: Array.isArray(block.headers) ? block.headers.map(String) : [],
+        rows: Array.isArray(block.rows)
+          ? block.rows.map((row) => (Array.isArray(row) ? row.map(String) : []))
+          : [],
+        highlightCells: Array.isArray(block.highlightCells)
+          ? block.highlightCells.filter(
+              (c): c is [number, number] =>
+                Array.isArray(c) && c.length >= 2 && Number.isFinite(Number(c[0])) && Number.isFinite(Number(c[1])),
+            )
+          : undefined,
+      };
+    }
+    if (block.type === "number_line") {
+      const range = Array.isArray(block.range) && block.range.length >= 2
+        ? ([Number(block.range[0]), Number(block.range[1])] as [number, number])
+        : ([0, 10] as [number, number]);
+      return {
+        ...block,
+        range,
+        tickInterval:
+          typeof block.tickInterval === "number" && block.tickInterval > 0
+            ? block.tickInterval
+            : 1,
+        markers: Array.isArray(block.markers) ? block.markers : [],
+      };
+    }
+    if (block.type === "equation_steps") {
+      return {
+        ...block,
+        steps: Array.isArray(block.steps) ? block.steps : [],
+      };
+    }
+    return block;
   });
   return repaired;
 }
@@ -198,6 +237,11 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       const key = ks2LessonCacheKey(topicId, target, tier, kind);
       const cached = await lookupKS2LessonCache(key);
       if (cached) {
+        if (cached.workedExample?.whiteboard) {
+          cached.workedExample.whiteboard =
+            parseWorkedExampleWhiteboard(cached.workedExample.whiteboard) ||
+            cached.workedExample.whiteboard;
+        }
         if (isMaths && cached.workedExample?.question) {
           cached.workedExample = applyMethodBuilderToWorkedExample(
             cached.workedExample,

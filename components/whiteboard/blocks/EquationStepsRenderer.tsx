@@ -24,7 +24,11 @@ interface Props {
 }
 
 export default function EquationStepsRenderer({ block, baseDelay }: Props) {
-  const { steps } = block;
+  const steps = Array.isArray(block.steps) ? block.steps : [];
+
+  if (steps.length === 0) {
+    return null;
+  }
 
   return (
     <div className="wb-equations flex flex-col gap-1 w-full">

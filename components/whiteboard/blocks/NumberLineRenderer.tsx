@@ -9,8 +9,32 @@ interface Props {
   baseDelay: number;
 }
 
+function parseRange(raw: unknown): [number, number] | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const min = Number(raw[0]);
+  const max = Number(raw[1]);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+  return [min, max];
+}
+
 export default function NumberLineRenderer({ block, baseDelay }: Props) {
-  const { range, tickInterval, markers, shading, inequalityLabel } = block;
+  const range = parseRange(block.range);
+  const markers = Array.isArray(block.markers) ? block.markers : [];
+  const shading = Array.isArray(block.shading) ? block.shading : [];
+  const tickInterval =
+    typeof block.tickInterval === "number" && block.tickInterval > 0
+      ? block.tickInterval
+      : 1;
+  const { inequalityLabel } = block;
+
+  if (!range) {
+    return (
+      <div className="rounded-xl p-4 bg-white border border-amber-100 text-sm text-amber-800">
+        Number line could not be drawn (missing range).
+      </div>
+    );
+  }
+
   const [min, max] = range;
   const width = 500;
   const height = 80;
@@ -22,15 +46,14 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
     return padding + ((val - min) / (max - min)) * innerWidth;
   }
 
-  // Generate tick values
   const ticks: number[] = [];
-  for (let v = min; v <= max; v += tickInterval) {
+  const safeInterval = Math.max(tickInterval, (max - min) / 50);
+  for (let v = min; v <= max + 1e-9; v += safeInterval) {
     ticks.push(Math.round(v * 1000) / 1000);
   }
 
   return (
     <div className="rounded-xl p-4 bg-white border border-indigo-100 shadow-sm">
-      {/* Inequality label */}
       {inequalityLabel && (
         <div className="mb-3 flex justify-center text-gray-900">
           <MathRenderer latex={inequalityLabel} display />
@@ -42,8 +65,7 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
         className="w-full max-w-lg mx-auto"
         overflow="visible"
       >
-        {/* Shading regions */}
-        {shading?.map((s, i) => {
+        {shading.map((s, i) => {
           const x1 = s.fromInfinity ? 0 : xPos(s.from);
           const x2 = s.toInfinity ? width : xPos(s.to);
           return (
@@ -51,7 +73,7 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
               key={`shade-${i}`}
               x={x1}
               y={lineY - 12}
-              width={x2 - x1}
+              width={Math.max(0, x2 - x1)}
               height={24}
               fill={s.color || "#818cf8"}
               opacity={0}
@@ -62,7 +84,6 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           );
         })}
 
-        {/* Main line */}
         <motion.line
           x1={padding - 10}
           y1={lineY}
@@ -76,7 +97,6 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           transition={{ delay: baseDelay, duration: 0.5 }}
         />
 
-        {/* Arrow ends */}
         <motion.polygon
           points={`${width - padding + 14},${lineY} ${width - padding + 6},${lineY - 4} ${width - padding + 6},${lineY + 4}`}
           fill="#334155"
@@ -92,7 +112,6 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           transition={{ delay: baseDelay + 0.5 }}
         />
 
-        {/* Ticks */}
         {ticks.map((v, i) => (
           <motion.g
             key={`tick-${v}`}
@@ -122,42 +141,44 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           </motion.g>
         ))}
 
-        {/* Markers */}
-        {markers.map((m, i) => (
-          <motion.g
-            key={`marker-${i}`}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{
-              delay: baseDelay + 0.4 + i * 0.1,
-              type: "spring",
-              stiffness: 300,
-            }}
-            style={{ transformOrigin: `${xPos(m.value)}px ${lineY}px` }}
-          >
-            <circle
-              cx={xPos(m.value)}
-              cy={lineY}
-              r="7"
-              fill={m.style === "filled" ? "#4f46e5" : "#fff"}
-              stroke="#4f46e5"
-              strokeWidth="2.5"
-            />
-            {m.label && (
-              <text
-                x={xPos(m.value)}
-                y={lineY - 14}
-                textAnchor="middle"
-                fill="#312e81"
-                fontSize="13"
-                fontFamily="var(--font-caveat), cursive"
-                fontWeight="bold"
-              >
-                {m.label}
-              </text>
-            )}
-          </motion.g>
-        ))}
+        {markers.map((m, i) => {
+          if (typeof m?.value !== "number" || !Number.isFinite(m.value)) return null;
+          return (
+            <motion.g
+              key={`marker-${i}`}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{
+                delay: baseDelay + 0.4 + i * 0.1,
+                type: "spring",
+                stiffness: 300,
+              }}
+              style={{ transformOrigin: `${xPos(m.value)}px ${lineY}px` }}
+            >
+              <circle
+                cx={xPos(m.value)}
+                cy={lineY}
+                r="7"
+                fill={m.style === "filled" ? "#4f46e5" : "#fff"}
+                stroke="#4f46e5"
+                strokeWidth="2.5"
+              />
+              {m.label && (
+                <text
+                  x={xPos(m.value)}
+                  y={lineY - 14}
+                  textAnchor="middle"
+                  fill="#312e81"
+                  fontSize="13"
+                  fontFamily="var(--font-caveat), cursive"
+                  fontWeight="bold"
+                >
+                  {m.label}
+                </text>
+              )}
+            </motion.g>
+          );
+        })}
       </svg>
     </div>
   );

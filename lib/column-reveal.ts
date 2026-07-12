@@ -117,14 +117,15 @@ export function withResultRow(block: ColumnMethodBlock): ColumnMethodBlock {
     return block;
   }
 
+  const baseRows = Array.isArray(block.rows) ? block.rows : [];
   const answerDigits = normalizeColumnDigits(block.answer || "");
   if (!/^\d+$/.test(answerDigits)) return block;
 
-  const lastRow = normalizeColumnDigits(block.rows[block.rows.length - 1] || "");
-  if (block.rows.length > 2 && lastRow === answerDigits) return block; // already present
+  const lastRow = normalizeColumnDigits(baseRows[baseRows.length - 1] || "");
+  if (baseRows.length > 2 && lastRow === answerDigits) return block; // already present
 
-  const oldMax = gridMaxCols(block.rows);
-  const rows = [...block.rows, answerDigits];
+  const oldMax = gridMaxCols(baseRows);
+  const rows = [...baseRows, answerDigits];
   const delta = gridMaxCols(rows) - oldMax;
 
   if (delta === 0) {

@@ -49,7 +49,16 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
   // Synthesize the result row for add/sub so answer digits are written into
   // the grid column by column, like a teacher would.
   const block = useMemo(() => withResultRow(rawBlock), [rawBlock]);
-  const { rows, carries, moves, cellNotes, separatorAfterRows, question, answer, method } = block;
+  const {
+    carries,
+    moves,
+    cellNotes,
+    separatorAfterRows,
+    question,
+    answer,
+    method,
+  } = block;
+  const rows = Array.isArray(block.rows) ? block.rows : [];
   const separators = new Set(separatorAfterRows || []);
   const placeValueHeaders = block.placeValueHeaders;
   const rowLabels = block.rowLabels;

@@ -37,10 +37,11 @@ function buildCards(data: WhiteboardResponse): Card[] {
   });
 
   let blockIndex = 0;
-  for (const block of data.blocks) {
+  for (const block of data.blocks || []) {
     if (block.type === "equation_steps") {
-      block.steps.forEach((step, i) => {
-        cards.push({ kind: "step", step, index: i, total: block.steps.length });
+      const steps = Array.isArray(block.steps) ? block.steps : [];
+      steps.forEach((step, i) => {
+        cards.push({ kind: "step", step, index: i, total: steps.length });
       });
     } else {
       cards.push({ kind: "visual", block, blockIndex });

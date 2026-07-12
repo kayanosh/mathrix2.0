@@ -18,12 +18,13 @@ interface Props {
 
 export default function TopicCard({ topic, subjectId, href, skillData }: Props) {
   const { Icon, accent, heroImage } = getTopicVisual(topic.id, topic.name, subjectId);
-  const [imgOk, setImgOk] = useState(true);
+  const [imgOk, setImgOk] = useState(Boolean(heroImage));
+  const subtopics = Array.isArray(topic.subtopics) ? topic.subtopics : [];
 
-  const total = topic.subtopics.length;
+  const total = subtopics.length;
   let started = 0;
   let mastered = 0;
-  for (const sub of topic.subtopics) {
+  for (const sub of subtopics) {
     const rec = skillData[ks2SkillKey(topic.name, sub)];
     if (rec && rec.attempts > 0) {
       started += 1;
@@ -39,7 +40,7 @@ export default function TopicCard({ topic, subjectId, href, skillData }: Props) 
     >
       {/* Illustration / icon banner */}
       <div className={`relative h-28 w-full bg-gradient-to-br ${accent.gradient} flex items-center justify-center`}>
-        {imgOk ? (
+        {heroImage && imgOk ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={heroImage}
@@ -47,8 +48,9 @@ export default function TopicCard({ topic, subjectId, href, skillData }: Props) 
             className="absolute inset-0 h-full w-full object-cover"
             onError={() => setImgOk(false)}
           />
-        ) : null}
-        {!imgOk && <Icon size={44} className="text-white drop-shadow" strokeWidth={2.2} />}
+        ) : (
+          <Icon size={44} className="text-white drop-shadow" strokeWidth={2.2} />
+        )}
 
         {/* Mastery stars */}
         {mastered > 0 && (
