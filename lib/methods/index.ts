@@ -36,6 +36,10 @@ import {
   parseFractionOp,
 } from "@/lib/methods/fraction-ops";
 import {
+  buildFractionNumberLine,
+  parseFractionCompare,
+} from "@/lib/methods/fraction-number-line";
+import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
@@ -47,6 +51,37 @@ import {
   buildQuadraticFactorSolve,
   parseQuadraticEquation,
 } from "@/lib/methods/quadratic-solve";
+import {
+  buildFdpEquivalence,
+  parseFdpEquivalence,
+} from "@/lib/methods/fdp-equivalence";
+import {
+  buildMultiplesFactors,
+  parseMultiplesQuestion,
+} from "@/lib/methods/multiples-factors";
+import {
+  buildSignedNumberLine,
+  parseSignedNumberLine,
+} from "@/lib/methods/signed-number-line";
+import {
+  buildCuboidVolume,
+  buildRectPerimeterArea,
+  parseRectMeasure,
+} from "@/lib/methods/measurement-builders";
+import {
+  buildAngleDiagram,
+  buildBarChart,
+  buildCoordinatePlot,
+  buildFunctionMachine,
+  buildRatioTable,
+  buildUnitConversion,
+  parseAngleProblem,
+  parseBarChart,
+  parseCoordinatePlot,
+  parseFunctionMachine,
+  parseRatio,
+  parseUnitConversion,
+} from "@/lib/methods/ks2-topic-builders";
 
 function tryQuadraticSolve(text: string): MethodBuildResult | null {
   const parsed = parseQuadraticEquation(text);
@@ -141,6 +176,16 @@ function tryLongDivision(text: string): MethodBuildResult | null {
   }
 }
 
+function tryFractionNumberLine(text: string): MethodBuildResult | null {
+  const parsed = parseFractionCompare(text);
+  if (!parsed) return null;
+  try {
+    return buildFractionNumberLine(parsed);
+  } catch {
+    return null;
+  }
+}
+
 function tryFractionOps(text: string): MethodBuildResult | null {
   const parsed = parseFractionOp(text);
   if (!parsed) return null;
@@ -161,28 +206,162 @@ function tryDecimalColumn(text: string): MethodBuildResult | null {
   }
 }
 
+function tryFdpEquivalence(text: string): MethodBuildResult | null {
+  const parsed = parseFdpEquivalence(text);
+  if (!parsed) return null;
+  try {
+    return buildFdpEquivalence(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function tryMultiplesNumberLine(text: string): MethodBuildResult | null {
+  const parsed = parseMultiplesQuestion(text);
+  if (!parsed) return null;
+  try {
+    return buildMultiplesFactors(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function trySignedNumberLine(text: string): MethodBuildResult | null {
+  const parsed = parseSignedNumberLine(text);
+  if (!parsed) return null;
+  try {
+    return buildSignedNumberLine(parsed.a, parsed.b);
+  } catch {
+    return null;
+  }
+}
+
+function tryRectPerimeterArea(text: string): MethodBuildResult | null {
+  const parsed = parseRectMeasure(text);
+  if (!parsed || parsed.kind === "volume") return null;
+  try {
+    return buildRectPerimeterArea(parsed.kind, parsed.length, parsed.width);
+  } catch {
+    return null;
+  }
+}
+
+function tryCuboidVolume(text: string): MethodBuildResult | null {
+  const parsed = parseRectMeasure(text);
+  if (!parsed || parsed.kind !== "volume") return null;
+  try {
+    return buildCuboidVolume(parsed.l, parsed.w, parsed.h);
+  } catch {
+    return null;
+  }
+}
+
+function tryAngleDiagram(text: string): MethodBuildResult | null {
+  const parsed = parseAngleProblem(text);
+  if (!parsed) return null;
+  try {
+    return buildAngleDiagram(parsed.known, parsed.total);
+  } catch {
+    return null;
+  }
+}
+
+function tryCoordinatePlot(text: string): MethodBuildResult | null {
+  const parsed = parseCoordinatePlot(text);
+  if (!parsed) return null;
+  try {
+    return buildCoordinatePlot(parsed.points);
+  } catch {
+    return null;
+  }
+}
+
+function tryBarChartStats(text: string): MethodBuildResult | null {
+  const parsed = parseBarChart(text);
+  if (!parsed) return null;
+  try {
+    return buildBarChart(parsed.bars);
+  } catch {
+    return null;
+  }
+}
+
+function tryUnitConversion(text: string): MethodBuildResult | null {
+  const parsed = parseUnitConversion(text);
+  if (!parsed) return null;
+  try {
+    return buildUnitConversion(parsed.value, parsed.from, parsed.to, parsed.factor);
+  } catch {
+    return null;
+  }
+}
+
+function tryRatioTable(text: string): MethodBuildResult | null {
+  const parsed = parseRatio(text);
+  if (!parsed) return null;
+  try {
+    return buildRatioTable(parsed.parts, parsed.total);
+  } catch {
+    return null;
+  }
+}
+
+function tryFunctionMachine(text: string): MethodBuildResult | null {
+  const parsed = parseFunctionMachine(text);
+  if (!parsed) return null;
+  try {
+    return buildFunctionMachine(parsed.input, parsed.ops);
+  } catch {
+    return null;
+  }
+}
+
 const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | null> = {
   quadratic_solve: tryQuadraticSolve,
   linear_equation: tryLinearEquation,
   rounding_number_line: tryRoundingNumberLine,
   place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
+  fraction_number_line: tryFractionNumberLine,
   fraction_ops: tryFractionOps,
   decimal_column: tryDecimalColumn,
+  fdp_equivalence: tryFdpEquivalence,
+  multiples_number_line: tryMultiplesNumberLine,
+  signed_number_line: trySignedNumberLine,
+  rect_perimeter_area: tryRectPerimeterArea,
+  cuboid_volume: tryCuboidVolume,
+  angle_diagram: tryAngleDiagram,
+  coordinate_plot: tryCoordinatePlot,
+  bar_chart_stats: tryBarChartStats,
+  unit_conversion: tryUnitConversion,
+  ratio_table: tryRatioTable,
+  function_machine: tryFunctionMachine,
   column_multiplication: tryColumnMultiplication,
   column_addition: tryColumnAddition,
   column_subtraction: tryColumnSubtraction,
   long_division: tryLongDivision,
 };
 
-/** Default try order — algebra before KS2 arithmetic. */
+/** Default try order — algebra, then fraction compare before ops, then KS2 arithmetic. */
 const DEFAULT_ORDER: MethodBuilderId[] = [
   "quadratic_solve",
   "linear_equation",
   "rounding_number_line",
   "place_value_chart",
   "place_value_shift",
+  "fraction_number_line",
   "fraction_ops",
+  "angle_diagram",
+  "coordinate_plot",
+  "bar_chart_stats",
+  "unit_conversion",
+  "ratio_table",
+  "function_machine",
+  "signed_number_line",
+  "rect_perimeter_area",
+  "cuboid_volume",
+  "multiples_number_line",
+  "fdp_equivalence",
   "decimal_column",
   "column_multiplication",
   "column_addition",
@@ -215,7 +394,19 @@ export {
   buildPlaceValueChart,
   buildRoundingNumberLine,
   buildFractionOps,
+  buildFractionNumberLine,
   buildDecimalColumn,
   buildLinearEquation,
   buildQuadraticFactorSolve,
+  buildFdpEquivalence,
+  buildMultiplesFactors,
+  buildSignedNumberLine,
+  buildRectPerimeterArea,
+  buildCuboidVolume,
+  buildAngleDiagram,
+  buildCoordinatePlot,
+  buildBarChart,
+  buildUnitConversion,
+  buildRatioTable,
+  buildFunctionMachine,
 };

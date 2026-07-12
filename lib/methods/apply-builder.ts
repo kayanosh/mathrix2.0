@@ -413,74 +413,70 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       ? `${built.block.question} = ${built.block.answer}`
       : `${example.question} = ${answer}`;
 
+  const builderBlocks = [
+    built.block,
+    ...(Array.isArray(built.extraBlocks) ? built.extraBlocks : []),
+  ];
+
   if (!wb || !Array.isArray(wb.blocks) || wb.blocks.length === 0) {
     return {
       ...next,
       whiteboard: {
         intro: boardIntro,
-        blocks: [built.block],
+        blocks: builderBlocks,
         conclusion: boardConclusion,
       },
     };
   }
 
+  const primaryType = built.block.type;
   let replaced = false;
   const blocks = wb.blocks.map((block) => {
     if (replaced) return block;
-    if (built.block.type === "column_method" && block.type === "column_method") {
-      replaced = true;
-      return built.block;
-    }
-    if (built.block.type === "table" && block.type === "table") {
-      replaced = true;
-      return built.block;
-    }
-    if (built.block.type === "number_line" && block.type === "number_line") {
-      replaced = true;
-      return built.block;
-    }
-    if (built.block.type === "equation_steps" && block.type === "equation_steps") {
+    if (block.type === primaryType) {
       replaced = true;
       return built.block;
     }
     return block;
   });
+
+  const dropTypes = new Set<string>([primaryType, "text"]);
+  for (const extra of built.extraBlocks || []) dropTypes.add(extra.type);
+
   if (!replaced) {
-    // Drop competing LLM sketches of the same family, then insert builder block first.
-    // For equation_steps, also drop bare text dumps so prose fallbacks don't linger.
-    const filtered = blocks.filter((b) => {
-      if (built.block.type === "column_method") return b.type !== "column_method";
-      if (built.block.type === "table") return b.type !== "table";
-      if (built.block.type === "number_line") return b.type !== "number_line";
-      if (built.block.type === "equation_steps") {
-        return b.type !== "equation_steps" && b.type !== "text";
-      }
-      return true;
-    });
-    filtered.unshift(built.block);
+    const filtered = blocks.filter((b) => !dropTypes.has(b.type));
     return {
       ...next,
       whiteboard: {
         ...wb,
         intro: boardIntro,
-        blocks: filtered,
+        blocks: [...builderBlocks, ...filtered],
         conclusion: boardConclusion,
       },
     };
   }
 
-  // Replaced an equation_steps block — still strip leftover prose dumps.
-  const cleaned =
-    built.block.type === "equation_steps"
-      ? blocks.filter((b) => b.type !== "text")
-      : blocks;
+  // Drop competing LLM sketches of the same types as extras, keep primary replacement.
+  const cleaned = blocks.filter(
+    (b) => b.type === primaryType || !dropTypes.has(b.type),
+  );
+  const out: typeof cleaned = [];
+  let extrasInserted = false;
+  for (const b of cleaned) {
+    out.push(b);
+    if (!extrasInserted && b.type === primaryType) {
+      out.push(...(built.extraBlocks || []));
+      extrasInserted = true;
+    }
+  }
+  if (!extrasInserted) out.push(...(built.extraBlocks || []));
 
   return {
     ...next,
     whiteboard: {
       ...wb,
       intro: boardIntro,
-      blocks: cleaned,
+      blocks: out,
       conclusion: boardConclusion,
     },
   };

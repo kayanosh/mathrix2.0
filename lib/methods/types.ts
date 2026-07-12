@@ -30,18 +30,35 @@ export type MethodBuilderId =
   | "place_value_chart"
   | "rounding_number_line"
   | "fraction_ops"
+  | "fraction_number_line"
   | "decimal_column"
   | "linear_equation"
-  | "quadratic_solve";
+  | "quadratic_solve"
+  | "fdp_equivalence"
+  | "multiples_number_line"
+  | "signed_number_line"
+  | "rect_perimeter_area"
+  | "cuboid_volume"
+  | "angle_diagram"
+  | "coordinate_plot"
+  | "bar_chart_stats"
+  | "unit_conversion"
+  | "ratio_table"
+  | "function_machine";
 
 export interface MethodBuildResult {
   builderId: MethodBuilderId;
-  /** Correct whiteboard block */
+  /** Primary whiteboard block */
   block:
     | import("@/types/whiteboard").ColumnMethodBlock
     | import("@/types/whiteboard").TableBlock
     | import("@/types/whiteboard").EquationStepBlock
-    | import("@/types/whiteboard").NumberLineBlock;
+    | import("@/types/whiteboard").NumberLineBlock
+    | import("@/types/whiteboard").LabeledShapeBlock
+    | import("@/types/whiteboard").CoordinateGraphBlock
+    | import("@/types/whiteboard").ChartBlock;
+  /** Optional companion boards (table + steps beside a number line, etc.) */
+  extraBlocks?: MethodBuildResult["block"][];
   /** Digit/step teaching script — single source of truth */
   teachingSteps: TeachingStep[];
   /** Short captions for LessonPanel workedExample.steps */

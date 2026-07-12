@@ -52,14 +52,14 @@ function plain(f: Fraction): string {
 
 export type FractionOp = "add" | "subtract" | "multiply" | "divide";
 
-export interface FractionOpProblem {
-  left: Fraction;
-  right: Fraction;
-  op: FractionOp;
-}
+export type FractionOpProblem =
+  | { kind?: "binary"; left: Fraction; right: Fraction; op: FractionOp }
+  | { kind: "of_amount"; fraction: Fraction; amount: number }
+  | { kind: "to_improper"; whole: number; frac: Fraction }
+  | { kind: "to_mixed"; improper: Fraction };
 
 function buildSteps(
-  problem: FractionOpProblem,
+  problem: { left: Fraction; right: Fraction; op: FractionOp },
 ): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answer: Fraction } {
   const { left, right, op } = problem;
   const teachingSteps: TeachingStep[] = [];
@@ -260,7 +260,185 @@ function opSymbol(op: FractionOp): string {
   }
 }
 
+function buildOfAmount(
+  fraction: Fraction,
+  amount: number,
+): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answerPlain: string } {
+  const teachingSteps: TeachingStep[] = [];
+  const steps: EquationStep[] = [];
+  let stepNumber = 1;
+  const push = (
+    title: string,
+    explanation: string,
+    latexBefore: string,
+    latexAfter: string,
+    why?: string,
+    showAnswer?: boolean,
+  ) => {
+    steps.push({
+      stepNumber: stepNumber++,
+      operationLabel: title,
+      explanation,
+      latexBefore,
+      latexAfter,
+      arrowDirection: "simplify",
+      rule: title,
+      why,
+    });
+    teachingSteps.push({
+      title,
+      explanation,
+      why,
+      narration: explanation,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer,
+    });
+  };
+  const part = amount / fraction.d;
+  const result = part * fraction.n;
+  push(
+    "Fraction of an amount",
+    `Find ${plain(fraction)} of ${amount}.`,
+    `${latex(fraction)} \\text{ of } ${amount}`,
+    `${latex(fraction)} \\times ${amount}`,
+    "Of means multiply.",
+  );
+  push(
+    "Divide by the denominator",
+    `${amount} ÷ ${fraction.d} = ${part} (one equal part).`,
+    `${amount} \\div ${fraction.d}`,
+    String(part),
+    "The denominator tells you how many equal shares.",
+  );
+  push(
+    "Multiply by the numerator",
+    `${part} × ${fraction.n} = ${result}.`,
+    `${part} \\times ${fraction.n}`,
+    String(result),
+    "The numerator tells you how many of those shares.",
+    true,
+  );
+  return { steps, teachingSteps, answerPlain: String(result) };
+}
+
+function buildToImproper(
+  whole: number,
+  frac: Fraction,
+): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answerPlain: string } {
+  const teachingSteps: TeachingStep[] = [];
+  const steps: EquationStep[] = [];
+  let stepNumber = 1;
+  const improper = { n: whole * frac.d + frac.n, d: frac.d };
+  steps.push({
+    stepNumber: stepNumber++,
+    operationLabel: "Mixed → improper",
+    explanation: `Multiply the whole by the denominator, then add the numerator: ${whole} × ${frac.d} + ${frac.n} = ${improper.n}.`,
+    rule: "Mixed to improper",
+    why: "You're counting all the equal-sized pieces.",
+    latexBefore: `${whole}\\ ${latex(frac)}`,
+    latexAfter: latex(improper),
+    arrowDirection: "simplify",
+  });
+  teachingSteps.push({
+    title: "Mixed → improper",
+    explanation: `${whole} ${plain(frac)} = ${plain(improper)}.`,
+    why: "Whole × denominator + numerator.",
+    narration: `${whole} and ${plain(frac)} is ${plain(improper)}.`,
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+    showAnswer: true,
+  });
+  return { steps, teachingSteps, answerPlain: plain(improper) };
+}
+
+function buildToMixed(
+  improper: Fraction,
+): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answerPlain: string } {
+  const teachingSteps: TeachingStep[] = [];
+  const steps: EquationStep[] = [];
+  const whole = Math.floor(improper.n / improper.d);
+  const rem = improper.n % improper.d;
+  const mixedPlain = rem === 0 ? String(whole) : `${whole} ${rem}/${improper.d}`;
+  steps.push({
+    stepNumber: 1,
+    operationLabel: "Improper → mixed",
+    explanation: `Divide ${improper.n} ÷ ${improper.d} = ${whole} remainder ${rem}.`,
+    rule: "Improper to mixed",
+    why: "The quotient is wholes; the remainder stays as a fraction.",
+    latexBefore: latex(improper),
+    latexAfter:
+      rem === 0
+        ? String(whole)
+        : `${whole}\\ \\frac{${rem}}{${improper.d}}`,
+    arrowDirection: "simplify",
+  });
+  teachingSteps.push({
+    title: "Improper → mixed",
+    explanation: `${plain(improper)} = ${mixedPlain}.`,
+    why: "Divide numerator by denominator.",
+    narration: `${plain(improper)} as a mixed number is ${mixedPlain}.`,
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+    showAnswer: true,
+  });
+  return { steps, teachingSteps, answerPlain: mixedPlain };
+}
+
 export function buildFractionOps(problem: FractionOpProblem): MethodBuildResult {
+  if (problem.kind === "of_amount") {
+    const { steps, teachingSteps, answerPlain } = buildOfAmount(
+      problem.fraction,
+      problem.amount,
+    );
+    teachingSteps.push({
+      title: "Answer",
+      explanation: `So ${plain(problem.fraction)} of ${problem.amount} = ${answerPlain}.`,
+      narration: `The answer is ${answerPlain}.`,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer: true,
+    });
+    return {
+      builderId: "fraction_ops",
+      block: { type: "equation_steps", steps },
+      teachingSteps,
+      captions: teachingSteps
+        .filter((s) => s.title !== "Answer")
+        .map((s) => s.explanation),
+      answer: answerPlain,
+    };
+  }
+
+  if (problem.kind === "to_improper") {
+    const { steps, teachingSteps, answerPlain } = buildToImproper(
+      problem.whole,
+      problem.frac,
+    );
+    return {
+      builderId: "fraction_ops",
+      block: { type: "equation_steps", steps },
+      teachingSteps,
+      captions: teachingSteps.map((s) => s.explanation),
+      answer: answerPlain,
+    };
+  }
+
+  if (problem.kind === "to_mixed") {
+    const { steps, teachingSteps, answerPlain } = buildToMixed(problem.improper);
+    return {
+      builderId: "fraction_ops",
+      block: { type: "equation_steps", steps },
+      teachingSteps,
+      captions: teachingSteps.map((s) => s.explanation),
+      answer: answerPlain,
+    };
+  }
+
   if (
     !Number.isInteger(problem.left.n) ||
     !Number.isInteger(problem.left.d) ||
@@ -305,9 +483,81 @@ export function buildFractionOps(problem: FractionOpProblem): MethodBuildResult 
 
 const FRAC = String.raw`(\d+)\s*\/\s*(\d+)`;
 const OP = String.raw`([+\-−×x*÷/]|plus|minus|times|divided\s+by)`;
+const MIXED = String.raw`(\d+)\s+(\d+)\s*\/\s*(\d+)`;
 
 export function parseFractionOp(text: string): FractionOpProblem | null {
   const t = normalizeMathText(text);
+
+  // Find ⅓ of 24 / what is 2/5 of 30
+  const ofAmt = t.match(
+    new RegExp(
+      `(?:find\\s+|what\\s+is\\s+)?${FRAC}\\s+of\\s+(\\d+)|(\\d+)\\s*[×x*]\\s*${FRAC}`,
+      "i",
+    ),
+  );
+  if (ofAmt && /\bof\b/i.test(t)) {
+    const n = parseInt(ofAmt[1] || ofAmt[4], 10);
+    const d = parseInt(ofAmt[2] || ofAmt[5], 10);
+    const amount = parseInt(ofAmt[3] || ofAmt[6] || "", 10);
+    // Prefer explicit "of" form
+    const ofForm = t.match(new RegExp(`${FRAC}\\s+of\\s+(\\d+)`, "i"));
+    if (ofForm) {
+      return {
+        kind: "of_amount",
+        fraction: { n: parseInt(ofForm[1], 10), d: parseInt(ofForm[2], 10) },
+        amount: parseInt(ofForm[3], 10),
+      };
+    }
+    if (Number.isFinite(n) && Number.isFinite(d) && Number.isFinite(amount)) {
+      return { kind: "of_amount", fraction: { n, d }, amount };
+    }
+  }
+  const ofForm2 = t.match(new RegExp(`${FRAC}\\s+of\\s+(\\d+)`, "i"));
+  if (ofForm2) {
+    return {
+      kind: "of_amount",
+      fraction: { n: parseInt(ofForm2[1], 10), d: parseInt(ofForm2[2], 10) },
+      amount: parseInt(ofForm2[3], 10),
+    };
+  }
+
+  // Mixed → improper
+  if (/\b(improper|mixed\s*(?:number|fraction)?\s*(?:to|as|into)\s*improper|convert.*mixed)\b/i.test(t) ||
+      /\bmixed\b.*\bimproper\b/i.test(t)) {
+    const mixed = t.match(new RegExp(MIXED));
+    if (mixed) {
+      return {
+        kind: "to_improper",
+        whole: parseInt(mixed[1], 10),
+        frac: { n: parseInt(mixed[2], 10), d: parseInt(mixed[3], 10) },
+      };
+    }
+  }
+
+  // Improper → mixed
+  if (/\b(mixed\s+number|as a mixed|to a mixed|improper.*mixed)\b/i.test(t)) {
+    const frac = t.match(new RegExp(FRAC));
+    if (frac) {
+      const n = parseInt(frac[1], 10);
+      const d = parseInt(frac[2], 10);
+      if (n >= d) {
+        return { kind: "to_mixed", improper: { n, d } };
+      }
+    }
+  }
+
+  // Bare mixed number with convert/write as improper
+  const bareMixed = t.match(
+    new RegExp(`(?:convert|write|change)\\s+${MIXED}`, "i"),
+  );
+  if (bareMixed) {
+    return {
+      kind: "to_improper",
+      whole: parseInt(bareMixed[1], 10),
+      frac: { n: parseInt(bareMixed[2], 10), d: parseInt(bareMixed[3], 10) },
+    };
+  }
+
   // a/b op c/d
   const m2 = t.match(
     new RegExp(`${FRAC}\\s*${OP}\\s*${FRAC}`, "i"),

@@ -75,10 +75,10 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "fractions_compare",
     label: "Compare and Order Fractions",
     years: "5-6",
-    builderId: null,
+    builderId: "fraction_number_line",
     requiredBlocks: ["number_line"],
     keywords:
-      /\b(compare\s+fractions?|order\s+fractions?|equivalent fractions?|fraction.*number line|number line.*fraction|fractions?\s+between|fractions?\s+on\s+a\s+number\s+line)\b/i,
+      /\b(compare\s*\/?\s*order|compare\s+fractions?|order\s+fractions?|order\s+\d+\s*\/|compare\s+\d+\s*\/|equivalent fractions?|fraction.*number line|number line.*fraction|fractions?\s+between|fractions?\s+on\s+a\s+number\s+line|which\s+(?:fraction\s+)?is\s+(?:greater|bigger|smaller))\b/i,
     vocabulary: ["numerator", "denominator", "equivalent", "improper", "mixed number"],
     commonMistakes: [
       "Counting tick marks instead of intervals",
@@ -89,7 +89,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "decimals_fdp",
     label: "Decimals, Percentages & Equivalence",
     years: "5-6",
-    builderId: null,
+    builderId: "fdp_equivalence",
     requiredBlocks: ["number_line", "table", "equation_steps"],
     keywords:
       /\b(percentages?|decimals?\s*(?:&|and)\s*percentages?|fractions?,?\s*decimals?\s*(?:&|and)\s*percentages?|fdp|equivalent fractions?,?\s*decimals?\s*(?:and|&)\s*percentages?|decimals?\s+as\s+fractions?|thousandths|round\s+decimals?|compare\s+decimals?|order\s+decimals?|percentage\s+of\s+(?:an?\s+)?amount)\b/i,
@@ -209,7 +209,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "multiples_factors",
     label: "Multiples and Factors",
     years: "5-6",
-    builderId: null,
+    builderId: "multiples_number_line",
     requiredBlocks: ["number_line", "table"],
     keywords:
       /\b(multiples?|skip.?count|times tables?|factors?|factor pairs?|primes?|square numbers?|cube numbers?|common factors?|common multiples?)\b/i,
@@ -223,7 +223,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "perimeter_area",
     label: "Perimeter & Area",
     years: "5-6",
-    builderId: null,
+    builderId: "rect_perimeter_area",
     requiredBlocks: ["labeled_shape", "equation_steps"],
     keywords:
       /\b(perimeter|area|rectilinear|compound shapes?|parallelograms?|estimate area|measurement)\b/i,
@@ -239,7 +239,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "volume",
     label: "Volume & Capacity",
     years: "5-6",
-    builderId: null,
+    builderId: "cuboid_volume",
     requiredBlocks: ["labeled_shape", "equation_steps"],
     keywords:
       /\b(volume|cuboids?|capacity|estimate volume|estimate capacity)\b/i,
@@ -253,7 +253,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "statistics",
     label: "Statistics",
     years: "5-6",
-    builderId: null,
+    builderId: "bar_chart_stats",
     requiredBlocks: ["chart", "table"],
     keywords:
       /\b(statistics|line graphs?|bar charts?|pie charts?|two-?way tables?|timetables?|the mean|average|interpret\s+(?:tables?|graphs?|charts?))\b/i,
@@ -267,7 +267,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "shape_angles",
     label: "Shape & Angles",
     years: "5-6",
-    builderId: null,
+    builderId: "angle_diagram",
     requiredBlocks: ["labeled_shape"],
     keywords:
       /\b(angles?|degrees|straight line|around a point|vertically opposite|triangles?|quadrilaterals?|polygons?|regular and irregular|3D shapes?|nets?|parts of a circle|symmetry|measure angles?|shapes?)\b/i,
@@ -281,7 +281,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "position_direction",
     label: "Position & Direction",
     years: "5-6",
-    builderId: null,
+    builderId: "coordinate_plot",
     requiredBlocks: ["coordinate_graph"],
     keywords:
       /\b(coordinates?|translation|reflection|four quadrants?|first quadrant|plot(?:ting)?\s+points?|lines? of symmetry|position\s*(?:&|and)\s*direction)\b/i,
@@ -311,7 +311,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "negative_numbers",
     label: "Negative Numbers",
     years: "5-6",
-    builderId: null,
+    builderId: "signed_number_line",
     requiredBlocks: ["number_line"],
     keywords:
       /\b(negative numbers?|count through zero|below zero|temperature)\b/i,
@@ -325,7 +325,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "converting_units",
     label: "Converting Units",
     years: "5-6",
-    builderId: null,
+    builderId: "unit_conversion",
     requiredBlocks: ["table", "equation_steps"],
     keywords:
       /\b(convert(?:ing)?\s+(?:metric|units|measures)|converting units|metric units?|imperial|miles and kilometres|units of time|timetables and time)\b/i,
@@ -339,7 +339,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "ratio",
     label: "Ratio & Proportion",
     years: 6,
-    builderId: null,
+    builderId: "ratio_table",
     requiredBlocks: ["table", "equation_steps"],
     keywords:
       /\b(ratio|proportion|scale factors?|scale drawings?|recipes?)\b/i,
@@ -353,7 +353,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     id: "algebra",
     label: "Algebra",
     years: 6,
-    builderId: null,
+    builderId: "function_machine",
     requiredBlocks: ["equation_steps", "table"],
     keywords:
       /\b(algebra|function machines?|form expressions?|substitution|formulae|form and solve|linear number sequences?|find pairs of values)\b/i,

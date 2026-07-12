@@ -22,14 +22,14 @@ export interface CachedKS2Lesson {
   tryThis?: { question: string; answer: string };
 }
 
-/** Stable cache key: one shared lesson per topic + target + tier + kind. v4 = contrast + place-value + column fixes. */
+/** Stable cache key: one shared lesson per topic + target + tier + kind. v16 = fraction number-line + topic builders. */
 export function ks2LessonCacheKey(
   topicId: string,
   target: string,
   tier: string,
   kind: string
 ): string {
-  return `v4|${topicId}|${target}|${tier}|${kind}`;
+  return `v16|${topicId}|${target}|${tier}|${kind}`;
 }
 
 export async function lookupKS2LessonCache(

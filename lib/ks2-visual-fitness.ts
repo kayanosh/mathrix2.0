@@ -13,6 +13,37 @@ export function extractQuestionNumbers(question: string): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+/** Extract a/b fraction tokens from question text. */
+export function extractQuestionFractions(
+  question: string,
+): { n: number; d: number; value: number }[] {
+  const out: { n: number; d: number; value: number }[] = [];
+  const re = /(\d+)\s*\/\s*(\d+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(question)) !== null) {
+    const n = parseInt(m[1], 10);
+    const d = parseInt(m[2], 10);
+    if (d > 0) out.push({ n, d, value: n / d });
+  }
+  return out;
+}
+
+function markersCoverFractions(
+  markers: { value?: number }[] | undefined,
+  fractions: { value: number }[],
+): boolean {
+  if (!Array.isArray(markers) || markers.length === 0) return false;
+  const tol = 0.02;
+  return fractions.every((f) =>
+    markers.some(
+      (mk) =>
+        typeof mk.value === "number" &&
+        Number.isFinite(mk.value) &&
+        Math.abs(mk.value - f.value) <= tol,
+    ),
+  );
+}
+
 function numberLineFit(block: VisualBlock, question: string): boolean {
   if (block.type !== "number_line") return false;
   const range = block.range;
@@ -20,6 +51,30 @@ function numberLineFit(block: VisualBlock, question: string): boolean {
   const min = Number(range[0]);
   const max = Number(range[1]);
   if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return false;
+
+  const fractions = extractQuestionFractions(question);
+  const tick = Number(block.tickInterval);
+  const markers = Array.isArray(block.markers) ? block.markers : [];
+  const interiorMarkers = markers.filter((mk) => {
+    const v = Number(mk.value);
+    return Number.isFinite(v) && v > min && v < max;
+  });
+
+  // Blank unit line: [0,1] with tick ≥ 1 and no interior markers — never ship.
+  if (
+    Math.abs(min) < 1e-9 &&
+    Math.abs(max - 1) < 1e-9 &&
+    (!Number.isFinite(tick) || tick >= 1) &&
+    interiorMarkers.length === 0
+  ) {
+    return false;
+  }
+
+  // Fraction questions need markers at (approx) each fraction value.
+  if (fractions.length >= 1) {
+    if (!markersCoverFractions(markers, fractions)) return false;
+    return true;
+  }
 
   const nums = extractQuestionNumbers(question);
   // Prefer a number from the question that sits in the interior or on an endpoint.
