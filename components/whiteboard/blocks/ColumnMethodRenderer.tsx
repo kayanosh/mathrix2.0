@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { ColumnMethodBlock, ColumnMethodCellNote } from "@/types/whiteboard";
 import {
   arrowheadPoints,
+  arrowLabelPosition,
   buildArrowPath,
   carryHeightsForRows,
   carrySlotCenter,
@@ -203,10 +204,10 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
 
           <div className="relative" style={{ minHeight: svgH }}>
             <div className="relative" style={{ width: svgW }}>
-            {/* Tutor step-mode only: animated carry arrows. Static Learn shows digits alone. */}
-            {stepMode && resolvedMoves.length > 0 && (
+            {/* Carry arrows with labels — Learn static and tutor (digits stay above via z-10). */}
+            {resolvedMoves.length > 0 && (
               <svg
-                className="absolute left-0 top-0 pointer-events-none overflow-hidden"
+                className="absolute left-0 top-0 pointer-events-none overflow-visible"
                 width={svgW}
                 height={svgH}
                 style={{ zIndex: 0 }}
@@ -242,7 +243,6 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                           carryHeights,
                         ),
                   );
-                  // Stop short of the carry glyph so the tip does not cover the digit.
                   const to =
                     kind === "carry" ? insetEndpoint(from, toRaw, 9) : toRaw;
                   const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
@@ -255,35 +255,61 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                     move.laneIndex,
                   );
                   const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
-                  const delay = reveal?.active.has(
-                    cellKey(move.toRow, move.toCol),
-                  )
-                    ? writeDelay(move.toRow, move.toCol) + 0.15
-                    : 0.1;
+                  const labelPt = arrowLabelPosition(
+                    from.x,
+                    from.y,
+                    to.x,
+                    to.y,
+                    kind,
+                    move.laneIndex,
+                  );
+                  const delay = stepMode
+                    ? reveal?.active.has(cellKey(move.toRow, move.toCol))
+                      ? writeDelay(move.toRow, move.toCol) + 0.15
+                      : 0.1
+                    : baseDelay + mi * 0.12 + 0.2;
 
                   return (
                     <g key={mi}>
                       <motion.path
                         d={pathD}
                         stroke={color}
-                        strokeWidth={2.5}
+                        strokeWidth={2}
                         strokeLinecap="round"
                         fill="none"
                         initial={{ pathLength: 0, opacity: 0 }}
-                        animate={{ pathLength: 1, opacity: 1 }}
-                        transition={{ delay, duration: 0.4, ease: "easeInOut" }}
+                        animate={{ pathLength: 1, opacity: 0.9 }}
+                        transition={{ delay, duration: 0.35, ease: "easeInOut" }}
                       />
                       <motion.path
                         d={headD}
                         stroke={color}
-                        strokeWidth={2.5}
+                        strokeWidth={2}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         fill="none"
                         initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: delay + 0.35, duration: 0.15 }}
+                        animate={{ opacity: 0.9 }}
+                        transition={{ delay: delay + 0.3, duration: 0.15 }}
                       />
+                      {move.label && kind === "carry" && (
+                        <motion.text
+                          x={labelPt.x}
+                          y={Math.max(10, labelPt.y - 2)}
+                          textAnchor="middle"
+                          className="fill-amber-700"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            fontFamily: "var(--font-caveat), cursive",
+                          }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: delay + 0.35, duration: 0.2 }}
+                        >
+                          {move.label}
+                        </motion.text>
+                      )}
                     </g>
                   );
                 })}
@@ -496,11 +522,8 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
 
       {(carries?.length ?? 0) > 0 &&
         (method === "column_multiplication" || method === "column_addition") && (
-          <p className="mt-3 text-center text-[12px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 leading-snug">
-            <span className="font-semibold text-amber-700">Carries: </span>
-            {method === "column_multiplication"
-              ? "Small amber digits above the working are tens carried left. Write the ones digit in the column; carry the tens; add the carry when you multiply the next digit."
-              : "Small amber digits are tens carried into the next column to the left."}
+          <p className="mt-3 text-center text-[12px] text-amber-800/90">
+            Orange arrow = carry to the next column
           </p>
         )}
     </div>

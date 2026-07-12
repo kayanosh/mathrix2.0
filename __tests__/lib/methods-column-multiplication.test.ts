@@ -95,18 +95,17 @@ describe("buildColumnMultiplication — 23 × 47 carries match captions", () => 
     expect(result.captions[0]).toMatch(/^Set up the columns:/);
     expect(
       result.teachingSteps.some((s) => /How we carry when multiplying/i.test(s.title)),
-    ).toBe(true);
+    ).toBe(false);
     const onesCarry = result.teachingSteps.find((s) =>
       /7 × 3 = 21/.test(s.explanation),
     );
-    expect(onesCarry?.explanation).toMatch(/2 tens and 1 ones|carry 2.*above the tens/i);
-    expect(onesCarry?.why).toMatch(/carry 2 left into the tens/i);
+    expect(onesCarry?.explanation).toMatch(/Write 1 and carry 2/);
+    expect(onesCarry?.why).toMatch(/arrow shows carry 2/i);
     const tensWrite = result.teachingSteps.find((s) =>
       /4 × 3 = 12/.test(s.explanation),
     );
-    // Tens line write lands in the tens column of that partial product (colOffset=1)
-    expect(tensWrite?.explanation).toMatch(/carry 1.*above the hundreds/i);
-    expect(tensWrite?.why).not.toMatch(/stays in the ones/i);
+    expect(tensWrite?.explanation).toMatch(/Write 2 and carry 1/);
+    expect(tensWrite?.why).toMatch(/arrow shows carry 1/i);
   });
 
   it("adds a summary after each partial-product line", () => {
@@ -119,9 +118,7 @@ describe("buildColumnMultiplication — 23 × 47 carries match captions", () => 
   });
 
   it("labels each working row and provides a board intro", () => {
-    expect(result.intro).toMatch(/23 × 7/i);
-    expect(result.intro).toMatch(/23 × 40/i);
-    expect(result.intro).toMatch(/carry/i);
+    expect(result.intro).toBe("Let's multiply 23 × 47.");
     if (result.block.type !== "column_method") return;
     expect(result.block.rowLabels).toEqual([
       "",

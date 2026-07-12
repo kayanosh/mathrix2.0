@@ -35,8 +35,7 @@ describe("applyMethodBuilderToWorkedExample", () => {
     expect(out.teachingSteps?.[0]?.title).toMatch(/Set up/i);
     expect(out.teachingSteps?.some((s) => !!s.why)).toBe(true);
     expect(out.steps[0]).toMatch(/^Set up the columns:/);
-    expect(out.whiteboard?.intro).toMatch(/45 × 3/i);
-    expect(out.whiteboard?.intro).toMatch(/carry/i);
+    expect(out.whiteboard?.intro).toBe("Let's multiply 45 × 23.");
     const block = out.whiteboard?.blocks.find((b) => b.type === "column_method");
     expect(block?.type).toBe("column_method");
     if (block?.type === "column_method") {

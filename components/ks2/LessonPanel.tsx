@@ -53,7 +53,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v12_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v13_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(p: Props): string {
