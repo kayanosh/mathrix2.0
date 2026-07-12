@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   X,
   Play,
@@ -11,23 +11,10 @@ import {
   Volume2,
   VolumeX,
   RotateCcw,
-  CheckCircle2,
   ShieldCheck,
   AlertTriangle,
 } from "lucide-react";
-import type {
-  WhiteboardResponse,
-  EquationStepBlock,
-} from "@/types/whiteboard";
-import BlockRenderer from "./whiteboard/BlockRenderer";
-import ColumnMethodRenderer from "./whiteboard/blocks/ColumnMethodRenderer";
-import TextRenderer from "./whiteboard/blocks/TextRenderer";
-import MathRenderer from "./MathRenderer";
-import MathWriteIn from "./whiteboard/MathWriteIn";
-import HandwrittenInline from "./whiteboard/HandwrittenInline";
-import InlineMath from "./InlineMath";
-import TermTransferArrow from "./whiteboard/TermTransferArrow";
-import TeacherMarkOverlay from "./whiteboard/TeacherMarkOverlay";
+import type { WhiteboardResponse } from "@/types/whiteboard";
 import { buildNarrationPlan } from "@/lib/narration";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 import {
@@ -36,48 +23,73 @@ import {
   estimateTextWriteMs,
 } from "@/lib/handwriting";
 import { getVerificationBadge } from "@/lib/verification-badge";
-
-// ── Props ─────────────────────────────────────────────────────────────────────
+import { buildTutorSteps } from "@/lib/tutor-steps";
+import WhiteboardCanvas from "@/components/whiteboard/tutor/WhiteboardCanvas";
+import StepTimeline from "@/components/whiteboard/tutor/StepTimeline";
+import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
+import ProgressRail from "@/components/whiteboard/tutor/ProgressRail";
+import SpeechHighlighter, {
+  wordIndexAtProgress,
+  countWords,
+} from "@/components/whiteboard/tutor/SpeechHighlighter";
 
 interface Props {
   data: WhiteboardResponse;
   onClose: () => void;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-/** Fallback pause before narration when no write-time estimate exists. */
 const WRITE_MS = 900;
-const POINTER_SIZE = 36;
+/** Pause after a step finishes speaking so the pupil can absorb it. */
+const STEP_PAUSE_MS = 1100;
 
-const MARKER = {
-  blue: "#1d4ed8",
-  red: "#dc2626",
-  green: "#16a34a",
-  gray: "#6b7280",
-};
-
-// ── Speech hook (cloud TTS with browser fallback) ─────────────────────────────
+// ── Speech (cloud TTS + word-progress estimates) ─────────────────────────────
 
 function useSpeech() {
-  // One persistent Audio element — iOS Safari only grants autoplay to elements
-  // that were first played during a user gesture. Reusing the same element
-  // (swapping src) keeps that privilege for every subsequent cue.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const getAudio = useCallback((): HTMLAudioElement => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-    }
+    if (!audioRef.current) audioRef.current = new Audio();
     return audioRef.current;
   }, []);
 
+  const clearProgress = useCallback(() => {
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+  }, []);
+
+  const startWordProgress = useCallback(
+    (
+      text: string,
+      durationMs: number,
+      onWord: (idx: number) => void,
+    ) => {
+      clearProgress();
+      const start = performance.now();
+      progressTimer.current = setInterval(() => {
+        const elapsed = performance.now() - start;
+        onWord(wordIndexAtProgress(text, elapsed, durationMs));
+        if (elapsed >= durationMs) clearProgress();
+      }, 80);
+    },
+    [clearProgress],
+  );
+
   const speakBrowser = useCallback(
-    (text: string, rate: number, onEnd: () => void) => {
+    (
+      text: string,
+      rate: number,
+      onEnd: () => void,
+      onWord: (idx: number) => void,
+    ) => {
       if (typeof window === "undefined" || !window.speechSynthesis) {
-        setTimeout(onEnd, 1200);
+        const dur = Math.max(1200, countWords(text) * 280);
+        startWordProgress(text, dur / rate, onWord);
+        setTimeout(onEnd, dur / rate);
         return;
       }
       window.speechSynthesis.cancel();
@@ -85,35 +97,51 @@ function useSpeech() {
       utt.rate = rate * 0.88;
       utt.pitch = 0.85;
       utt.volume = 1;
-      utt.onend = onEnd;
-      utt.onerror = () => onEnd();
+
+      const estMs = Math.max(1400, countWords(text) * 320) / rate;
+      startWordProgress(text, estMs, onWord);
+
+      utt.onend = () => {
+        clearProgress();
+        onEnd();
+      };
+      utt.onerror = () => {
+        clearProgress();
+        onEnd();
+      };
+
+      // Prefer boundary events when the browser provides them
+      utt.onboundary = (ev) => {
+        if (ev.name === "word" && typeof ev.charIndex === "number") {
+          const before = text.slice(0, ev.charIndex);
+          onWord(countWords(before) - (before.endsWith(" ") || before.length === 0 ? 0 : 1));
+        }
+      };
 
       const trySpeak = () => {
         const voices = window.speechSynthesis.getVoices();
         const voice =
           voices.find((v) => v.name === "Daniel (Premium)") ||
-          voices.find((v) => v.name === "Daniel (Enhanced)") ||
-          voices.find((v) => v.name === "Daniel") ||
           voices.find((v) => v.name.includes("Google UK English Male")) ||
-          voices.find((v) => v.name.includes("Microsoft Ryan")) ||
-          voices.find((v) => v.lang === "en-GB" && !/Samantha|Kate|Serena|Fiona|Moira/i.test(v.name)) ||
           voices.find((v) => v.lang === "en-GB") ||
           voices.find((v) => v.lang.startsWith("en"));
         if (voice) utt.voice = voice;
         window.speechSynthesis.speak(utt);
       };
 
-      if (window.speechSynthesis.getVoices().length > 0) {
-        trySpeak();
-      } else {
-        window.speechSynthesis.onvoiceschanged = trySpeak;
-      }
+      if (window.speechSynthesis.getVoices().length > 0) trySpeak();
+      else window.speechSynthesis.onvoiceschanged = trySpeak;
     },
-    [],
+    [clearProgress, startWordProgress],
   );
 
   const speakCloud = useCallback(
-    async (text: string, rate: number, onEnd: () => void) => {
+    async (
+      text: string,
+      rate: number,
+      onEnd: () => void,
+      onWord: (idx: number) => void,
+    ) => {
       try {
         abortRef.current?.abort();
         abortRef.current = new AbortController();
@@ -124,44 +152,64 @@ function useSpeech() {
           body: JSON.stringify({ text, speed: rate * 1.1 }),
           signal: abortRef.current.signal,
         });
-
         if (!res.ok) throw new Error("TTS API error");
 
         const blob = await res.blob();
-
-        // Revoke previous blob URL before creating a new one
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current);
-        }
+        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
 
-        // Reuse the same Audio element so iOS autoplay keeps working
         const audio = getAudio();
         audio.onended = null;
         audio.onerror = null;
         audio.src = url;
-        audio.onended = () => onEnd();
-        audio.onerror = () => onEnd();
+
+        await new Promise<void>((resolve, reject) => {
+          audio.onloadedmetadata = () => resolve();
+          audio.onerror = () => reject(new Error("audio load"));
+          // Some browsers fire loadedmetadata sync after src set
+          if (audio.readyState >= 1) resolve();
+        });
+
+        const durationMs =
+          Number.isFinite(audio.duration) && audio.duration > 0
+            ? audio.duration * 1000
+            : Math.max(1400, countWords(text) * 300) / rate;
+
+        startWordProgress(text, durationMs, onWord);
+
+        audio.onended = () => {
+          clearProgress();
+          onEnd();
+        };
+        audio.onerror = () => {
+          clearProgress();
+          onEnd();
+        };
         await audio.play();
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === "AbortError") return;
-        // Fall back to browser TTS
-        speakBrowser(text, rate, onEnd);
+        speakBrowser(text, rate, onEnd, onWord);
       }
     },
-    [getAudio, speakBrowser],
+    [getAudio, speakBrowser, startWordProgress, clearProgress],
   );
 
   const speak = useCallback(
-    (text: string, rate: number, onEnd: () => void) => {
-      speakCloud(text, rate, onEnd);
+    (
+      text: string,
+      rate: number,
+      onEnd: () => void,
+      onWord: (idx: number) => void,
+    ) => {
+      speakCloud(text, rate, onEnd, onWord);
     },
     [speakCloud],
   );
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
+    clearProgress();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.onended = null;
@@ -170,392 +218,18 @@ function useSpeech() {
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-  }, []);
+  }, [clearProgress]);
 
   return { speak, cancel };
 }
 
-// ── Narration bar ─────────────────────────────────────────────────────────────
-
-function NarrationBar({
-  text,
-  isMuted,
-  isSpeaking,
-}: {
-  text: string;
-  isMuted: boolean;
-  isSpeaking: boolean;
-}) {
-  return (
-    <div className="wb-overlay-narration flex items-center gap-3 px-4 py-2.5 rounded-xl">
-      {/* Sound wave indicator */}
-      <div className="flex items-center gap-[3px] flex-shrink-0 h-5 w-5">
-        {isMuted ? (
-          <VolumeX size={16} className="text-gray-400" />
-        ) : isSpeaking ? (
-          [0.5, 1, 0.7, 0.4].map((h, i) => (
-            <motion.div
-              key={i}
-              className="w-[3px] rounded-full"
-              animate={{ scaleY: [h, 1, h * 0.6, 1, h] }}
-              transition={{
-                duration: 0.65 + i * 0.04,
-                repeat: Infinity,
-                delay: i * 0.1,
-                ease: "easeInOut",
-              }}
-              style={{ height: 14, transformOrigin: "center", background: "#1d4ed8" }}
-            />
-          ))
-        ) : (
-          <Volume2 size={16} className="text-gray-400" />
-        )}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.p
-          key={text}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -4 }}
-          transition={{ duration: 0.2 }}
-          className="font-[family-name:var(--font-caveat)] text-base text-gray-700 leading-relaxed flex-1"
-        >
-          {text}
-        </motion.p>
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ── Hand Pointer ──────────────────────────────────────────────────────────────
-
-function HandPointer({
-  x,
-  y,
-  visible,
-}: {
-  x: number;
-  y: number;
-  visible: boolean;
-}) {
-  return (
-    <motion.div
-      className="pointer-events-none fixed z-[60]"
-      initial={false}
-      animate={{
-        x: x - POINTER_SIZE / 2,
-        y: y - POINTER_SIZE * 0.15,
-        opacity: visible ? 1 : 0,
-        scale: visible ? 1 : 0.7,
-      }}
-      transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.8 }}
-      style={{ width: POINTER_SIZE, height: POINTER_SIZE }}
-    >
-      <svg
-        width={POINTER_SIZE}
-        height={POINTER_SIZE}
-        viewBox="0 0 36 36"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Shadow */}
-        <ellipse cx="18" cy="33" rx="8" ry="2" fill="rgba(0,0,0,0.12)" />
-        {/* Hand body */}
-        <path
-          d="M12 16V8a2 2 0 0 1 4 0v6l1-1a2 2 0 0 1 3 0l1 1a2 2 0 0 1 3-1l1 2a2 2 0 0 1 3 0v4c0 5-3 9-8 9h-2c-4 0-7-3-7-7v-3a2 2 0 0 1 1-2z"
-          fill="#FFD5A0"
-          stroke="#D4915A"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-        {/* Index finger highlight */}
-        <path
-          d="M14 8v8"
-          stroke="#EDBA7A"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
-      </svg>
-    </motion.div>
-  );
-}
-
-// ── Equation Steps Overlay (sub-stepping) ─────────────────────────────────────
-
-function EquationStepsOverlay({
-  block,
-  blockIndex,
-  revealedCount,
-  activeSubIndex,
-  setBlockRef,
-}: {
-  block: EquationStepBlock;
-  blockIndex: number;
-  revealedCount: number;
-  activeSubIndex?: number;
-  setBlockRef: (key: string) => (el: HTMLDivElement | null) => void;
-}) {
-  const { steps } = block;
-
-  return (
-    <div className="wb-equations flex flex-col gap-1 w-full">
-      {steps.map((step, i) => {
-        if (i >= revealedCount) return null;
-        const isFinal = i === steps.length - 1;
-        const isFirst = i === 0;
-        const isActive = activeSubIndex === i;
-        const hasArrows = !!(step.arrows && step.arrows.length > 0);
-        const hasBeforeEq = !!step.latexBefore;
-
-        return (
-          <div
-            key={i}
-            ref={setBlockRef(`block-${blockIndex}-step-${i}`)}
-            className="flex flex-col"
-          >
-            {/* Teacher annotation */}
-            {!isFirst && step.operationLabel && (
-              <motion.div
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: isActive ? 1 : 0.5, x: 0 }}
-                transition={{ duration: 0.3 }}
-                className="wb-annotation font-[family-name:var(--font-caveat)] text-lg sm:text-xl ml-1 mb-1"
-              >
-                <InlineMath text={step.operationLabel} />
-              </motion.div>
-            )}
-
-            {/* Step pair: before + arrow overlay + after */}
-            {!isFirst && hasArrows && hasBeforeEq ? (
-              <OverlayStepPairCard
-                step={step}
-                isActive={isActive}
-                isFinal={isFinal}
-              />
-            ) : (
-              <>
-                {/* Balance notation */}
-                {isActive && step.balanceNotation && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.25 }}
-                    className="wb-balance font-[family-name:var(--font-caveat)] text-lg ml-6 mb-1"
-                  >
-                    <MathRenderer latex={step.balanceNotation} />
-                  </motion.div>
-                )}
-
-                {/* Single equation line */}
-                <OverlaySingleLine
-                  step={step}
-                  isActive={isActive}
-                  isFinal={isFinal}
-                  isFirst={isFirst}
-                />
-              </>
-            )}
-
-            {/* Explanation */}
-            {isActive && step.explanation && !isFirst && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.2, duration: 0.3 }}
-                className="wb-explanation font-[family-name:var(--font-caveat)] text-base sm:text-lg ml-6 mb-3 text-gray-600"
-              >
-                ↳ <HandwrittenInline text={step.explanation} startDelay={200} />
-              </motion.div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ── Overlay single equation line (with ref for TeacherMarkOverlay) ─── */
-function OverlaySingleLine({
-  step,
-  isActive,
-  isFinal,
-  isFirst,
-}: {
-  step: import("@/types/whiteboard").EquationStep;
-  isActive: boolean;
-  isFinal: boolean;
-  isFirst: boolean;
-}) {
-  const lineRef = useRef<HTMLDivElement>(null);
-  const latex = isFirst
-    ? step.latexBefore || step.latexAfter
-    : step.latexAfter;
-  // The pen draws marks after the equation has written in.
-  const markDelay = latex ? estimateMathWriteMs(latex) / 1000 + 0.2 : 0.4;
-
-  return (
-    <motion.div
-      ref={lineRef}
-      initial={{ opacity: 0, x: -10 }}
-      animate={{
-        opacity: isActive ? 1 : 0.5,
-        x: 0,
-      }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className={`wb-equation-line relative flex items-center gap-3 py-1.5 px-2 rounded-lg ${
-        isFinal ? "wb-final-answer" : ""
-      }`}
-    >
-      <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
-        {step.stepNumber})
-      </span>
-      <div className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}>
-        {latex ? (
-          <MathWriteIn latex={latex} display />
-        ) : (
-          <span className="font-[family-name:var(--font-caveat)] text-lg">
-            <HandwrittenInline text={step.explanation} />
-          </span>
-        )}
-      </div>
-      {isFinal && isActive && (
-        <motion.span
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{
-            delay: 0.3,
-            type: "spring",
-            stiffness: 300,
-          }}
-          className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
-        >
-          ✓
-        </motion.span>
-      )}
-
-      {/* Teacher pen marks — drawn while this step is being explained */}
-      {isActive &&
-        step.marks?.map((mark, mi) => (
-          <TeacherMarkOverlay
-            key={mark.targetId || mi}
-            containerRef={lineRef}
-            mark={mark}
-            delay={markDelay + mi * 0.4}
-          />
-        ))}
-    </motion.div>
-  );
-}
-
-/* ── Overlay step pair card (with ref for TermTransferArrow) ─── */
-function OverlayStepPairCard({
-  step,
-  isActive,
-  isFinal,
-}: {
-  step: import("@/types/whiteboard").EquationStep;
-  isActive: boolean;
-  isFinal: boolean;
-}) {
-  const pairRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <motion.div
-      ref={pairRef}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: isActive ? 1 : 0.55, y: 0 }}
-      transition={{ duration: 0.35 }}
-      className={`wb-step-pair ${isFinal ? "wb-final-answer" : ""}`}
-    >
-      {/* Previous equation (dimmed) */}
-      <div className="wb-step-before flex items-center gap-3 py-1 px-2">
-        <span className="wb-step-num font-[family-name:var(--font-caveat)] text-sm flex-shrink-0 opacity-50">
-          {step.stepNumber > 1 ? step.stepNumber - 1 : step.stepNumber})
-        </span>
-        <div className="wb-equation">
-          <MathRenderer latex={step.latexBefore} display />
-        </div>
-      </div>
-
-      <div className="wb-step-divider" />
-
-      {/* Balance notation */}
-      {step.balanceNotation && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.25 }}
-          className="wb-balance font-[family-name:var(--font-caveat)] text-lg ml-6 my-1"
-        >
-          <MathRenderer latex={step.balanceNotation} />
-        </motion.div>
-      )}
-
-      {/* Current equation (bright) */}
-      <div
-        className={`wb-step-after flex items-center gap-3 py-1.5 px-2 ${isFinal ? "wb-equation-final" : ""}`}
-      >
-        <span className="wb-step-num font-[family-name:var(--font-caveat)] text-base flex-shrink-0">
-          {step.stepNumber})
-        </span>
-        <div className={`wb-equation ${isFinal ? "wb-equation-final" : ""}`}>
-          {/* The new line writes in; the "before" line above stays static. */}
-          <MathWriteIn latex={step.latexAfter} display />
-        </div>
-        {isFinal && isActive && (
-          <motion.span
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
-            className="wb-checkmark font-[family-name:var(--font-caveat)] text-lg flex-shrink-0"
-          >
-            ✓
-          </motion.span>
-        )}
-      </div>
-
-      {/* Arrow overlays */}
-      {isActive &&
-        step.arrows?.map((arrow, ai) => (
-          <TermTransferArrow
-            key={arrow.id || ai}
-            containerRef={pairRef}
-            fromId={`${arrow.id}-from`}
-            toId={`${arrow.id}-to`}
-            fromTerm={arrow.fromTerm}
-            toTerm={arrow.toTerm}
-            signRule={arrow.signRule}
-            label={arrow.label}
-            delay={0.15 + ai * 0.2}
-            color={arrow.color || MARKER.red}
-          />
-        ))}
-
-      {/* Teacher pen marks — drawn after the new line writes in */}
-      {isActive &&
-        step.marks?.map((mark, mi) => (
-          <TeacherMarkOverlay
-            key={mark.targetId || mi}
-            containerRef={pairRef}
-            mark={mark}
-            delay={estimateMathWriteMs(step.latexAfter) / 1000 + 0.25 + mi * 0.4}
-          />
-        ))}
-    </motion.div>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main tutor ────────────────────────────────────────────────────────────────
 
 export default function WhiteboardTutor({ data, onClose }: Props) {
-  // Build narration plan
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
+  const steps = useMemo(() => buildTutorSteps(data, plan), [data, plan]);
   const totalCues = plan.length;
 
-  // How long the "ink" takes to appear for each cue — narration waits for the
-  // writing to finish, exactly like a teacher who writes, then explains.
   const writeMsPlan = useMemo(() => {
     const columnTimelines = new Map<
       number,
@@ -603,28 +277,24 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     });
   }, [plan, data]);
 
-  // Playback state
   const [activeCue, setActiveCue] = useState(0);
-  const [revealedCue, setRevealedCue] = useState(0);
-  // Bumped on replay so always-mounted elements (intro) re-run their write-in.
   const [runId, setRunId] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
   const [isSpeaking, setIsSpeaking] = useState(false);
-
-  // Pointer position
+  const [activeWord, setActiveWord] = useState(-1);
+  const [justCompleted, setJustCompleted] = useState<number | null>(null);
   const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 });
   const [pointerVisible, setPointerVisible] = useState(false);
+  const [pointerMode, setPointerMode] = useState<"point" | "write">("point");
+  const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
 
-  // Refs
   const { speak, cancel } = useSpeech();
-  const boardRef = useRef<HTMLDivElement>(null);
-  const blockRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stale-closure refs
   const isPlayingRef = useRef(isPlaying);
   isPlayingRef.current = isPlaying;
   const isMutedRef = useRef(isMuted);
@@ -639,147 +309,48 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
   }, []);
 
-  // ── Derive which blocks / sub-steps are visible ─────────────────────────
+  const setActiveStepRef = useCallback((el: HTMLDivElement | null) => {
+    setFocusEl(el);
+  }, []);
 
-  const revealedBlocks = useMemo(() => {
-    const set = new Set<number>();
-    for (let i = 0; i <= revealedCue && i < totalCues; i++) {
-      const cue = plan[i];
-      if (cue.blockIndex >= 0) set.add(cue.blockIndex);
-    }
-    return set;
-  }, [revealedCue, plan, totalCues]);
-
-  const equationRevealMap = useMemo(() => {
-    const map = new Map<number, number>();
-    for (let i = 0; i <= revealedCue && i < totalCues; i++) {
-      const cue = plan[i];
-      if (cue.kind === "equation_step" && cue.subIndex !== undefined) {
-        map.set(cue.blockIndex, (map.get(cue.blockIndex) ?? 0) + 1);
-      }
-    }
-    return map;
-  }, [revealedCue, plan, totalCues]);
-
-  // Column-method blocks reveal cell-by-cell: track the highest revealed
-  // teaching-step index per block (cue subIndex maps 1:1 to timeline steps).
-  const columnRevealMap = useMemo(() => {
-    const map = new Map<number, number>();
-    for (let i = 0; i <= revealedCue && i < totalCues; i++) {
-      const cue = plan[i];
-      if (cue.kind === "column" && cue.subIndex !== undefined) {
-        map.set(cue.blockIndex, Math.max(map.get(cue.blockIndex) ?? 0, cue.subIndex));
-      }
-    }
-    return map;
-  }, [revealedCue, plan, totalCues]);
-
-  const activeEquationStep = useMemo(() => {
-    const cue = plan[activeCue];
-    if (cue?.kind === "equation_step")
-      return { blockIndex: cue.blockIndex, subIndex: cue.subIndex ?? 0 };
-    return null;
-  }, [activeCue, plan]);
-
-  // ── Pointer tracking ───────────────────────────────────────────────────
-
-  const updatePointer = useCallback(() => {
-    const cue = plan[activeCueRef.current];
-    if (!cue || cue.blockIndex < 0) {
-      setPointerVisible(false);
-      return;
-    }
-
-    const refKey =
-      cue.subIndex !== undefined
-        ? `block-${cue.blockIndex}-step-${cue.subIndex}`
-        : `block-${cue.blockIndex}`;
-
-    const el =
-      blockRefs.current.get(refKey) ||
-      blockRefs.current.get(`block-${cue.blockIndex}`);
-
-    if (!el) {
-      setPointerVisible(false);
-      return;
-    }
-
-    const rect = el.getBoundingClientRect();
-    setPointerPos({ x: rect.left + 16, y: rect.top + rect.height / 2 });
-    setPointerVisible(true);
-  }, [plan]);
-
-  // Glide the pointer along the line as the "pen" writes it.
-  const sweepPointer = useCallback(() => {
-    const cue = plan[activeCueRef.current];
-    if (!cue || cue.blockIndex < 0) return;
-
-    const refKey =
-      cue.subIndex !== undefined
-        ? `block-${cue.blockIndex}-step-${cue.subIndex}`
-        : `block-${cue.blockIndex}`;
-    const el =
-      blockRefs.current.get(refKey) ||
-      blockRefs.current.get(`block-${cue.blockIndex}`);
-    if (!el) return;
-
-    const rect = el.getBoundingClientRect();
-    setPointerPos({
-      x: rect.left + Math.min(Math.max(rect.width - 16, 32), 280),
-      y: rect.top + rect.height / 2,
-    });
-  }, [plan]);
-
+  // Pointer follows active card
   useEffect(() => {
-    const t = setTimeout(updatePointer, 150);
-    // Start the sweep partway through the write so the spring lands as the
-    // ink finishes.
-    const writeMs = writeMsPlan[activeCue] ?? WRITE_MS;
-    const s = setTimeout(sweepPointer, Math.max(300, writeMs * 0.45));
-    return () => {
-      clearTimeout(t);
-      clearTimeout(s);
+    if (!focusEl) {
+      setPointerVisible(false);
+      return;
+    }
+    const place = () => {
+      const rect = focusEl.getBoundingClientRect();
+      setPointerPos({ x: rect.left + 28, y: rect.top + Math.min(rect.height * 0.35, 120) });
+      setPointerVisible(true);
     };
-  }, [activeCue, updatePointer, sweepPointer, writeMsPlan]);
-
-  // ── Scroll board to active block ───────────────────────────────────────
-
-  useEffect(() => {
-    const cue = plan[activeCue];
-    if (!cue || cue.blockIndex < 0) return;
-
-    const refKey =
-      cue.subIndex !== undefined
-        ? `block-${cue.blockIndex}-step-${cue.subIndex}`
-        : `block-${cue.blockIndex}`;
-
-    const el =
-      blockRefs.current.get(refKey) ||
-      blockRefs.current.get(`block-${cue.blockIndex}`);
-
-    if (el && boardRef.current) {
-      const boardRect = boardRef.current.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const offset = elRect.top - boardRect.top - boardRect.height / 3;
-      if (offset > 0 || offset < -boardRect.height / 2) {
-        boardRef.current.scrollBy({ top: offset, behavior: "smooth" });
-      }
-    }
-  }, [activeCue, plan]);
-
-  // ── Advance to next cue ────────────────────────────────────────────────
+    place();
+    setPointerMode("write");
+    const writeMs = writeMsPlan[activeCue] ?? WRITE_MS;
+    const sweep = setTimeout(() => {
+      const rect = focusEl.getBoundingClientRect();
+      setPointerPos({
+        x: rect.left + Math.min(Math.max(rect.width - 40, 80), 320),
+        y: rect.top + Math.min(rect.height * 0.55, 200),
+      });
+      setPointerMode("point");
+    }, Math.max(280, writeMs * 0.5));
+    return () => clearTimeout(sweep);
+  }, [focusEl, activeCue, writeMsPlan]);
 
   const advance = useCallback(() => {
-    const next = activeCueRef.current + 1;
+    const prev = activeCueRef.current;
+    setJustCompleted(prev);
+    if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+    celebrateTimer.current = setTimeout(() => setJustCompleted(null), 900);
+
+    const next = prev + 1;
     if (next >= totalCues) {
       setIsPlaying(false);
       return;
     }
-    setRevealedCue((r) => Math.max(r, next));
     setActiveCue(next);
   }, [totalCues]);
-
-  // ── Narrate current cue then schedule advance ─────────────────────────
 
   const startNarration = useCallback(
     (idx: number) => {
@@ -790,86 +361,101 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
 
       const onEnd = () => {
         setIsSpeaking(false);
+        setActiveWord(-1);
         if (!isPlayingRef.current) return;
-        advanceTimer.current = setTimeout(advance, 500 / speedRef.current);
+        advanceTimer.current = setTimeout(
+          advance,
+          STEP_PAUSE_MS / speedRef.current,
+        );
       };
 
       if (isMutedRef.current) {
-        const pause = Math.max(1200, text.length * 55) / speedRef.current;
+        const pause =
+          Math.max(STEP_PAUSE_MS, Math.max(1200, text.length * 55)) /
+          speedRef.current;
+        const words = countWords(text);
+        const start = performance.now();
+        const tick = () => {
+          if (!isPlayingRef.current) return;
+          const elapsed = performance.now() - start;
+          setActiveWord(wordIndexAtProgress(text, elapsed, pause * 0.85));
+          if (elapsed < pause * 0.85) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
         advanceTimer.current = setTimeout(advance, pause);
       } else {
         setIsSpeaking(true);
-        speak(text, speedRef.current, onEnd);
+        speak(text, speedRef.current, onEnd, setActiveWord);
       }
     },
     [plan, speak, advance],
   );
 
-  // ── Trigger narration after write animation ────────────────────────────
-
   useEffect(() => {
     clearTimers();
     cancel();
     setIsSpeaking(false);
-
+    setActiveWord(-1);
     if (!isPlaying) return;
 
-    // Wait for the handwriting to finish before speaking (scaled by speed).
     const writeMs = (writeMsPlan[activeCue] ?? WRITE_MS) / speedRef.current;
     writeTimer.current = setTimeout(() => {
       startNarration(activeCue);
-    }, writeMs + 150);
+    }, writeMs + 180);
 
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCue, isPlaying]);
 
-  // ── Cleanup on unmount ─────────────────────────────────────────────────
-
   useEffect(() => {
     return () => {
       cancel();
       clearTimers();
+      if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
     };
   }, [cancel, clearTimers]);
 
-  // ── Playback controls ──────────────────────────────────────────────────
-
   const handlePlay = () => setIsPlaying(true);
-
   const handlePause = () => {
     setIsPlaying(false);
     cancel();
     clearTimers();
     setIsSpeaking(false);
+    setActiveWord(-1);
   };
-
   const handlePrev = () => {
     cancel();
     clearTimers();
     setIsSpeaking(false);
+    setActiveWord(-1);
     setIsPlaying(false);
     setActiveCue((i) => Math.max(0, i - 1));
   };
-
   const handleNext = () => {
     cancel();
     clearTimers();
     setIsSpeaking(false);
+    setActiveWord(-1);
     setIsPlaying(false);
-    const next = Math.min(totalCues - 1, activeCue + 1);
-    setRevealedCue((r) => Math.max(r, next));
-    setActiveCue(next);
+    setActiveCue((i) => Math.min(totalCues - 1, i + 1));
   };
-
   const handleReplay = () => {
     cancel();
     clearTimers();
     setIsSpeaking(false);
+    setActiveWord(-1);
     setActiveCue(0);
-    setRevealedCue(0);
+    setJustCompleted(null);
     setRunId((n) => n + 1);
     setIsPlaying(true);
+  };
+  const handleSelectStep = (index: number) => {
+    cancel();
+    clearTimers();
+    setIsSpeaking(false);
+    setActiveWord(-1);
+    setIsPlaying(false);
+    setActiveCue(index);
   };
 
   const toggleMute = () => setIsMuted((m) => !m);
@@ -877,25 +463,11 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1) as 1 | 1.5 | 2);
 
   const isLast = activeCue === totalCues - 1;
-  const currentCue = plan[activeCue];
-  const narrationText = currentCue?.text || "";
-
-  const showConclusion = plan
-    .slice(0, revealedCue + 1)
-    .some((c) => c.kind === "conclusion");
-  const showHint = plan
-    .slice(0, revealedCue + 1)
-    .some((c) => c.kind === "hint");
-
-  const setBlockRef = useCallback(
-    (key: string) => (el: HTMLDivElement | null) => {
-      if (el) blockRefs.current.set(key, el);
-      else blockRefs.current.delete(key);
-    },
-    [],
-  );
-
-  // ── Render ─────────────────────────────────────────────────────────────
+  const currentStep = steps[activeCue];
+  const narrationText = currentStep?.narration || "";
+  const badge = getVerificationBadge(data);
+  const showBadge =
+    currentStep?.kind === "conclusion" || activeCue === totalCues - 1;
 
   return (
     <motion.div
@@ -903,343 +475,189 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      className="fixed inset-0 z-50 flex flex-col wb-overlay"
+      className="fixed inset-0 z-50 flex flex-col bg-[#f4f6fa]"
+      role="dialog"
+      aria-label="Whiteboard Tutor"
     >
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className="wb-overlay-header flex items-center justify-between px-4 py-3 flex-shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-600">
-            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-              <rect
-                x="1"
-                y="1"
-                width="13"
-                height="9"
-                rx="1.5"
-                stroke="white"
-                strokeWidth="1.4"
-              />
-              <line
-                x1="3.5"
-                y1="13"
-                x2="5.5"
-                y2="10"
-                stroke="white"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <line
-                x1="11.5"
-                y1="13"
-                x2="9.5"
-                y2="10"
-                stroke="white"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
-              <line
-                x1="4"
-                y1="13"
-                x2="11"
-                y2="13"
-                stroke="white"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-              />
+      {/* Header */}
+      <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200/80 bg-white/80 backdrop-blur-md flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md shadow-blue-200">
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden>
+              <rect x="1" y="1" width="13" height="9" rx="1.5" stroke="white" strokeWidth="1.4" />
+              <line x1="3.5" y1="13" x2="5.5" y2="10" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+              <line x1="11.5" y1="13" x2="9.5" y2="10" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
+              <line x1="4" y1="13" x2="11" y2="13" stroke="white" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
           </div>
-          <div>
-            <div className="text-sm font-bold text-gray-800 leading-tight">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-900 leading-tight truncate">
               Whiteboard Tutor
             </div>
             {(data.subject || data.topic) && (
-              <div className="text-[10px] text-gray-400">
+              <div className="text-[11px] text-slate-400 truncate">
                 {[data.subject, data.topic].filter(Boolean).join(" · ")}
               </div>
             )}
           </div>
         </div>
-
         <button
           onClick={onClose}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
+          aria-label="Close tutor"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
         >
-          <X size={15} />
+          <X size={16} />
         </button>
-      </div>
+      </header>
 
-      {/* ── Board ───────────────────────────────────────────── */}
-      <div ref={boardRef} className="flex-1 overflow-y-auto">
-        <div className="wb-board wb-overlay-board rounded-none min-h-full px-6 py-6 sm:px-10 sm:py-8 relative">
-          {/* Ruled lines */}
-          <div className="wb-rules pointer-events-none absolute inset-0" />
-
-          {/* Intro */}
-          {data.intro && (
-            <motion.p
-              initial={{ opacity: 0, x: -8 }}
-              animate={{
-                opacity: currentCue?.kind === "intro" ? 1 : 0.5,
-                x: 0,
-              }}
-              transition={{ duration: 0.4 }}
-              className="wb-intro font-[family-name:var(--font-caveat)] text-2xl sm:text-3xl leading-snug mb-6 text-gray-700"
-            >
-              <HandwrittenInline key={runId} text={data.intro} />
-            </motion.p>
-          )}
-
-          {/* Uploaded question image — inline reference diagram */}
-          {data.questionImageUrl && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="mb-6 rounded-xl overflow-hidden border border-gray-200 bg-white inline-block max-w-xs sm:max-w-sm"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={data.questionImageUrl}
-                alt="Uploaded question diagram"
-                className="w-full h-auto"
-              />
-              <p className="text-[11px] text-gray-400 px-3 py-1.5 text-center">
-                📎 Uploaded question
-              </p>
-            </motion.div>
-          )}
-
-          {/* Topic label */}
-          {data.topic && (
-            <div className="wb-topic font-[family-name:var(--font-caveat)] text-lg mb-5 pb-1 text-gray-400">
-              {data.subject && <span>{data.subject}</span>}
-              {data.topic && <span> — {data.topic}</span>}
-            </div>
-          )}
-
-          {/* Blocks — rendered progressively */}
-          <div className="flex flex-col gap-3">
-            {data.blocks.map((block, bi) => {
-              const isRevealed = revealedBlocks.has(bi);
-              if (!isRevealed) return null;
-
-              const isActiveBlock = currentCue?.blockIndex === bi;
-
-              return (
-                <motion.div
-                  key={`block-${bi}`}
-                  ref={setBlockRef(`block-${bi}`)}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{
-                    opacity: isActiveBlock ? 1 : 0.55,
-                    y: 0,
-                  }}
-                  transition={{ duration: 0.4 }}
-                  className={`wb-overlay-block relative ${
-                    isActiveBlock ? "wb-overlay-block-active" : ""
-                  }`}
-                >
-                  {/* Active block indicator */}
-                  {isActiveBlock && (
-                    <motion.div
-                      layoutId="activeBlockIndicator"
-                      className="absolute -left-4 top-0 bottom-0 w-1 rounded-full bg-blue-500"
-                      transition={{
-                        type: "spring",
-                        stiffness: 300,
-                        damping: 30,
-                      }}
-                    />
-                  )}
-
-                  {block.type === "equation_steps" ? (
-                    <EquationStepsOverlay
-                      block={block}
-                      blockIndex={bi}
-                      revealedCount={equationRevealMap.get(bi) ?? 0}
-                      activeSubIndex={
-                        activeEquationStep?.blockIndex === bi
-                          ? activeEquationStep.subIndex
-                          : undefined
-                      }
-                      setBlockRef={setBlockRef}
-                    />
-                  ) : block.type === "column_method" ? (
-                    <ColumnMethodRenderer
-                      block={block}
-                      baseDelay={0}
-                      revealStep={columnRevealMap.get(bi) ?? 0}
-                    />
-                  ) : block.type === "text" ? (
-                    <TextRenderer block={block} writeIn />
-                  ) : (
-                    <BlockRenderer block={block} index={bi} baseDelay={0} />
-                  )}
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Conclusion */}
-          <AnimatePresence>
-            {showConclusion && data.conclusion && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="wb-conclusion mt-5 pt-3 flex items-start gap-2.5"
-              >
-                <CheckCircle2
-                  size={18}
-                  className="text-green-600 flex-shrink-0 mt-0.5"
-                />
-                <span className="font-[family-name:var(--font-caveat)] text-xl sm:text-2xl text-green-700">
-                  <HandwrittenInline text={data.conclusion} startDelay={300} />
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Verification badge — honest gating */}
-          {(() => {
-            const badge = getVerificationBadge(data);
-            if (!badge) return null;
-            const positive = badge.level === "verified" || badge.level === "checked";
-            const cls = positive
-              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-              : badge.level === "caution"
-              ? "text-amber-700 bg-amber-50 border-amber-200"
-              : "text-rose-700 bg-rose-50 border-rose-200";
-            return (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className={`mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${cls}`}
-              >
-                {positive ? (
-                  <ShieldCheck size={13} className="text-emerald-600" />
-                ) : (
-                  <AlertTriangle size={13} />
-                )}
-                {badge.label}
-                {badge.detail && <span className="opacity-70">· {badge.detail}</span>}
-              </motion.div>
-            );
-          })()}
-
-          {/* Hint */}
-          <AnimatePresence>
-            {showHint && data.hint && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="wb-hint mt-4 font-[family-name:var(--font-caveat)] text-lg text-amber-700"
-              >
-                💡 <HandwrittenInline text={data.hint} startDelay={400} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="h-6" />
-        </div>
-      </div>
-
-      {/* ── Hand pointer ────────────────────────────────────── */}
-      <HandPointer
-        x={pointerPos.x}
-        y={pointerPos.y}
-        visible={pointerVisible}
-      />
-
-      {/* ── Controls ────────────────────────────────────────── */}
-      <div className="wb-overlay-controls flex-shrink-0 px-4 pb-4 pt-3 space-y-3">
-        {/* Narration */}
-        <NarrationBar
-          text={narrationText}
-          isMuted={isMuted}
-          isSpeaking={isSpeaking}
-        />
-
-        {/* Progress bar */}
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full bg-gray-200 overflow-hidden">
-            <motion.div
-              className="h-full rounded-full bg-blue-500"
-              animate={{
-                width: `${((activeCue + 1) / totalCues) * 100}%`,
-              }}
-              transition={{ duration: 0.35 }}
+      {/* Board */}
+      <WhiteboardCanvas focusEl={focusEl}>
+        {data.questionImageUrl && activeCue === 0 && (
+          <div className="mb-5 mx-auto max-w-2xl rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm max-w-xs sm:max-w-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.questionImageUrl}
+              alt="Uploaded question"
+              className="w-full h-auto"
             />
           </div>
-          <span className="text-[11px] text-gray-400 tabular-nums w-10 text-right">
-            {activeCue + 1} / {totalCues}
-          </span>
+        )}
+
+        <StepTimeline
+          steps={steps}
+          activeIndex={activeCue}
+          justCompletedIndex={justCompleted}
+          data={data}
+          runId={runId}
+          setActiveStepRef={setActiveStepRef}
+          onSelectStep={handleSelectStep}
+        />
+
+        {showBadge && badge && (
+          <div className="mt-5 flex justify-center">
+            <div
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border ${
+                badge.level === "verified" || badge.level === "checked"
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : badge.level === "caution"
+                    ? "text-amber-700 bg-amber-50 border-amber-200"
+                    : "text-rose-700 bg-rose-50 border-rose-200"
+              }`}
+            >
+              {badge.level === "verified" || badge.level === "checked" ? (
+                <ShieldCheck size={13} />
+              ) : (
+                <AlertTriangle size={13} />
+              )}
+              {badge.label}
+            </div>
+          </div>
+        )}
+
+        <div className="h-8" />
+      </WhiteboardCanvas>
+
+      <TeacherPointer
+        x={pointerPos.x}
+        y={pointerPos.y}
+        visible={pointerVisible && isPlaying}
+        mode={pointerMode}
+      />
+
+      {/* Controls */}
+      <footer className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3 shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.08)]">
+        <div className="rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 min-h-[3.25rem] flex items-center gap-3">
+          <div className="flex items-center gap-[3px] flex-shrink-0 h-5 w-5" aria-hidden>
+            {isMuted ? (
+              <VolumeX size={16} className="text-slate-400" />
+            ) : isSpeaking ? (
+              [0.5, 1, 0.7, 0.4].map((h, i) => (
+                <motion.div
+                  key={i}
+                  className="w-[3px] rounded-full bg-blue-600"
+                  animate={{ scaleY: [h, 1, h * 0.6, 1, h] }}
+                  transition={{
+                    duration: 0.65 + i * 0.04,
+                    repeat: Infinity,
+                    delay: i * 0.1,
+                    ease: "easeInOut",
+                  }}
+                  style={{ height: 14, transformOrigin: "center" }}
+                />
+              ))
+            ) : (
+              <Volume2 size={16} className="text-slate-400" />
+            )}
+          </div>
+          <SpeechHighlighter
+            text={narrationText}
+            activeWordIndex={activeWord}
+            isSpeaking={isSpeaking || (isMuted && isPlaying)}
+            className="flex-1"
+          />
         </div>
 
-        {/* Buttons */}
+        <ProgressRail total={totalCues} current={activeCue} />
+
         <div className="flex items-center justify-between">
-          {/* Left: mute + speed */}
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMute}
-              className="w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-gray-100"
-              style={{ color: isMuted ? "#9ca3af" : "#1d4ed8" }}
+              aria-label={isMuted ? "Unmute" : "Mute"}
+              className="w-10 h-10 flex items-center justify-center rounded-xl transition-all hover:bg-slate-100"
+              style={{ color: isMuted ? "#94a3b8" : "#2563eb" }}
             >
-              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
             </button>
             <button
               onClick={cycleSpeed}
-              className="h-9 px-2 rounded-xl text-xs font-bold tabular-nums hover:bg-gray-100 transition-all"
-              style={{
-                color: speed === 1 ? "#9ca3af" : "#1d4ed8",
-                minWidth: 36,
-              }}
+              aria-label={`Playback speed ${speed}x`}
+              className="h-10 px-2.5 rounded-xl text-xs font-bold tabular-nums hover:bg-slate-100 transition-all"
+              style={{ color: speed === 1 ? "#94a3b8" : "#2563eb", minWidth: 40 }}
             >
               {speed}×
             </button>
           </div>
 
-          {/* Centre: playback */}
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrev}
               disabled={activeCue === 0}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Previous step"
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all disabled:opacity-30"
             >
-              <SkipBack size={16} />
+              <SkipBack size={17} />
             </button>
-
             <button
               onClick={isPlaying ? handlePause : handlePlay}
-              className="w-12 h-12 flex items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95 bg-blue-600 shadow-lg shadow-blue-200"
+              aria-label={isPlaying ? "Pause" : "Play"}
+              className="w-14 h-14 flex items-center justify-center rounded-full bg-blue-600 shadow-lg shadow-blue-200/80 hover:scale-[1.04] active:scale-95 transition-transform"
             >
               {isPlaying ? (
-                <Pause size={18} className="text-white" />
+                <Pause size={20} className="text-white" />
               ) : (
-                <Play size={18} className="text-white ml-0.5" />
+                <Play size={20} className="text-white ml-0.5" />
               )}
             </button>
-
             <button
               onClick={handleNext}
               disabled={isLast}
-              className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Next step"
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all disabled:opacity-30"
             >
-              <SkipForward size={16} />
+              <SkipForward size={17} />
             </button>
           </div>
 
-          {/* Right: replay */}
           <button
             onClick={handleReplay}
-            className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:text-blue-600 hover:bg-gray-100 transition-all"
+            aria-label="Replay lesson"
+            className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-all"
           >
-            <RotateCcw size={15} />
+            <RotateCcw size={16} />
           </button>
         </div>
-      </div>
+      </footer>
     </motion.div>
   );
 }
