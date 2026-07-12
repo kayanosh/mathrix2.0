@@ -136,6 +136,126 @@ function appendPartialDigitSteps(args: PartialDigitArgs): void {
   }
 }
 
+function mergeCarries(
+  target: { row: number; col: number; digit: string }[],
+  incoming: { row: number; col: number; digit: string }[],
+): void {
+  for (const c of incoming) {
+    const existing = target.findIndex((t) => t.row === c.row && t.col === c.col);
+    if (existing >= 0) target[existing].digit = c.digit;
+    else target.push({ ...c });
+  }
+}
+
+function digitAtPadded(numStr: string, gridCols: number, col: number): number {
+  const cleaned = numStr.replace(/^[×x]/, "");
+  const idx = col - (gridCols - cleaned.length);
+  if (idx < 0 || idx >= cleaned.length) return 0;
+  return Number(cleaned[idx]) || 0;
+}
+
+/**
+ * Column-by-column addition of partial products into the total row.
+ * Carries sit above the total row so they don't collide with multiplicand carries.
+ */
+function appendPartialProductsAddSteps(args: {
+  partials: number[];
+  product: number;
+  a: number;
+  b: number;
+  gridCols: number;
+  rows: string[];
+  carries: { row: number; col: number; digit: string }[];
+  moves: ColumnMethodMove[];
+  teachingSteps: TeachingStep[];
+}): void {
+  const { partials, product, a, b, gridCols, rows, carries, moves, teachingSteps } =
+    args;
+  const totalRow = rows.length - 1;
+  const partialRows = partials.map((_, i) => 2 + i);
+  const sumText = partials.join(" + ");
+
+  teachingSteps.push({
+    title: "Add the partial products",
+    explanation: `Now add ${sumText} column by column to get ${product}.`,
+    why: "Each line was one part of the multiplication — adding them gives the full answer.",
+    narration: `Finally, add the partial products ${sumText}. We'll go column by column from the ones.`,
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+  });
+
+  let carryIn = 0;
+  for (let i = 0; i < gridCols; i++) {
+    const col = gridCols - 1 - i;
+    const digits = partialRows.map((ri) =>
+      digitAtPadded(rows[ri], gridCols, col),
+    );
+    const raw = digits.reduce((s, d) => s + d, 0) + carryIn;
+    const writeDigit = raw % 10;
+    const carryOut = Math.floor(raw / 10);
+    const place = placeLabel(i);
+    const cellKeys = [cellKey(totalRow, col)];
+    const carryKeys: string[] = [];
+
+    if (carryOut > 0 && col - 1 >= 0) {
+      const carryCol = col - 1;
+      const existing = carries.findIndex(
+        (c) => c.row === totalRow && c.col === carryCol,
+      );
+      if (existing >= 0) carries[existing].digit = String(carryOut);
+      else {
+        carries.push({ row: totalRow, col: carryCol, digit: String(carryOut) });
+        moves.push({
+          fromRow: totalRow,
+          fromCol: col,
+          toRow: totalRow,
+          toCol: carryCol,
+          label: `carry ${carryOut}`,
+          kind: "carry",
+        });
+      }
+      carryKeys.push(cellKey(totalRow, carryCol));
+    }
+
+    const partsText = digits.join(" + ");
+    const withCarry =
+      carryIn > 0 ? `${partsText} + carry ${carryIn}` : partsText;
+
+    teachingSteps.push({
+      title: `Add the ${place}`,
+      explanation:
+        carryOut > 0
+          ? `In the ${place}: ${withCarry} = ${raw}. Write ${writeDigit} and carry ${carryOut}.`
+          : `In the ${place}: ${withCarry} = ${raw}. Write ${writeDigit}.`,
+      why:
+        carryOut > 0
+          ? `Ten ${place} make one ${placeLabel(i + 1)} — that's the carry.`
+          : undefined,
+      narration:
+        carryOut > 0
+          ? `In the ${place} column, ${withCarry} makes ${raw}. Write ${writeDigit} and carry ${carryOut}.`
+          : `In the ${place} column, ${withCarry} makes ${raw}. Write ${writeDigit}.`,
+      cellKeys,
+      carryKeys,
+      noteKeys: [],
+      showAnswer: i === gridCols - 1,
+    });
+
+    carryIn = carryOut;
+  }
+
+  teachingSteps.push({
+    title: "Answer",
+    explanation: `So ${a} × ${b} = ${product}.`,
+    narration: `So ${a} × ${b} equals ${product}. Well done!`,
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+    showAnswer: true,
+  });
+}
+
 /**
  * Build correct column multiplication working + digit-level teaching steps.
  * Example: buildColumnMultiplication(36, 15)
@@ -237,35 +357,26 @@ export function buildColumnMultiplication(
           : `${placeLabel(place)} × ${digit}`,
     });
 
-    // Keep carries from the ones line on the final board (most visible teaching
-    // moment). Later lines' intermediate carries are still in teachingSteps.
-    if (place === 0) {
-      allCarries.push(...lineCarries);
-      allMoves.push(...lineMoves);
-    }
+    // Persist every partial-product line's carries so the finished static board
+    // matches the digit-level captions (ones + tens + …).
+    mergeCarries(allCarries, lineCarries);
+    allMoves.push(...lineMoves);
   });
 
   carries.push(...allCarries);
   moves.push(...allMoves);
 
   if (partials.length > 1) {
-    const totalRow = rows.length - 1;
-    const totalStr = String(product);
-    const totalCells: string[] = [];
-    for (let ci = 0; ci < gridCols; ci++) {
-      const idx = ci - (gridCols - totalStr.length);
-      if (idx >= 0) totalCells.push(cellKey(totalRow, ci));
-    }
-    const sumText = partials.join(" + ");
-    teachingSteps.push({
-      title: "Add the partial products",
-      explanation: `Add ${sumText} to get ${product}.`,
-      why: "Each line was one part of the multiplication — adding them gives the full answer.",
-      narration: `Finally, add the partial products: ${sumText} makes ${product}. So ${a} × ${b} equals ${product}.`,
-      cellKeys: [...totalCells].reverse(),
-      carryKeys: [],
-      noteKeys: [],
-      showAnswer: true,
+    appendPartialProductsAddSteps({
+      partials,
+      product,
+      a,
+      b,
+      gridCols,
+      rows,
+      carries,
+      moves,
+      teachingSteps,
     });
   } else {
     teachingSteps.push({

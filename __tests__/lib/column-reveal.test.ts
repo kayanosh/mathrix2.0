@@ -167,10 +167,12 @@ describe("buildColumnRevealTimeline — multiplication", () => {
     expect(joined).toMatch(/920|tens/i);
   });
 
-  it("adds the partial products in the final step", () => {
+  it("adds the partial products column by column before the answer", () => {
+    const joined = steps.map((s) => s.narration).join(" ");
+    expect(joined).toMatch(/115/);
+    expect(joined).toMatch(/920/);
+    expect(joined).toMatch(/1035/);
     const last = steps[steps.length - 1];
-    expect(last.narration).toMatch(/115/);
-    expect(last.narration).toMatch(/920/);
     expect(last.narration).toMatch(/1035/);
     expect(last.showAnswer).toBe(true);
   });

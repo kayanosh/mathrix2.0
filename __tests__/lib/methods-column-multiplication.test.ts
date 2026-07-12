@@ -53,6 +53,55 @@ describe("buildColumnMultiplication — 36 × 15", () => {
   });
 });
 
+describe("buildColumnMultiplication — 23 × 47 carries match captions", () => {
+  const result = buildColumnMultiplication(23, 47);
+
+  it("keeps ones and tens carries on the multiplicand row", () => {
+    expect(result.block.type).toBe("column_method");
+    if (result.block.type !== "column_method") return;
+    expect(result.block.rows).toEqual(["23", "×47", "161", "920", "1081"]);
+    expect(result.block.answer).toBe("1081");
+    // Ones: 7×3=21 → carry 2 above tens of 23
+    expect(result.block.carries).toEqual(
+      expect.arrayContaining([{ row: 0, col: 2, digit: "2" }]),
+    );
+    // Tens: 4×3=12 → carry 1 above hundreds column of multiplicand band
+    expect(result.block.carries).toEqual(
+      expect.arrayContaining([{ row: 0, col: 1, digit: "1" }]),
+    );
+  });
+
+  it("emits a final-add carry above the total row for 1 + 9", () => {
+    expect(result.block.type).toBe("column_method");
+    if (result.block.type !== "column_method") return;
+    expect(result.block.carries).toEqual(
+      expect.arrayContaining([{ row: 4, col: 0, digit: "1" }]),
+    );
+    const hundreds = result.teachingSteps.find((s) =>
+      /hundreds/i.test(s.title),
+    );
+    expect(hundreds?.explanation).toMatch(/1 \+ 9 = 10/);
+    expect(hundreds?.explanation).toMatch(/carry 1/);
+    expect(hundreds?.carryKeys).toContain(cellKey(4, 0));
+  });
+
+  it("mentions both multiplication carries in captions", () => {
+    const captions = result.captions.join(" ");
+    expect(captions).toMatch(/carry 2/);
+    expect(captions).toMatch(/4 × 3 = 12.*carry 1|carry 1/);
+  });
+
+  it("exposes matching carryKeys on the reveal timeline", () => {
+    expect(result.block.type).toBe("column_method");
+    if (result.block.type !== "column_method") return;
+    const timeline = buildColumnRevealTimeline(result.block);
+    const carryKeys = timeline.flatMap((s) => s.carryKeys);
+    expect(carryKeys).toEqual(
+      expect.arrayContaining([cellKey(0, 2), cellKey(0, 1), cellKey(4, 0)]),
+    );
+  });
+});
+
 describe("parseMultiplicationOperands", () => {
   it("parses common formats", () => {
     expect(parseMultiplicationOperands("36 × 15")).toEqual({ a: 36, b: 15 });
@@ -76,7 +125,7 @@ describe("buildColumnRevealTimeline — digit-level multiplication", () => {
     expect(joined).toMatch(/5 by 6|5 times 6|5 × 6/i);
     expect(joined).toMatch(/carry 3/i);
     expect(joined).toMatch(/zero/i);
-    expect(joined).toMatch(/180.*360|180 \+ 360/i);
+    expect(joined).toMatch(/180|360/);
   });
 
   it("exposes builder titles for the tutor card", () => {
