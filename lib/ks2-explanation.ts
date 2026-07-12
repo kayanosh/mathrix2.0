@@ -26,10 +26,9 @@ export interface KS2Explanation {
 }
 
 /**
- * Map a structured explanation to a WhiteboardResponse.
- * Each step becomes a `text` block (narrated + revealed in turn), an optional
- * comparison/list becomes a `table` block, and the answer is folded into the
- * conclusion so the tutor finishes by stating it clearly.
+ * Map a structured KS2 explanation to a WhiteboardResponse for WhiteboardTutor.
+ * Each step is a text block so the site-wide tutor can narrate it with the
+ * same step-timeline UI used for maths.
  */
 export function ks2ExplanationToWhiteboard(
   explanation: KS2Explanation,

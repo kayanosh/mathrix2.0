@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { X, Loader2, MonitorPlay } from "lucide-react";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import WhiteboardRenderer from "./whiteboard/WhiteboardRenderer";
@@ -29,6 +29,19 @@ function buildQuestionWithContext(
   return `[${parts.join(" — ")}]\n\n${question}`;
 }
 
+function primeSpeech() {
+  try {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const _u = new SpeechSynthesisUtterance("");
+      window.speechSynthesis.speak(_u);
+      window.speechSynthesis.cancel();
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function PracticeWhiteboardModal({
   question,
   onClose,
@@ -53,6 +66,7 @@ export default function PracticeWhiteboardModal({
     setLoading(true);
     setError(null);
     setWhiteboardData(null);
+    setWatchMode(false);
 
     try {
       const tier =
@@ -113,6 +127,11 @@ export default function PracticeWhiteboardModal({
           if (eventName === "solver_done" && parsed.whiteboard) {
             setWhiteboardData(parsed.whiteboard as WhiteboardResponse);
             setLoading(false);
+            // KS2: open the same premium tutor used site-wide
+            if (isKS2) {
+              primeSpeech();
+              setWatchMode(true);
+            }
           }
 
           if (eventName === "verification_done" && parsed.whiteboard) {
@@ -126,13 +145,75 @@ export default function PracticeWhiteboardModal({
     } finally {
       setLoading(false);
     }
-  }, [question, level, tierProp, topic, subtopics, subject]);
+  }, [question, level, tierProp, topic, subtopics, subject, isKS2]);
 
   useEffect(() => {
     fetchSolution();
     return () => abortRef.current?.abort();
   }, [fetchSolution]);
 
+  // KS2: once ready, teach with WhiteboardTutor (same as main site chat)
+  if (isKS2 && watchMode && whiteboardData) {
+    return (
+      <WhiteboardTutor
+        data={whiteboardData}
+        onClose={onClose}
+      />
+    );
+  }
+
+  // KS2 loading / error shell (before tutor opens)
+  if (isKS2) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-[#f4f6fa] flex flex-col items-center justify-center p-6"
+      >
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-700"
+        >
+          <X size={16} />
+        </button>
+        {loading && (
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 size={28} className="animate-spin text-blue-600" />
+            <p className="text-sm font-medium text-slate-600">Getting your teacher ready…</p>
+            <p className="text-[12px] text-slate-400 text-center max-w-xs">
+              Same whiteboard lesson as the rest of Mathrix — step by step.
+            </p>
+          </div>
+        )}
+        {error && (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-red-500">{error}</p>
+            <button
+              onClick={fetchSolution}
+              className="text-sm font-semibold text-blue-600 hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+        {!loading && !error && whiteboardData && !watchMode && (
+          <button
+            onClick={() => {
+              primeSpeech();
+              setWatchMode(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200"
+          >
+            <MonitorPlay size={16} /> Watch the teacher
+          </button>
+        )}
+      </motion.div>
+    );
+  }
+
+  // GCSE / other: modal with optional watch mode
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -141,7 +222,6 @@ export default function PracticeWhiteboardModal({
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* WhiteboardTutor takes over the whole screen when in watch mode */}
       {watchMode && whiteboardData ? (
         <WhiteboardTutor data={whiteboardData} onClose={() => setWatchMode(false)} />
       ) : (
@@ -152,29 +232,18 @@ export default function PracticeWhiteboardModal({
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
         className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
-          <h3 className="font-bold text-gray-900 text-sm">
-            {isKS2 ? "Your AI Teacher" : "AI Tutor — Worked Solution"}
-          </h3>
+          <h3 className="font-bold text-gray-900 text-sm">AI Tutor — Worked Solution</h3>
           <div className="flex items-center gap-2">
             {whiteboardData && (
               <button
                 onClick={() => {
-                  try {
-                    if (typeof window !== "undefined" && window.speechSynthesis) {
-                      window.speechSynthesis.cancel();
-                      const _u = new SpeechSynthesisUtterance("");
-                      window.speechSynthesis.speak(_u);
-                      window.speechSynthesis.cancel();
-                    }
-                  } catch { /* ignore */ }
+                  primeSpeech();
                   setWatchMode(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
               >
-                <MonitorPlay size={14} />
-                {isKS2 ? "Watch the teacher" : "Watch on Whiteboard"}
+                <MonitorPlay size={14} /> Watch on Whiteboard
               </button>
             )}
             <button
@@ -186,24 +255,18 @@ export default function PracticeWhiteboardModal({
           </div>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {loading && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 size={28} className="animate-spin text-indigo-500" />
-              <p className="text-sm text-gray-500">
-                {isKS2 ? "Getting the whiteboard ready…" : "Solving step by step…"}
-              </p>
+              <p className="text-sm text-gray-500">Solving step by step…</p>
             </div>
           )}
 
           {error && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <p className="text-sm text-red-500">{error}</p>
-              <button
-                onClick={fetchSolution}
-                className="text-sm text-indigo-600 hover:underline"
-              >
+              <button onClick={fetchSolution} className="text-sm text-indigo-600 hover:underline">
                 Try again
               </button>
             </div>
@@ -211,13 +274,7 @@ export default function PracticeWhiteboardModal({
 
           {whiteboardData && (
             <div className="p-4">
-              {/* KS2 pupils step through one card at a time with handwriting;
-                  GCSE keeps the full worked solution for quick scanning. */}
-              <WhiteboardRenderer
-                data={whiteboardData}
-                revealAll={!isKS2}
-                writeIn={isKS2}
-              />
+              <WhiteboardRenderer data={whiteboardData} revealAll />
             </div>
           )}
         </div>

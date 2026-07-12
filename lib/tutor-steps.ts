@@ -108,13 +108,18 @@ export function buildTutorSteps(
     if (cue.kind === "text") {
       const block = data.blocks[cue.blockIndex];
       if (block?.type === "text") {
+        const stepMatch = block.content.match(/^(.{0,4})?\s*Step\s+(\d+)\s*:\s*(.*)$/i);
+        const title = stepMatch
+          ? `Step ${stepMatch[2]}`
+          : "Next idea";
+        const explanation = stepMatch ? stepMatch[3] : block.content;
         return {
           cueIndex,
           kind: cue.kind,
-          title: "Note",
-          explanation: block.content,
+          title,
+          explanation,
           narration,
-          visual: { type: "text", content: block.content, latex: block.latex },
+          visual: { type: "text", content: explanation, latex: block.latex },
         };
       }
     }
