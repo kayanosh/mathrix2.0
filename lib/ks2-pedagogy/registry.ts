@@ -48,7 +48,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "column_addition",
     requiredBlocks: ["column_method"],
     keywords:
-      /\b(column addition|add.*digit|addition.*column|more than 4 digits.*add)\b/i,
+      /\b(column addition|addition\s*(?:&|and)\s*subtraction|add(?:ing|ition)?\b.*\bdigit|addition.*column|more than 4 digits.*add)\b/i,
     vocabulary: ["ones", "tens", "hundreds", "carry", "exchange"],
     commonMistakes: [
       "Forgetting to add the carry",
@@ -62,7 +62,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "column_subtraction",
     requiredBlocks: ["column_method"],
     keywords:
-      /\b(column subtraction|subtract.*digit|subtraction.*column|more than 4 digits.*subtract)\b/i,
+      /\b(column subtraction|subtract(?:ing|ion)?\b.*\bdigit|subtraction.*column|more than 4 digits.*subtract)\b/i,
     vocabulary: ["ones", "tens", "borrow", "exchange", "rename"],
     commonMistakes: [
       "Subtracting the top from the bottom when the top digit is smaller",
@@ -72,11 +72,11 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
   {
     id: "column_multiplication",
     label: "Column Multiplication",
-    years: 5,
+    years: "5-6",
     builderId: "column_multiplication",
     requiredBlocks: ["column_method", "equation_steps"],
     keywords:
-      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit|multiplication\s*(?:and|&)\s*division|written multiplication)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
+      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit|multiplication\s*(?:and|&)\s*division(?:\s*[AB])?|written multiplication|order of operations|bidmas|bodmas)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
     vocabulary: [
       "multiplicand",
       "multiplier",
@@ -98,7 +98,8 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     years: "5-6",
     builderId: "long_division",
     requiredBlocks: ["column_method", "equation_steps"],
-    keywords: /\b(long division|bus stop|divide.*digit|short division|÷)\b/i,
+    keywords:
+      /\b(long division|bus stop|short division|divide.*digit|division with remainders)\b|(?<!\d)\d{1,6}\s*[÷/]\s*\d{1,4}\b/i,
     vocabulary: ["divisor", "dividend", "quotient", "remainder", "bus stop"],
     commonMistakes: [
       "Forgetting to bring down the next digit",

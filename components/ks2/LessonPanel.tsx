@@ -50,7 +50,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v8_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v9_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(p: Props): string {
@@ -146,12 +146,14 @@ export default function LessonPanel(props: Props) {
 
   const displayExample = useMemo(() => {
     if (!lesson?.workedExample?.question) return lesson?.workedExample;
+    // Deterministic builders only for maths Learn/Guided worksheets.
+    if (subjectId !== "maths") return lesson.workedExample;
     return applyMethodBuilderToWorkedExample(
       lesson.workedExample,
       topicName,
       subtopics,
     );
-  }, [lesson?.workedExample, topicName, subtopics]);
+  }, [lesson?.workedExample, topicName, subtopics, subjectId]);
 
   const workedWhiteboard: WhiteboardResponse | null =
     displayExample?.whiteboard &&

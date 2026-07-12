@@ -171,12 +171,38 @@ describe("buildMethodForQuestion", () => {
     const r = buildMethodForQuestion("250 × 1000");
     expect(r?.builderId).toBe("place_value_shift");
   });
+
+  it("still resolves subtraction when preferred is column_addition", () => {
+    const r = buildMethodForQuestion("503 − 178", "column_addition");
+    expect(r?.builderId).toBe("column_subtraction");
+    expect(r?.block.type === "column_method" && r.block.answer).toBe("325");
+  });
+
+  it("still resolves division when preferred is column_multiplication", () => {
+    const r = buildMethodForQuestion("384 ÷ 12", "column_multiplication");
+    expect(r?.builderId).toBe("long_division");
+  });
 });
 
 describe("ks2 pedagogy registry", () => {
   it("prefers place-value shift before generic multiply", () => {
     expect(preferredBuilderId("multiply by 100", "Place value")).toBe(
       "place_value_shift",
+    );
+  });
+
+  it("matches curriculum Addition & Subtraction topic names", () => {
+    expect(preferredBuilderId("", "Addition & Subtraction")).toBe(
+      "column_addition",
+    );
+  });
+
+  it("matches curriculum Multiplication & Division topic names", () => {
+    expect(preferredBuilderId("", "Multiplication & Division")).toBe(
+      "column_multiplication",
+    );
+    expect(preferredBuilderId("", "Multiplication & Division A")).toBe(
+      "column_multiplication",
     );
   });
 

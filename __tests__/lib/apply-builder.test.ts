@@ -107,4 +107,34 @@ describe("applyMethodBuilderToWorkedExample", () => {
     expect(out.steps.some((step) => step.includes("7 × 3"))).toBe(true);
     expect(out.steps.some((step) => /161 \+ 920/.test(step))).toBe(true);
   });
+
+  it("uses the full question for Addition & Subtraction curriculum topics", () => {
+    const out = applyMethodBuilderToWorkedExample(
+      {
+        question: "Work out 503 − 178",
+        steps: ["Set up", "Subtract"],
+        answer: "325",
+        whiteboard: {
+          intro: "Let's subtract.",
+          blocks: [
+            {
+              type: "column_method",
+              method: "column_subtraction",
+              rows: ["503", "-178", "325"],
+              question: "503 − 178",
+              answer: "325",
+            },
+          ],
+          conclusion: "325",
+        },
+      },
+      "Addition & Subtraction",
+      ["Column subtraction"],
+    );
+
+    expect(out.answer).toBe("325");
+    expect(out.steps.some((s) => /borrow|take away|−|subtract/i.test(s))).toBe(
+      true,
+    );
+  });
 });
