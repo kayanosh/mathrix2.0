@@ -1,11 +1,75 @@
 /**
- * Deterministic long-division (bus-stop) builder — simplified for KS2.
+ * Deterministic long-division (bus-stop) builder for Year 5/6.
+ * Full working rows + digit-level TeachingStep[] aligned to the grid.
  */
 
 import type { ColumnMethodBlock } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
+function cellKey(row: number, col: number): string {
+  return `${row}-${col}`;
+}
+
+function rowKeys(row: number, text: string, width: number): string[] {
+  const padded = text.padStart(width, " ");
+  const keys: string[] = [];
+  for (let ci = 0; ci < width; ci++) {
+    if (padded[ci] !== " ") keys.push(cellKey(row, ci));
+  }
+  return keys;
+}
+
+interface Stage {
+  qDigit: number;
+  current: number;
+  product: number;
+  remainder: number;
+  /** Index of last dividend digit included in `current` */
+  endDigitIndex: number;
+  bringDown?: string;
+}
+
+function planStages(dividend: number, divisor: number): Stage[] {
+  const digits = String(dividend).split("").map(Number);
+  const stages: Stage[] = [];
+  let i = 0;
+  let current = 0;
+  let started = false;
+
+  while (i < digits.length) {
+    current = current * 10 + digits[i];
+    const endDigitIndex = i;
+    i += 1;
+
+    if (!started && current < divisor && i < digits.length) {
+      continue;
+    }
+    started = true;
+
+    const qDigit = Math.floor(current / divisor);
+    const product = qDigit * divisor;
+    const remainder = current - product;
+    const stage: Stage = {
+      qDigit,
+      current,
+      product,
+      remainder,
+      endDigitIndex,
+    };
+    if (i < digits.length) {
+      stage.bringDown = String(digits[i]);
+    }
+    stages.push(stage);
+    current = remainder;
+  }
+
+  return stages;
+}
+
+/**
+ * Build bus-stop long division. Example: buildLongDivision(384, 12) → 32
+ */
 export function buildLongDivision(
   dividend: number,
   divisor: number,
@@ -16,20 +80,36 @@ export function buildLongDivision(
     dividend < 0 ||
     divisor <= 0
   ) {
-    throw new Error("long division requires non-negative dividend and positive divisor");
+    throw new Error(
+      "long division requires non-negative dividend and positive divisor",
+    );
   }
 
   const quotient = Math.floor(dividend / divisor);
-  const remainder = dividend % divisor;
+  const remFinal = dividend % divisor;
   const dStr = String(dividend);
   const qStr = String(quotient);
+  const divStr = String(divisor);
+  const stages = planStages(dividend, divisor);
 
-  // Build classic layout rows similar to prompt examples
-  const pad = Math.max(dStr.length + String(divisor).length + 1, qStr.length + 2);
-  const rows: string[] = [
-    qStr.padStart(pad, " "),
-    `${divisor})${dStr}`,
-  ];
+  const left = divStr.length + 1; // "12)"
+  const width = left + dStr.length;
+
+  const placeAt = (value: string, endCol: number): string => {
+    const start = endCol - value.length + 1;
+    return (" ".repeat(Math.max(0, start)) + value).padEnd(width, " ");
+  };
+
+  const rows: string[] = [];
+  // Quotient digits sit above the dividend digit that completed each stage
+  const qRow = Array.from({ length: width }, () => " ");
+  stages.forEach((stage, si) => {
+    const col = left + stage.endDigitIndex;
+    const ch = qStr[si] ?? String(stage.qDigit);
+    if (col >= 0 && col < width) qRow[col] = ch;
+  });
+  rows.push(qRow.join(""));
+  rows.push(`${divStr})${dStr}`.padEnd(width, " "));
 
   const teachingSteps: TeachingStep[] = [];
   teachingSteps.push({
@@ -37,75 +117,103 @@ export function buildLongDivision(
     explanation: `Write ${dividend} inside the bracket and ${divisor} outside.`,
     why: "The bus-stop layout keeps the quotient on top as we work left to right.",
     narration: `Let's divide ${dividend} ÷ ${divisor} using long division. ${dividend} goes inside; ${divisor} sits outside.`,
-    cellKeys: [], // revealed via row timeline for complex layout
+    cellKeys: rowKeys(1, rows[1], width),
     carryKeys: [],
     noteKeys: [],
   });
 
-  // Simple step-through for short dividends
-  let remaining = dividend;
-  let brought = "";
-  const digits = dStr.split("");
-  let qBuilt = "";
+  stages.forEach((stage, si) => {
+    const endCol = left + stage.endDigitIndex;
+    const qCol = endCol;
+    const productRow = rows.length;
+    rows.push(placeAt(String(stage.product), endCol));
 
-  for (let i = 0; i < digits.length; i++) {
-    brought += digits[i];
-    const current = parseInt(brought, 10);
-    if (current < divisor && i < digits.length - 1 && qBuilt === "") {
-      continue; // take another digit
+    const afterRow = rows.length;
+    if (stage.bringDown !== undefined) {
+      // Remainder + brought-down digit under the next column
+      rows.push(placeAt(`${stage.remainder}${stage.bringDown}`, endCol + 1));
+    } else {
+      rows.push(placeAt(String(stage.remainder), endCol));
     }
-    const times = Math.floor(current / divisor);
-    const take = times * divisor;
-    const left = current - take;
-    qBuilt += String(times);
+
     teachingSteps.push({
-      title: `Divide ${current}`,
-      explanation: `${divisor} goes into ${current} exactly ${times} time${times === 1 ? "" : "s"}. ${times} × ${divisor} = ${take}. Subtract to leave ${left}.`,
-      why: "We find how many groups of the divisor fit, write that digit on top, then subtract.",
-      narration: `How many times does ${divisor} go into ${current}? ${times}. Write ${times} on top. ${times} times ${divisor} is ${take}. Subtract: ${left} left.`,
-      cellKeys: [],
+      title: `Divide ${stage.current}`,
+      explanation: `${divisor} goes into ${stage.current} ${stage.qDigit} time${
+        stage.qDigit === 1 ? "" : "s"
+      }. Write ${stage.qDigit} on top.`,
+      why: "We write the next quotient digit above the place we're working on.",
+      narration: `How many times does ${divisor} go into ${stage.current}? ${stage.qDigit}. Write ${stage.qDigit} on top.`,
+      cellKeys: [cellKey(0, qCol)],
       carryKeys: [],
       noteKeys: [],
     });
-    brought = left === 0 ? "" : String(left);
-    remaining = left;
-  }
+
+    teachingSteps.push({
+      title: `Multiply ${stage.qDigit} × ${divisor}`,
+      explanation: `${stage.qDigit} × ${divisor} = ${stage.product}. Write ${stage.product} under ${stage.current}.`,
+      why: "Multiply back to see how much to take away.",
+      narration: `${stage.qDigit} times ${divisor} is ${stage.product}. Write that underneath.`,
+      cellKeys: rowKeys(productRow, rows[productRow], width),
+      carryKeys: [],
+      noteKeys: [],
+    });
+
+    teachingSteps.push({
+      title: stage.bringDown !== undefined ? "Subtract and bring down" : "Subtract",
+      explanation:
+        stage.bringDown !== undefined
+          ? `${stage.current} − ${stage.product} = ${stage.remainder}. Bring down the ${stage.bringDown}.`
+          : `${stage.current} − ${stage.product} = ${stage.remainder}.`,
+      why: "Subtract, then bring down the next digit to continue.",
+      narration:
+        stage.bringDown !== undefined
+          ? `${stage.current} take away ${stage.product} leaves ${stage.remainder}. Bring down ${stage.bringDown}.`
+          : `${stage.current} take away ${stage.product} leaves ${stage.remainder}.`,
+      cellKeys: rowKeys(afterRow, rows[afterRow], width),
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer: si === stages.length - 1 && remFinal === 0,
+    });
+  });
+
+  const answer =
+    remFinal === 0 ? String(quotient) : `${quotient} r ${remFinal}`;
 
   teachingSteps.push({
     title: "Answer",
     explanation:
-      remainder === 0
+      remFinal === 0
         ? `So ${dividend} ÷ ${divisor} = ${quotient}.`
-        : `So ${dividend} ÷ ${divisor} = ${quotient} remainder ${remainder}.`,
+        : `So ${dividend} ÷ ${divisor} = ${quotient} remainder ${remFinal}.`,
     narration:
-      remainder === 0
+      remFinal === 0
         ? `The digits on top give the answer: ${dividend} ÷ ${divisor} equals ${quotient}.`
-        : `The answer is ${quotient} remainder ${remainder}.`,
+        : `The answer is ${quotient} remainder ${remFinal}.`,
     cellKeys: [],
     carryKeys: [],
     noteKeys: [],
     showAnswer: true,
   });
 
-  // Minimal working rows for display
-  if (quotient > 0) {
-    rows.push(String(divisor * Number(qStr[0] || 0)).padStart(pad, " "));
-  }
+  const seps: number[] = [0];
+  for (let ri = 2; ri < rows.length - 1; ri += 2) seps.push(ri);
 
   const block: ColumnMethodBlock = {
     type: "column_method",
     method: "long_division",
     rows,
-    separatorAfterRows: [0],
+    separatorAfterRows: seps,
     question: `${dividend} ÷ ${divisor}`,
-    answer: remainder === 0 ? String(quotient) : `${quotient} r ${remainder}`,
+    answer,
   };
 
   return {
     builderId: "long_division",
     block,
     teachingSteps,
-    captions: teachingSteps.map((s) => s.explanation),
+    captions: teachingSteps
+      .filter((s) => s.title !== "Answer")
+      .map((s) => s.explanation),
   };
 }
 

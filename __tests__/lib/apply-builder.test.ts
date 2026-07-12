@@ -28,7 +28,13 @@ describe("applyMethodBuilderToWorkedExample", () => {
 
     expect(out.steps.length).toBeGreaterThanOrEqual(6);
     expect(out.steps.some((s) => /3 × 5/.test(s))).toBe(true);
-    expect(out.steps.some((s) => /135 \+ 900|Add 135/.test(s))).toBe(true);
+    expect(out.steps.some((s) => /135 \+ 900|ones line \(135\)|Add 135/.test(s))).toBe(
+      true,
+    );
+    expect(out.teachingSteps?.length).toBeGreaterThanOrEqual(6);
+    expect(out.teachingSteps?.[0]?.title).toMatch(/Set up/i);
+    expect(out.teachingSteps?.some((s) => !!s.why)).toBe(true);
+    expect(out.steps[0]).toMatch(/^Set up the columns:/);
     const block = out.whiteboard?.blocks.find((b) => b.type === "column_method");
     expect(block?.type).toBe("column_method");
     if (block?.type === "column_method") {
@@ -105,7 +111,9 @@ describe("applyMethodBuilderToWorkedExample", () => {
       expect(block.answer).toBe("1081");
     }
     expect(out.steps.some((step) => step.includes("7 × 3"))).toBe(true);
-    expect(out.steps.some((step) => /161 \+ 920/.test(step))).toBe(true);
+    expect(
+      out.steps.some((step) => /161 \+ 920|ones line \(161\).*tens line \(920\)/.test(step)),
+    ).toBe(true);
   });
 
   it("uses the full question for Addition & Subtraction curriculum topics", () => {

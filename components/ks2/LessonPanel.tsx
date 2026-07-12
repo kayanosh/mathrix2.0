@@ -10,6 +10,7 @@ import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
+import type { TeachingStep } from "@/lib/methods/types";
 import type { VisualBlock, WhiteboardResponse } from "@/types/whiteboard";
 
 export interface LessonSection {
@@ -28,6 +29,8 @@ export interface WorkedExample {
   answer: string;
   emoji?: string;
   whiteboard?: WorkedExampleWhiteboard;
+  /** Builder teaching script — title + explanation + why for each step */
+  teachingSteps?: TeachingStep[];
 }
 export interface KS2Lesson {
   intro: string;
@@ -50,7 +53,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v9_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v10_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function cacheKey(p: Props): string {
@@ -294,8 +297,18 @@ export default function LessonPanel(props: Props) {
             </div>
           )}
 
-          <ol className="space-y-1.5">
-            {displayExample.steps.map((step, i) => (
+          <ol className="space-y-2.5">
+            {(displayExample.teachingSteps && displayExample.teachingSteps.length > 0
+              ? displayExample.teachingSteps
+              : displayExample.steps.map((step) => ({
+                  title: "",
+                  explanation: step,
+                  narration: step,
+                  cellKeys: [] as string[],
+                  carryKeys: [] as string[],
+                  noteKeys: [] as string[],
+                }))
+            ).map((step, i) => (
               <motion.li
                 key={i}
                 initial={{ opacity: 0, x: -8 }}
@@ -304,7 +317,22 @@ export default function LessonPanel(props: Props) {
                 className="flex gap-2 text-gray-700"
               >
                 <span className="font-bold text-indigo-500 shrink-0">{i + 1}.</span>
-                <span>{<InlineMath text={step} />}</span>
+                <div className="min-w-0 space-y-0.5">
+                  {step.title ? (
+                    <p className="font-semibold text-gray-900 text-[15px]">
+                      {step.title}
+                    </p>
+                  ) : null}
+                  <p className="text-gray-700">
+                    <InlineMath text={step.explanation} />
+                  </p>
+                  {step.why ? (
+                    <p className="text-[13px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
+                      <span className="font-semibold text-amber-700">Why: </span>
+                      {step.why}
+                    </p>
+                  ) : null}
+                </div>
               </motion.li>
             ))}
           </ol>

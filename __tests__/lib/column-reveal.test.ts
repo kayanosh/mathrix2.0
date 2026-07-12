@@ -190,22 +190,31 @@ describe("buildColumnRevealTimeline — multiplication", () => {
 describe("buildColumnRevealTimeline — long division", () => {
   const steps = buildColumnRevealTimeline(division);
 
-  it("produces setup + one step per working row + answer", () => {
-    // 4 working rows below the bracket → 6 steps
-    expect(steps).toHaveLength(6);
+  it("produces digit-level steps from the builder (more than one per row)", () => {
+    expect(steps.length).toBeGreaterThan(6);
   });
 
-  it("starts with the bracket row and reveals quotient digits with divide steps", () => {
-    expect(steps[0].cellKeys).toEqual(
-      expect.arrayContaining([cellKey(1, 0), cellKey(1, 5)]),
+  it("starts with bus-stop setup then divide/multiply/subtract stages", () => {
+    expect(steps[0].narration).toMatch(/384|bus stop|bracket/i);
+    const joined = steps.map((s) => s.narration).join(" ");
+    expect(joined).toMatch(/12 go into 38/i);
+    expect(joined).toMatch(/3 times 12|3 × 12/i);
+    expect(joined).toMatch(/bring down/i);
+    expect(joined).toMatch(/12 go into 24/i);
+  });
+
+  it("writes quotient digits on row 0 before multiply-back rows", () => {
+    const firstQuotient = steps.find((s) =>
+      /write 3 on top/i.test(s.narration + (s.explanation || "")),
     );
-    // First divide step writes a quotient digit from row 0 FIRST (pen order).
-    expect(steps[1].cellKeys[0].startsWith("0-")).toBe(true);
+    expect(firstQuotient).toBeTruthy();
+    expect(firstQuotient!.cellKeys[0].startsWith("0-")).toBe(true);
   });
 
-  it("alternates divide and subtract narration", () => {
-    expect(steps[1].narration).toContain("multiply back");
-    expect(steps[2].narration).toContain("Subtract");
+  it("ends with the answer", () => {
+    const last = steps[steps.length - 1];
+    expect(last.showAnswer).toBe(true);
+    expect(last.narration).toMatch(/32/);
   });
 });
 

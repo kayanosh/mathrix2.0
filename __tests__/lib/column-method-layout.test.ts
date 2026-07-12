@@ -2,9 +2,11 @@ import {
   arrowheadPoints,
   arrowLabelPosition,
   buildArrowPath,
+  carryControlY,
   carrySlotCenter,
   cellCenter,
   inferCarryMoves,
+  insetEndpoint,
   movesWithLanes,
 } from "@/lib/column-method-layout";
 
@@ -72,7 +74,7 @@ describe("inferCarryMoves", () => {
 });
 
 describe("movesWithLanes", () => {
-  it("sorts moves right-to-left and assigns lane indices", () => {
+  it("sorts moves right-to-left and assigns lane indices within a row", () => {
     const lanes = movesWithLanes([
       { fromRow: 0, fromCol: 0, toRow: 0, toCol: 0, kind: "carry" },
       { fromRow: 0, fromCol: 2, toRow: 0, toCol: 1, kind: "carry" },
@@ -80,6 +82,46 @@ describe("movesWithLanes", () => {
     ]);
     expect(lanes.map((m) => m.fromCol)).toEqual([2, 1, 0]);
     expect(lanes.map((m) => m.laneIndex)).toEqual([0, 1, 2]);
+  });
+
+  it("resets lane indices per destination row band", () => {
+    const lanes = movesWithLanes([
+      { fromRow: 0, fromCol: 3, toRow: 0, toCol: 2, kind: "carry" },
+      { fromRow: 0, fromCol: 2, toRow: 0, toCol: 1, kind: "carry" },
+      { fromRow: 4, fromCol: 1, toRow: 4, toCol: 0, kind: "carry" },
+    ]);
+    const row0 = lanes.filter((m) => m.toRow === 0);
+    const row4 = lanes.filter((m) => m.toRow === 4);
+    expect(row0.map((m) => m.laneIndex)).toEqual([0, 1]);
+    expect(row4.map((m) => m.laneIndex)).toEqual([0]);
+  });
+});
+
+describe("carryControlY", () => {
+  it("never returns a negative loft (avoids painting over headers)", () => {
+    // Previously lane 1 with y2=14 produced cy ≈ -12
+    expect(carryControlY(50, 14, 0)).toBeGreaterThanOrEqual(2);
+    expect(carryControlY(50, 14, 1)).toBeGreaterThanOrEqual(2);
+    expect(carryControlY(50, 14, 2)).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps a shallow stagger between lanes", () => {
+    const a = carryControlY(50, 20, 0);
+    const b = carryControlY(50, 20, 1);
+    expect(b).toBeLessThan(a);
+    expect(b).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("insetEndpoint", () => {
+  it("pulls the tip back along the vector", () => {
+    const from = { x: 100, y: 50 };
+    const to = { x: 40, y: 14 };
+    const inset = insetEndpoint(from, to, 9);
+    const full = Math.hypot(to.x - from.x, to.y - from.y);
+    const shortened = Math.hypot(inset.x - from.x, inset.y - from.y);
+    expect(shortened).toBeLessThan(full);
+    expect(shortened).toBeCloseTo(full - 9, 5);
   });
 });
 
@@ -100,6 +142,13 @@ describe("buildArrowPath", () => {
     const lane0 = buildArrowPath(100, 80, 50, 20, "carry", 0);
     const lane1 = buildArrowPath(100, 80, 50, 20, "carry", 1);
     expect(lane0).not.toEqual(lane1);
+  });
+
+  it("keeps carry control points at non-negative y", () => {
+    const d = buildArrowPath(126, 50, 90, 14, "carry", 1);
+    const m = d.match(/Q [\d.-]+,([\d.-]+)/);
+    expect(m).toBeTruthy();
+    expect(Number(m![1])).toBeGreaterThanOrEqual(2);
   });
 });
 

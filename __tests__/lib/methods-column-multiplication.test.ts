@@ -91,6 +91,37 @@ describe("buildColumnMultiplication — 23 × 47 carries match captions", () => 
     expect(captions).toMatch(/4 × 3 = 12.*carry 1|carry 1/);
   });
 
+  it("includes titled captions and place-value-aware why lines", () => {
+    expect(result.captions[0]).toMatch(/^Set up the columns:/);
+    const onesCarry = result.teachingSteps.find((s) =>
+      /7 × 3 = 21/.test(s.explanation),
+    );
+    expect(onesCarry?.why).toMatch(/carry 2 into the tens/i);
+    const tensWrite = result.teachingSteps.find((s) =>
+      /4 × 3 = 12/.test(s.explanation),
+    );
+    // Tens line write lands in the tens column of that partial product (colOffset=1)
+    expect(tensWrite?.why).toMatch(/stays in the tens/i);
+    expect(tensWrite?.why).not.toMatch(/stays in the ones/i);
+  });
+
+  it("adds a summary after each partial-product line", () => {
+    const summaries = result.teachingSteps.filter((s) =>
+      /line complete/i.test(s.title),
+    );
+    expect(summaries.length).toBe(2);
+    expect(summaries[0].explanation).toMatch(/23 × 7 = 161/);
+    expect(summaries[1].explanation).toMatch(/23 × 40 = 920/);
+  });
+
+  it("names both partial-product lines in the add-intro step", () => {
+    const add = result.teachingSteps.find((s) =>
+      /Add the partial products/i.test(s.title),
+    );
+    expect(add?.explanation).toMatch(/ones line \(161\)/);
+    expect(add?.explanation).toMatch(/tens line \(920\)/);
+  });
+
   it("exposes matching carryKeys on the reveal timeline", () => {
     expect(result.block.type).toBe("column_method");
     if (result.block.type !== "column_method") return;

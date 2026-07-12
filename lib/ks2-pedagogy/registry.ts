@@ -2,8 +2,8 @@
  * KS2 Year 5/6 pedagogy registry — maps curriculum topics to method builders,
  * required visuals, vocabulary, and common mistakes.
  *
- * Adding a new topic = register here + ensure a builder exists. Do not grow
- * fragile prompt paragraphs per subtopic.
+ * Production-ready = every topic has either a builderId or a required visual
+ * contract (not a fake column builder for every card).
  */
 
 import type { MethodBuilderId } from "@/lib/methods/types";
@@ -26,6 +26,7 @@ export interface PedagogyEntry {
 }
 
 export const KS2_PEDAGOGY: PedagogyEntry[] = [
+  // ── Method families with builders (most specific first) ───────────────────
   {
     id: "place_value_shift",
     label: "Place Value ×÷ 10/100/1000",
@@ -33,13 +34,79 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "place_value_shift",
     requiredBlocks: ["table", "equation_steps"],
     keywords:
-      /(?:multiply|divide)\s+(?:by\s+)?(?:10|100|1000)\b|[×x*÷]\s*(?:10|100|1000)\b|(?:10|100|1000)\s*(?:times|[×x])\b|\b(?:place value|digit\s*shift|add(?:ing)?\s*zeros?|move(?:s|ing)?\s+(?:the\s+)?(?:digit|place))\b/i,
+      /(?:multiply|divide)\s+(?:by\s+)?(?:10|100|1000)\b|[×x*÷]\s*(?:10|100|1000)\b|(?:10|100|1000)\s*(?:times|[×x])\b|\b(?:digit\s*shift|add(?:ing)?\s*zeros?|move(?:s|ing)?\s+(?:the\s+)?(?:digit|place))\b/i,
     vocabulary: ["place value", "digit", "column", "times ten", "divide by ten"],
     commonMistakes: [
       "Adding zeros instead of shifting digits when multiplying decimals",
       "Shifting the wrong direction for ÷10/100/1000",
     ],
     notes: "Never use column_method for ×÷ powers of ten — use a place-value table.",
+  },
+  {
+    id: "fractions_compare",
+    label: "Compare and Order Fractions",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["number_line"],
+    keywords:
+      /\b(compare\s+fractions?|order\s+fractions?|equivalent fractions?|fraction.*number line|number line.*fraction|fractions?\s+between|fractions?\s+on\s+a\s+number\s+line)\b/i,
+    vocabulary: ["numerator", "denominator", "equivalent", "improper", "mixed number"],
+    commonMistakes: [
+      "Counting tick marks instead of intervals",
+      "Comparing numerators without equal denominators",
+    ],
+  },
+  {
+    id: "decimals_fdp",
+    label: "Decimals, Percentages & Equivalence",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["number_line", "table", "equation_steps"],
+    keywords:
+      /\b(percentages?|decimals?\s*(?:&|and)\s*percentages?|fractions?,?\s*decimals?\s*(?:&|and)\s*percentages?|fdp|equivalent fractions?,?\s*decimals?\s*(?:and|&)\s*percentages?|decimals?\s+as\s+fractions?|thousandths|round\s+decimals?|compare\s+decimals?|order\s+decimals?|percentage\s+of\s+(?:an?\s+)?amount)\b/i,
+    vocabulary: ["percent", "equivalent", "tenth", "hundredth", "thousandth"],
+    commonMistakes: [
+      "Thinking a longer decimal is always larger",
+      "Confusing 0.5 and 0.05",
+      "Finding 10% then forgetting to scale for other percentages",
+    ],
+  },
+  {
+    id: "fraction_ops",
+    label: "Fraction Operations",
+    years: "5-6",
+    builderId: "fraction_ops",
+    requiredBlocks: ["equation_steps"],
+    keywords:
+      /\b(fractions?|add(?:ing|ition)?\s+fractions?|subtract(?:ing|ion)?\s+fractions?|multiply(?:ing)?\s+fractions?|divid(?:e|ing)\s+fractions?|common denominator|fraction\s+of\s+(?:an?\s+)?amount|mixed numbers?|improper fractions?)\b|(?<!\d)\d+\s*\/\s*\d+\s*[+\-−×x*÷]\s*(?:\d+\s*\/\s*\d+|\d+)\b/i,
+    vocabulary: [
+      "numerator",
+      "denominator",
+      "equivalent",
+      "common denominator",
+      "simplify",
+      "reciprocal",
+    ],
+    commonMistakes: [
+      "Adding denominators when adding fractions",
+      "Forgetting to simplify",
+      "Multiplying only the numerators",
+    ],
+  },
+  {
+    id: "decimal_column",
+    label: "Decimal Column Calculations",
+    years: "5-6",
+    builderId: "decimal_column",
+    requiredBlocks: ["column_method", "equation_steps"],
+    keywords:
+      /\b(decimals?|add(?:ing|ition)?\s+decimals?|subtract(?:ing|ion)?\s+decimals?|multiply(?:ing)?\s+decimals?|decimal\s+column|column.*decimal)\b|\d+\.\d+\s*[+\-−×x*]\s*\d+\.?\d*/i,
+    vocabulary: ["tenths", "hundredths", "thousandths", "decimal point", "place value"],
+    commonMistakes: [
+      "Misaligning decimal points",
+      "Forgetting to bring the decimal point down",
+      "Counting decimal places incorrectly when multiplying",
+    ],
   },
   {
     id: "column_addition",
@@ -99,13 +166,16 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "long_division",
     requiredBlocks: ["column_method", "equation_steps"],
     keywords:
-      /\b(long division|bus stop|short division|divide.*digit|division with remainders)\b|(?<!\d)\d{1,6}\s*[÷/]\s*\d{1,4}\b/i,
+      /\b(long division|bus stop|short division|divide.*digit|division with remainders)\b|(?<!\d)\d{2,6}\s*[÷]\s*\d{1,4}\b|(?<!\d)\d{2,6}\s+divided\s+by\s+\d{1,4}\b/i,
     vocabulary: ["divisor", "dividend", "quotient", "remainder", "bus stop"],
     commonMistakes: [
       "Forgetting to bring down the next digit",
       "Writing the quotient digit in the wrong place",
     ],
+    notes: "Prefer ÷ word form; avoid bare '/' so fraction ops keep ownership of a/b.",
   },
+
+  // ── Visual-contract topics (no builder yet) ───────────────────────────────
   {
     id: "multiples_factors",
     label: "Multiples and Factors",
@@ -113,7 +183,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: null,
     requiredBlocks: ["number_line", "table"],
     keywords:
-      /\b(multiples?|skip.?count|times tables?|factors?|primes?|square numbers?|cube numbers?)\b/i,
+      /\b(multiples?|skip.?count|times tables?|factors?|factor pairs?|primes?|square numbers?|cube numbers?|common factors?|common multiples?)\b/i,
     vocabulary: ["multiple", "factor", "prime", "square", "common multiple"],
     commonMistakes: [
       "Confusing factors with multiples",
@@ -121,31 +191,159 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     ],
   },
   {
-    id: "fractions_number_line",
-    label: "Fractions on a Number Line",
+    id: "perimeter_area",
+    label: "Perimeter & Area",
     years: "5-6",
     builderId: null,
-    requiredBlocks: ["number_line"],
+    requiredBlocks: ["labeled_shape", "equation_steps"],
     keywords:
-      /\b(fraction.*number line|number line.*fraction|compare fraction|equivalent fraction|fraction.*between)\b/i,
-    vocabulary: ["numerator", "denominator", "equivalent", "improper", "mixed number"],
+      /\b(perimeter|area|rectilinear|compound shapes?|parallelograms?|estimate area|measurement)\b/i,
+    vocabulary: ["perimeter", "area", "length", "width", "compound"],
     commonMistakes: [
-      "Counting tick marks instead of intervals",
-      "Comparing numerators without equal denominators",
+      "Mixing up area and perimeter formulae",
+      "Forgetting units",
+      "Missing external edges on compound shapes",
+    ],
+    notes: "Prefer labeled_shape with dimensions; LLM frames why, numbers come from the diagram.",
+  },
+  {
+    id: "volume",
+    label: "Volume & Capacity",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["labeled_shape", "equation_steps"],
+    keywords:
+      /\b(volume|cuboids?|capacity|estimate volume|estimate capacity)\b/i,
+    vocabulary: ["volume", "capacity", "cubic", "length", "width", "height"],
+    commonMistakes: [
+      "Using area formula instead of volume",
+      "Mixing cm³ and ml without converting",
     ],
   },
   {
-    id: "shapes_measures",
-    label: "Shapes and Measures",
+    id: "statistics",
+    label: "Statistics",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["chart", "table"],
+    keywords:
+      /\b(statistics|line graphs?|bar charts?|pie charts?|two-?way tables?|timetables?|the mean|average|interpret\s+(?:tables?|graphs?|charts?))\b/i,
+    vocabulary: ["axis", "scale", "frequency", "mean", "total"],
+    commonMistakes: [
+      "Misreading the scale on a graph",
+      "Forgetting to divide by the count when finding the mean",
+    ],
+  },
+  {
+    id: "shape_angles",
+    label: "Shape & Angles",
     years: "5-6",
     builderId: null,
     requiredBlocks: ["labeled_shape"],
     keywords:
-      /\b(area|perimeter|shape|angle|triangle|rectangle|polygon|symmetry|coordinates)\b/i,
-    vocabulary: ["perimeter", "area", "angle", "vertex", "parallel"],
+      /\b(angles?|degrees|straight line|around a point|vertically opposite|triangles?|quadrilaterals?|polygons?|regular and irregular|3D shapes?|nets?|parts of a circle|symmetry|measure angles?|shapes?)\b/i,
+    vocabulary: ["angle", "vertex", "parallel", "perpendicular", "degrees"],
     commonMistakes: [
-      "Mixing up area and perimeter formulae",
-      "Forgetting units",
+      "Assuming all triangles have a right angle",
+      "Using the exterior angle when the interior is needed",
+    ],
+  },
+  {
+    id: "position_direction",
+    label: "Position & Direction",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["coordinate_graph"],
+    keywords:
+      /\b(coordinates?|translation|reflection|four quadrants?|first quadrant|plot(?:ting)?\s+points?|lines? of symmetry|position\s*(?:&|and)\s*direction)\b/i,
+    vocabulary: ["coordinate", "axis", "quadrant", "translate", "reflect"],
+    commonMistakes: [
+      "Swapping x and y",
+      "Reflecting in the wrong mirror line",
+    ],
+  },
+  {
+    id: "place_value_general",
+    label: "Place Value (Read, Write, Round)",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["table", "number_line"],
+    keywords:
+      /\b(place value|numbers to|read,?\s*write|compare and order numbers|round(?:ing)?\s+(?:to|any)|roman numerals|powers of 10|more or less)\b/i,
+    vocabulary: ["place value", "round", "compare", "digit", "million"],
+    commonMistakes: [
+      "Rounding to the wrong place",
+      "Misreading large numbers with zeros",
+    ],
+  },
+  {
+    id: "negative_numbers",
+    label: "Negative Numbers",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["number_line"],
+    keywords:
+      /\b(negative numbers?|count through zero|below zero|temperature)\b/i,
+    vocabulary: ["negative", "positive", "zero", "difference"],
+    commonMistakes: [
+      "Thinking −3 is greater than −1",
+      "Counting the wrong direction on the number line",
+    ],
+  },
+  {
+    id: "converting_units",
+    label: "Converting Units",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["table", "equation_steps"],
+    keywords:
+      /\b(convert(?:ing)?\s+(?:metric|units|measures)|converting units|metric units?|imperial|miles and kilometres|units of time|timetables and time)\b/i,
+    vocabulary: ["metre", "gram", "litre", "convert", "equivalent"],
+    commonMistakes: [
+      "Multiplying when they should divide (or vice versa)",
+      "Forgetting there are 1000 m in a km",
+    ],
+  },
+  {
+    id: "ratio",
+    label: "Ratio & Proportion",
+    years: 6,
+    builderId: null,
+    requiredBlocks: ["table", "equation_steps"],
+    keywords:
+      /\b(ratio|proportion|scale factors?|scale drawings?|recipes?)\b/i,
+    vocabulary: ["ratio", "part", "whole", "scale factor", "proportion"],
+    commonMistakes: [
+      "Adding instead of multiplying for scale factors",
+      "Sharing in the wrong order of the ratio",
+    ],
+  },
+  {
+    id: "algebra",
+    label: "Algebra",
+    years: 6,
+    builderId: null,
+    requiredBlocks: ["equation_steps", "table"],
+    keywords:
+      /\b(algebra|function machines?|form expressions?|substitution|formulae|form and solve|linear number sequences?|find pairs of values)\b/i,
+    vocabulary: ["expression", "equation", "substitute", "sequence", "formula"],
+    commonMistakes: [
+      "Combining unlike terms",
+      "Doing operations in the wrong order in a function machine",
+    ],
+  },
+  {
+    id: "problem_solving",
+    label: "Problem Solving & Reasoning",
+    years: "5-6",
+    builderId: null,
+    requiredBlocks: ["equation_steps", "table"],
+    keywords:
+      /\b(multi-?step|problem solving|reasoning|investigations?|themed projects?|consolidation|sats revision|reason from known facts|inverse operations|mental calculations?)\b/i,
+    vocabulary: ["reason", "estimate", "check", "inverse"],
+    commonMistakes: [
+      "Jumping to a calculation without reading the question",
+      "Not checking with the inverse",
     ],
   },
   {
@@ -160,14 +358,29 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
   },
 ];
 
-/** Topics that should stop after the first match (most specific arithmetic). */
+/** Topics that should stop after the first match (most specific first). */
 const STOP_AFTER = new Set([
   "place_value_shift",
+  "fractions_compare",
+  "fraction_ops",
+  "decimals_fdp",
+  "decimal_column",
   "column_multiplication",
   "column_addition",
   "column_subtraction",
   "long_division",
   "multiples_factors",
+  "perimeter_area",
+  "volume",
+  "statistics",
+  "shape_angles",
+  "position_direction",
+  "place_value_general",
+  "negative_numbers",
+  "converting_units",
+  "ratio",
+  "algebra",
+  "problem_solving",
 ]);
 
 function collectSearchText(
@@ -212,3 +425,27 @@ export function pedagogyToVisualRequirements(
     matchedTopic: e.label,
   }));
 }
+
+/** Every Y5/Y6 maths curriculum topic name → expected pedagogy id (for coverage checks). */
+export const KS2_MATHS_TOPIC_COVERAGE: Record<string, string> = {
+  "Place Value": "place_value_general",
+  "Addition & Subtraction": "column_addition",
+  "Multiplication & Division A": "column_multiplication",
+  "Multiplication & Division B": "column_multiplication",
+  "Multiplication & Division": "column_multiplication",
+  Fractions: "fraction_ops",
+  "Decimals & Percentages": "decimals_fdp",
+  Decimals: "decimal_column",
+  "Fractions, Decimals & Percentages": "decimals_fdp",
+  "Perimeter & Area": "perimeter_area",
+  "Area, Perimeter & Volume": "perimeter_area",
+  Statistics: "statistics",
+  Shape: "shape_angles",
+  "Position & Direction": "position_direction",
+  "Negative Numbers": "negative_numbers",
+  "Converting Units": "converting_units",
+  Volume: "volume",
+  Ratio: "ratio",
+  Algebra: "algebra",
+  "Themed Projects, Consolidation & Problem Solving": "problem_solving",
+};

@@ -14,6 +14,7 @@ import {
   gridHeight,
   gridWidth,
   inferCarryMoves,
+  insetEndpoint,
   movesWithLanes,
   normalizeColumnDigits,
   ROW_SEPARATOR_H,
@@ -200,12 +201,13 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
           )}
 
           <div className="relative" style={{ width: svgW, minHeight: svgH }}>
-            {resolvedMoves.length > 0 && (
+            {/* Tutor step-mode only: animated carry arrows. Static Learn shows digits alone. */}
+            {stepMode && resolvedMoves.length > 0 && (
               <svg
-                className="absolute left-0 top-0 pointer-events-none overflow-visible"
+                className="absolute left-0 top-0 pointer-events-none overflow-hidden"
                 width={svgW}
                 height={svgH}
-                style={{ zIndex: 2 }}
+                style={{ zIndex: 0 }}
               >
                 {resolvedMoves.map((move, mi) => {
                   if (!moveVisible(move)) return null;
@@ -220,7 +222,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                       carryHeights,
                     ),
                   );
-                  const to = withGutter(
+                  const toRaw = withGutter(
                     kind === "carry"
                       ? carrySlotCenter(
                           move.toRow,
@@ -238,6 +240,9 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                           carryHeights,
                         ),
                   );
+                  // Stop short of the carry glyph so the tip does not cover the digit.
+                  const to =
+                    kind === "carry" ? insetEndpoint(from, toRaw, 9) : toRaw;
                   const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
                   const pathD = buildArrowPath(
                     from.x,
@@ -248,21 +253,18 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                     move.laneIndex,
                   );
                   const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
-                  const delay = stepMode
-                    ? reveal?.active.has(cellKey(move.toRow, move.toCol))
-                      ? writeDelay(move.toRow, move.toCol) + 0.15
-                      : 0.1
-                    : baseDelay +
-                      Math.max(move.fromRow, move.toRow) * 0.15 +
-                      0.25 +
-                      mi * 0.1;
+                  const delay = reveal?.active.has(
+                    cellKey(move.toRow, move.toCol),
+                  )
+                    ? writeDelay(move.toRow, move.toCol) + 0.15
+                    : 0.1;
 
                   return (
                     <g key={mi}>
                       <motion.path
                         d={pathD}
                         stroke={color}
-                        strokeWidth={3}
+                        strokeWidth={2.5}
                         strokeLinecap="round"
                         fill="none"
                         initial={{ pathLength: 0, opacity: 0 }}
@@ -272,7 +274,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                       <motion.path
                         d={headD}
                         stroke={color}
-                        strokeWidth={3}
+                        strokeWidth={2.5}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         fill="none"
@@ -294,8 +296,11 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
               const carryH = carryHeights[ri] ?? 6;
 
               return (
-                <div key={ri}>
-                  <div className="flex items-end" style={{ height: carryH }}>
+                <div key={ri} className="relative z-10">
+                  <div
+                    className="relative z-10 flex items-end"
+                    style={{ height: carryH }}
+                  >
                     <div style={{ width: gutter, flexShrink: 0 }} />
                     {Array.from({ length: maxCols }, (_, ci) => {
                       const carry = carryMap.get(`${ri}-${ci}`);
@@ -304,7 +309,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                       return (
                         <motion.div
                           key={`carry-${ri}-${ci}`}
-                          className="flex items-center justify-center"
+                          className="relative z-10 flex items-center justify-center"
                           style={{ width: cellW }}
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: visible ? 1 : 0, y: 0 }}
@@ -318,11 +323,12 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                         >
                           {carry && (
                             <motion.span
-                              className="text-base font-semibold text-amber-600 font-[family-name:var(--font-caveat)] rounded px-0.5"
+                              className="text-sm font-bold text-amber-700 font-[family-name:var(--font-caveat)] rounded-md px-1 leading-none bg-amber-100 ring-1 ring-amber-200/80"
                               animate={{
                                 backgroundColor: active
-                                  ? "rgba(251, 191, 36, 0.35)"
-                                  : "rgba(251, 191, 36, 0)",
+                                  ? "rgba(251, 191, 36, 0.55)"
+                                  : "rgba(254, 243, 199, 1)",
+                                scale: active ? 1.08 : 1,
                               }}
                               transition={{ duration: 0.3 }}
                             >

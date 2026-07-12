@@ -127,10 +127,58 @@ export function normalizeColumnDigits(row: string): string {
   return row.replace(/^[+\-×x]\s*/, "").replace(/\s+/g, "").trim();
 }
 
-/** Sort moves right-to-left and assign staggered lane indices for arrow routing. */
-export function movesWithLanes(moves: ColumnMethodMove[]): Array<ColumnMethodMove & { laneIndex: number }> {
-  const sorted = [...moves].sort((a, b) => b.fromCol - a.fromCol);
-  return sorted.map((move, laneIndex) => ({ ...move, laneIndex }));
+/**
+ * Sort moves right-to-left and assign lane indices **per destination row band**.
+ * Prevents final-add carries from inheriting a high global lane and lofting into digits.
+ */
+export function movesWithLanes(
+  moves: ColumnMethodMove[],
+): Array<ColumnMethodMove & { laneIndex: number }> {
+  const byRow = new Map<number, ColumnMethodMove[]>();
+  for (const move of moves) {
+    const key = move.toRow;
+    const list = byRow.get(key) || [];
+    list.push(move);
+    byRow.set(key, list);
+  }
+
+  const result: Array<ColumnMethodMove & { laneIndex: number }> = [];
+  for (const list of byRow.values()) {
+    const sorted = [...list].sort((a, b) => b.fromCol - a.fromCol);
+    sorted.forEach((move, laneIndex) => {
+      result.push({ ...move, laneIndex });
+    });
+  }
+  // Stable visual order: top rows first, then right-to-left within row
+  return result.sort(
+    (a, b) => a.toRow - b.toRow || b.fromCol - a.fromCol,
+  );
+}
+
+/** Pull an endpoint back along the vector so the arrow tip does not sit on a glyph. */
+export function insetEndpoint(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  insetPx = 9,
+): { x: number; y: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len = Math.hypot(dx, dy);
+  if (len < insetPx * 2) return to;
+  const t = (len - insetPx) / len;
+  return { x: from.x + dx * t, y: from.y + dy * t };
+}
+
+/** Control-point Y for a carry arc — shallow, never above the SVG top. */
+export function carryControlY(
+  y1: number,
+  y2: number,
+  laneIndex = 0,
+): number {
+  // Prefer a shallow same-row arc inside the carry band, not a high loop into headers.
+  const lift = 6 + laneIndex * 4;
+  const raw = Math.min(y1, y2) - lift;
+  return Math.max(2, raw);
 }
 
 /** Build a curved SVG path between two points. */
@@ -140,7 +188,7 @@ export function buildArrowPath(
   x2: number,
   y2: number,
   kind: "carry" | "borrow" = "carry",
-  laneIndex = 0
+  laneIndex = 0,
 ): string {
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -151,9 +199,8 @@ export function buildArrowPath(
     return `M ${x1},${y1} Q ${midX},${midY} ${x2},${y2}`;
   }
 
-  const lift = 14 + laneIndex * 12;
   const cx = (x1 + x2) / 2;
-  const cy = Math.min(y1, y2) - lift;
+  const cy = carryControlY(y1, y2, laneIndex);
   return `M ${x1},${y1} Q ${cx},${cy} ${x2},${y2}`;
 }
 
@@ -163,7 +210,7 @@ export function arrowheadPoints(
   y1: number,
   x2: number,
   y2: number,
-  size = 8
+  size = 8,
 ): string {
   const angle = Math.atan2(y2 - y1, x2 - x1);
   const ax = x2 - size * Math.cos(angle - Math.PI / 6);
@@ -180,10 +227,13 @@ export function arrowLabelPosition(
   x2: number,
   y2: number,
   kind: "carry" | "borrow" = "carry",
-  laneIndex = 0
+  laneIndex = 0,
 ): { x: number; y: number } {
   if (kind === "borrow") {
     return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 10 - laneIndex * 4 };
   }
-  return { x: (x1 + x2) / 2, y: Math.min(y1, y2) - 14 - laneIndex * 12 };
+  return {
+    x: (x1 + x2) / 2,
+    y: carryControlY(y1, y2, laneIndex),
+  };
 }

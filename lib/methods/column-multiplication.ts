@@ -4,7 +4,11 @@
  */
 
 import type { ColumnMethodBlock, ColumnMethodMove } from "@/types/whiteboard";
-import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
+import {
+  teachingStepsToCaptions,
+  type MethodBuildResult,
+  type TeachingStep,
+} from "@/lib/methods/types";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 const PLACE = ["ones", "tens", "hundreds", "thousands", "ten-thousands"];
@@ -114,6 +118,8 @@ function appendPartialDigitSteps(args: PartialDigitArgs): void {
       }
     }
 
+    const writePlace = placeLabel(i + colOffset);
+    const carryPlace = placeLabel(i + colOffset + 1);
     teachingSteps.push({
       title,
       explanation:
@@ -122,12 +128,12 @@ function appendPartialDigitSteps(args: PartialDigitArgs): void {
           : `${digit} × ${ad} = ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` (and ${carryOut} in the next column)` : ` and carry ${carryOut}`) : ""}.`,
       why:
         carryOut > 0 && !isLast
-          ? `When we get ${raw}, the ${writeDigit} stays in the ${placeLabel(i)} and ${carryOut} moves left.`
-          : `We multiply each digit of ${a} by ${digit}, starting from the ones.`,
+          ? `When we get ${raw}, the ${writeDigit} stays in the ${writePlace} and we carry ${carryOut} into the ${carryPlace}.`
+          : `We multiply the ${writePlace} digit of ${a} by ${digit}.`,
       narration:
         runningCarry > 0
-          ? `Now ${digit} times ${ad} is ${ad * digit}, plus the carry ${runningCarry} makes ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut}`) : ""}.`
-          : `Multiply ${digit} by ${ad}: that's ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut}`) : ""}.`,
+          ? `Now ${digit} times ${ad} is ${ad * digit}, plus the carry ${runningCarry} makes ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut} into the ${carryPlace}`) : ""}.`
+          : `Multiply ${digit} by ${ad}: that's ${raw}. Write ${writeDigit}${carryOut > 0 ? (isLast ? ` and put ${carryOut} next door` : ` and carry ${carryOut} into the ${carryPlace}`) : ""}.`,
       cellKeys,
       carryKeys,
       noteKeys: [],
@@ -174,12 +180,20 @@ function appendPartialProductsAddSteps(args: {
   const totalRow = rows.length - 1;
   const partialRows = partials.map((_, i) => 2 + i);
   const sumText = partials.join(" + ");
+  const namedParts = partials
+    .map((p, i) => {
+      const place = placeLabel(i);
+      return i === 0
+        ? `the ones line (${p})`
+        : `the ${place} line (${p})`;
+    })
+    .join(" and ");
 
   teachingSteps.push({
     title: "Add the partial products",
-    explanation: `Now add ${sumText} column by column to get ${product}.`,
+    explanation: `Now add ${namedParts} column by column to get ${product}.`,
     why: "Each line was one part of the multiplication — adding them gives the full answer.",
-    narration: `Finally, add the partial products ${sumText}. We'll go column by column from the ones.`,
+    narration: `Finally, add ${namedParts}. We'll go column by column from the ones. That is ${sumText}.`,
     cellKeys: [],
     carryKeys: [],
     noteKeys: [],
@@ -332,7 +346,7 @@ export function buildColumnMultiplication(
       teachingSteps.push({
         title: `${placeLabel(place)} × ${digit} — place value`,
         explanation: `This digit is really ${digit}${"0".repeat(place)}, so put ${zeroNote} and start one column further left.`,
-        why: `Multiplying by ${digit}${"0".repeat(place)} shifts every digit ${place} place${place > 1 ? "s" : ""} left.`,
+        why: `The ${digit} is really ${digit}${"0".repeat(place)}, so every answer digit shifts ${place} place${place > 1 ? "s" : ""} left.`,
         narration: `Now the ${placeLabel(place)} digit, ${digit}. Because it's really ${digit}${"0".repeat(place)}, put ${zeroNote} and work one column left.`,
         cellKeys: zeroCells,
         carryKeys: [],
@@ -355,6 +369,29 @@ export function buildColumnMultiplication(
         place === 0
           ? `Ones × ${digit}`
           : `${placeLabel(place)} × ${digit}`,
+    });
+
+    const factor = digit * 10 ** place;
+    const lineProduct = partials[place];
+    const lineCells: string[] = [];
+    const lineStr = String(lineProduct);
+    for (let ci = 0; ci < gridCols; ci++) {
+      const idx = ci - (gridCols - lineStr.length);
+      if (idx >= 0 && idx < lineStr.length) {
+        lineCells.push(cellKey(partialRow, ci));
+      }
+    }
+    teachingSteps.push({
+      title: place === 0 ? `Ones line complete` : `${placeLabel(place)} line complete`,
+      explanation: `So far: ${a} × ${factor} = ${lineProduct}.`,
+      why:
+        place === 0
+          ? `This line is ${a} multiplied by the ones digit.`
+          : `This line is ${a} multiplied by ${factor} (the ${placeLabel(place)} digit).`,
+      narration: `That gives us ${lineProduct}. So ${a} times ${factor} is ${lineProduct}.`,
+      cellKeys: lineCells,
+      carryKeys: [],
+      noteKeys: [],
     });
 
     // Persist every partial-product line's carries so the finished static board
@@ -414,9 +451,7 @@ export function buildColumnMultiplication(
     builderId: "column_multiplication",
     block,
     teachingSteps,
-    captions: teachingSteps
-      .filter((s) => s.title !== "Answer")
-      .map((s) => s.explanation),
+    captions: teachingStepsToCaptions(teachingSteps),
   };
 }
 

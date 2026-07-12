@@ -19,12 +19,21 @@ import {
   parseDivisionOperands,
 } from "@/lib/methods/long-division";
 import { buildPlaceValueShift, parsePlaceValueShift } from "@/lib/methods/place-value-shift";
+import {
+  buildFractionOps,
+  parseFractionOp,
+} from "@/lib/methods/fraction-ops";
+import {
+  buildDecimalColumn,
+  parseDecimalOp,
+} from "@/lib/methods/decimal-column";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
-import { teachingStepsToCaptions, type MethodBuildResult } from "@/lib/methods/types";
+import { teachingStepsToCaptions, type MethodBuildResult, type TeachingStep } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import type {
   ColumnMethodBlock,
+  EquationStepBlock,
   TableBlock,
   VisualBlock,
   WhiteboardResponse,
@@ -34,6 +43,8 @@ export interface WorkedExampleLike {
   question: string;
   steps: string[];
   answer: string;
+  /** Digit-level teaching script from a method builder (Learn renders title + why). */
+  teachingSteps?: TeachingStep[];
   whiteboard?: {
     intro: string;
     blocks: VisualBlock[];
@@ -136,9 +147,22 @@ function buildFromTableBlock(block: TableBlock): MethodBuildResult | null {
   }
 }
 
+function buildFromEquationBlock(block: EquationStepBlock): MethodBuildResult | null {
+  const blob = block.steps
+    .map((s) => `${s.latexBefore} ${s.latexAfter} ${s.explanation}`)
+    .join(" ");
+  const parsed = parseFractionOp(blob);
+  if (!parsed) return null;
+  try {
+    return buildFractionOps(parsed);
+  } catch {
+    return null;
+  }
+}
+
 function expectedNumericAnswer(answer: string): string | null {
-  const matches = answer.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/g);
-  return matches?.length ? matches[matches.length - 1] : null;
+  const matches = answer.replace(/,/g, "").match(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?/g);
+  return matches?.length ? matches[matches.length - 1]!.replace(/\s/g, "") : null;
 }
 
 /** Reject a sub-calculation when it clearly disagrees with the stated answer. */
@@ -147,9 +171,18 @@ function matchesWorkedAnswer(
   example: WorkedExampleLike,
 ): boolean {
   const expected = expectedNumericAnswer(example.answer || "");
-  if (!expected || built.block.type !== "column_method") return true;
-  const actual = (built.block.answer || "").replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
-  return !actual || Number(actual) === Number(expected);
+  if (!expected) return true;
+  const actualRaw =
+    built.answer ||
+    (built.block.type === "column_method" ? built.block.answer : "") ||
+    "";
+  const actual = expectedNumericAnswer(actualRaw);
+  if (!actual) return true;
+  // Fraction string compare
+  if (actual.includes("/") || expected.includes("/")) {
+    return actual === expected;
+  }
+  return Number(actual) === Number(expected);
 }
 
 function resolveBuild(
@@ -177,10 +210,24 @@ function resolveBuild(
     if (block.type === "column_method") {
       const fromBlock = buildFromColumnBlock(block);
       if (fromBlock && matchesWorkedAnswer(fromBlock, example)) return fromBlock;
+      // Decimal boards: try decimal builder from the question on the block
+      const dec = parseDecimalOp(block.question || "");
+      if (dec) {
+        try {
+          const built = buildDecimalColumn(dec);
+          if (matchesWorkedAnswer(built, example)) return built;
+        } catch {
+          /* ignore */
+        }
+      }
     }
     if (block.type === "table") {
       const fromTable = buildFromTableBlock(block);
       if (fromTable) return fromTable;
+    }
+    if (block.type === "equation_steps") {
+      const fromEq = buildFromEquationBlock(block);
+      if (fromEq && matchesWorkedAnswer(fromEq, example)) return fromEq;
     }
   }
 
@@ -231,6 +278,24 @@ function resolveBuild(
       /* ignore */
     }
   }
+  const frac = parseFractionOp(blob);
+  if (frac) {
+    try {
+      const built = buildFractionOps(frac);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
+  const dec = parseDecimalOp(blob);
+  if (dec) {
+    try {
+      const built = buildDecimalColumn(dec);
+      if (matchesWorkedAnswer(built, example)) return built;
+    } catch {
+      /* ignore */
+    }
+  }
 
   return null;
 }
@@ -242,14 +307,19 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   // Keep the full digit-level script — do not truncate mid-method.
   const captions = teachingStepsToCaptions(built.teachingSteps);
   const answer =
-    built.block.type === "column_method"
+    built.answer ||
+    (built.block.type === "column_method"
       ? built.block.answer || example.answer
-      : example.answer;
+      : example.answer);
 
   const next: T = {
     ...example,
     steps: captions.length > 0 ? captions : example.steps,
     answer,
+    teachingSteps:
+      built.teachingSteps.length > 0
+        ? built.teachingSteps.filter((s) => s.title !== "Answer")
+        : example.teachingSteps,
   };
 
   const wb = example.whiteboard;
@@ -263,7 +333,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
           wb?.conclusion ||
           (built.block.type === "column_method"
             ? `${built.block.question} = ${built.block.answer}`
-            : example.answer),
+            : `${example.question} = ${answer}`),
       },
     };
   }
@@ -279,13 +349,18 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       replaced = true;
       return built.block;
     }
+    if (built.block.type === "equation_steps" && block.type === "equation_steps") {
+      replaced = true;
+      return built.block;
+    }
     return block;
   });
   if (!replaced) {
-    // Drop competing LLM column/table sketches, then insert builder block first.
+    // Drop competing LLM sketches of the same family, then insert builder block first.
     const filtered = blocks.filter((b) => {
       if (built.block.type === "column_method") return b.type !== "column_method";
       if (built.block.type === "table") return b.type !== "table";
+      if (built.block.type === "equation_steps") return b.type !== "equation_steps";
       return true;
     });
     filtered.unshift(built.block);
@@ -297,7 +372,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
         conclusion:
           built.block.type === "column_method"
             ? `${built.block.question} = ${built.block.answer}`
-            : wb.conclusion,
+            : `${example.question} = ${answer}`,
       },
     };
   }
@@ -310,7 +385,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       conclusion:
         built.block.type === "column_method"
           ? `${built.block.question} = ${built.block.answer}`
-          : wb.conclusion,
+          : `${example.question} = ${answer}`,
     },
   };
 }

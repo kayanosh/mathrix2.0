@@ -26,20 +26,27 @@ export type MethodBuilderId =
   | "column_addition"
   | "column_subtraction"
   | "long_division"
-  | "place_value_shift";
+  | "place_value_shift"
+  | "fraction_ops"
+  | "decimal_column";
 
 export interface MethodBuildResult {
   builderId: MethodBuilderId;
   /** Correct whiteboard block */
-  block: import("@/types/whiteboard").ColumnMethodBlock | import("@/types/whiteboard").TableBlock;
+  block:
+    | import("@/types/whiteboard").ColumnMethodBlock
+    | import("@/types/whiteboard").TableBlock
+    | import("@/types/whiteboard").EquationStepBlock;
   /** Digit/step teaching script — single source of truth */
   teachingSteps: TeachingStep[];
   /** Short captions for LessonPanel workedExample.steps */
   captions: string[];
+  /** Canonical answer when the block has no answer field (e.g. equation_steps) */
+  answer?: string;
 }
 
 export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {
   return steps
     .filter((s) => s.explanation && s.title !== "Answer")
-    .map((s) => s.explanation);
+    .map((s) => `${s.title}: ${s.explanation}`);
 }

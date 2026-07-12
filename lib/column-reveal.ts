@@ -18,6 +18,10 @@ import {
   buildColumnMultiplication,
   teachingStepsToReveal,
 } from "@/lib/methods/column-multiplication";
+import {
+  buildLongDivision,
+  parseDivisionOperands,
+} from "@/lib/methods/long-division";
 
 export interface ColumnRevealStep {
   /** What the teacher says while writing this step. */
@@ -190,7 +194,7 @@ export function buildColumnRevealTimeline(
       case "column_multiplication":
         return multiplicationTimeline(block) ?? rowTimeline(block);
       case "long_division":
-        return divisionTimeline(block);
+        return divisionTimeline(block) ?? rowTimeline(block);
     }
   } catch {
     return rowTimeline(block);
@@ -476,12 +480,42 @@ function multiplicationTimelineCoarse(
 
 // ── Long division ────────────────────────────────────────────────────────────
 
-function divisionTimeline(block: ColumnMethodBlock): ColumnRevealStep[] {
+/**
+ * Digit-level timeline from the deterministic builder when operands parse.
+ * Falls back to a coarser bus-stop reveal for malformed boards.
+ */
+function divisionTimeline(block: ColumnMethodBlock): ColumnRevealStep[] | null {
+  const operands =
+    parseDivisionOperands(block.question || "") || parseBracketDivision(block);
+  if (!operands) return divisionTimelineCoarse(block);
+
+  try {
+    const built = buildLongDivision(operands.a, operands.b);
+    return teachingStepsToReveal(built.teachingSteps);
+  } catch {
+    return divisionTimelineCoarse(block);
+  }
+}
+
+function parseBracketDivision(
+  block: ColumnMethodBlock,
+): { a: number; b: number } | null {
+  const bracket = block.rows.find((r) => r.includes(")"));
+  if (!bracket) return null;
+  const m = bracket.match(/(\d+)\s*\)\s*(\d+)/);
+  if (!m) return null;
+  return { a: parseInt(m[2], 10), b: parseInt(m[1], 10) };
+}
+
+/** Legacy coarse path: setup + one step per working row. */
+function divisionTimelineCoarse(
+  block: ColumnMethodBlock,
+): ColumnRevealStep[] | null {
   const { rows, answer } = block;
   const maxCols = gridMaxCols(rows);
 
   const bracketRow = rows.findIndex((r) => r.includes(")"));
-  if (bracketRow < 0) return rowTimeline(block);
+  if (bracketRow < 0) return null;
 
   const quotientKeys = rows
     .slice(0, bracketRow)
@@ -502,8 +536,6 @@ function divisionTimeline(block: ColumnMethodBlock): ColumnRevealStep[] {
     const digits = normalizeColumnDigits(row).replace(/↓/g, "");
     const isSubtract = wi % 2 === 1;
 
-    // Each divide step writes the next quotient digit on top FIRST, then the
-    // multiply-back line underneath — that's the order the pen moves.
     const cellKeys = rowCellKeys(ri, row, maxCols);
     if (!isSubtract && quotientUsed < quotientKeys.length) {
       cellKeys.unshift(quotientKeys[quotientUsed]);

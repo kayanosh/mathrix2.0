@@ -23,6 +23,14 @@ import {
   buildPlaceValueShift,
   parsePlaceValueShift,
 } from "@/lib/methods/place-value-shift";
+import {
+  buildFractionOps,
+  parseFractionOp,
+} from "@/lib/methods/fraction-ops";
+import {
+  buildDecimalColumn,
+  parseDecimalOp,
+} from "@/lib/methods/decimal-column";
 
 function tryPlaceValueShift(text: string): MethodBuildResult | null {
   const pv = parsePlaceValueShift(text);
@@ -77,17 +85,41 @@ function tryLongDivision(text: string): MethodBuildResult | null {
   }
 }
 
+function tryFractionOps(text: string): MethodBuildResult | null {
+  const parsed = parseFractionOp(text);
+  if (!parsed) return null;
+  try {
+    return buildFractionOps(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function tryDecimalColumn(text: string): MethodBuildResult | null {
+  const parsed = parseDecimalOp(text);
+  if (!parsed) return null;
+  try {
+    return buildDecimalColumn(parsed);
+  } catch {
+    return null;
+  }
+}
+
 const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | null> = {
   place_value_shift: tryPlaceValueShift,
+  fraction_ops: tryFractionOps,
+  decimal_column: tryDecimalColumn,
   column_multiplication: tryColumnMultiplication,
   column_addition: tryColumnAddition,
   column_subtraction: tryColumnSubtraction,
   long_division: tryLongDivision,
 };
 
-/** Default try order when no preference (place-value before generic ×÷). */
+/** Default try order when no preference (place-value / fractions / decimals before generic ×÷). */
 const DEFAULT_ORDER: MethodBuilderId[] = [
   "place_value_shift",
+  "fraction_ops",
+  "decimal_column",
   "column_multiplication",
   "column_addition",
   "column_subtraction",
@@ -116,4 +148,6 @@ export {
   buildColumnSubtraction,
   buildLongDivision,
   buildPlaceValueShift,
+  buildFractionOps,
+  buildDecimalColumn,
 };
