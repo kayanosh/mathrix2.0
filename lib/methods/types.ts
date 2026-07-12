@@ -40,7 +40,6 @@ export interface MethodBuildResult {
 
 export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {
   return steps
-    .filter((s) => !s.showAnswer || s.explanation)
-    .map((s) => s.explanation)
-    .slice(0, 8);
+    .filter((s) => s.explanation && s.title !== "Answer")
+    .map((s) => s.explanation);
 }

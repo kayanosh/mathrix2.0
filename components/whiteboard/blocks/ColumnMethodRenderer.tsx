@@ -69,21 +69,23 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
     [stepMode, timeline, revealStep],
   );
 
-  // Pen order within the active step — each newly written element waits for
-  // the previous one, so digits appear one at a time like real handwriting.
   const writeOrder = useMemo(() => {
     const map = new Map<string, number>();
     if (!stepMode || timeline.length === 0) return map;
     const step = timeline[Math.min(revealStep ?? 0, timeline.length - 1)];
     let i = 0;
-    // Borrow strikes/rewrites happen first, then digits, then carries.
-    step.noteKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
-    step.cellKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
-    step.carryKeys.forEach((k) => { if (!map.has(k)) map.set(k, i++); });
+    step.noteKeys.forEach((k) => {
+      if (!map.has(k)) map.set(k, i++);
+    });
+    step.cellKeys.forEach((k) => {
+      if (!map.has(k)) map.set(k, i++);
+    });
+    step.carryKeys.forEach((k) => {
+      if (!map.has(k)) map.set(k, i++);
+    });
     return map;
   }, [stepMode, timeline, revealStep]);
 
-  /** Seconds to wait before drawing a just-written element (pen order). */
   const writeDelay = (ri: number, ci: number) =>
     (writeOrder.get(cellKey(ri, ci)) ?? 0) * (CELL_WRITE_MS / 1000);
 
@@ -97,7 +99,6 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
     !reveal || reveal.notes.has(cellKey(ri, ci));
   const answerVisible = !reveal || reveal.showAnswer;
 
-  /** A separator is drawn once every digit of the row above it is written. */
   const separatorVisible = (ri: number) => {
     if (!reveal) return true;
     const cleaned = normalizeColumnDigits(rows[ri] || "");
@@ -134,7 +135,6 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
     return movesWithLanes(raw);
   }, [moves, method, carries, maxCols]);
 
-  /** An arrow appears once its destination (carry slot or borrow note) is written. */
   const moveVisible = (move: { toRow: number; toCol: number; kind?: string }) => {
     if (!reveal) return true;
     const key = cellKey(move.toRow, move.toCol);
@@ -142,9 +142,6 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
       ? reveal.carries.has(key)
       : reveal.notes.has(key) || reveal.cells.has(key);
   };
-
-  const svgW = gridWidth(maxCols, cellW);
-  const svgH = gridHeight(rows.length, cellH, carryHeights);
 
   const operatorRow =
     method === "column_addition" || method === "column_subtraction"
@@ -161,6 +158,18 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
           ? "×"
           : "";
 
+  // Reserve a left gutter for ×/+/− so place-value columns stay aligned
+  // with headers, carries, and SVG arrow coordinates.
+  const gutter = operatorChar ? cellW : 0;
+  const gridW = gridWidth(maxCols, cellW);
+  const svgW = gutter + gridW;
+  const svgH = gridHeight(rows.length, cellH, carryHeights);
+
+  const withGutter = (pt: { x: number; y: number }) => ({
+    x: pt.x + gutter,
+    y: pt.y,
+  });
+
   return (
     <div className="rounded-xl p-5 bg-gray-50/80 border border-gray-200">
       <p className="text-lg text-gray-600 mb-4 text-center font-[family-name:var(--font-caveat)]">
@@ -168,72 +177,15 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
       </p>
 
       <div className="flex justify-center">
-        <div
-          className="relative inline-block pt-2"
-          style={{ width: svgW, minHeight: svgH }}
-        >
-          {resolvedMoves.length > 0 && (
-            <svg
-              className="absolute inset-0 pointer-events-none overflow-visible"
-              width={svgW}
-              height={svgH}
-              style={{ zIndex: 2 }}
-            >
-              {resolvedMoves.map((move, mi) => {
-                if (!moveVisible(move)) return null;
-                const kind = move.kind ?? "carry";
-                const from = cellCenter(move.fromRow, move.fromCol, maxCols, cellW, cellH, carryHeights);
-                const to =
-                  kind === "carry"
-                    ? carrySlotCenter(move.toRow, move.toCol, cellW, cellH, carryHeights)
-                    : cellCenter(move.toRow, move.toCol, maxCols, cellW, cellH, carryHeights);
-                const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
-                const pathD = buildArrowPath(from.x, from.y, to.x, to.y, kind, move.laneIndex);
-                const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
-                // In step mode the arrow follows the pen: it draws right after
-                // its destination digit/carry is written.
-                const delay = stepMode
-                  ? reveal?.active.has(cellKey(move.toRow, move.toCol))
-                    ? writeDelay(move.toRow, move.toCol) + 0.15
-                    : 0.1
-                  : baseDelay + Math.max(move.fromRow, move.toRow) * 0.15 + 0.25 + mi * 0.1;
-
-                return (
-                  <g key={mi}>
-                    <motion.path
-                      d={pathD}
-                      stroke={color}
-                      strokeWidth={3}
-                      strokeLinecap="round"
-                      fill="none"
-                      initial={{ pathLength: 0, opacity: 0 }}
-                      animate={{ pathLength: 1, opacity: 1 }}
-                      transition={{ delay, duration: 0.4, ease: "easeInOut" }}
-                    />
-                    <motion.path
-                      d={headD}
-                      stroke={color}
-                      strokeWidth={3}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: delay + 0.35, duration: 0.15 }}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          )}
-
+        <div className="inline-block pt-2">
+          {/* Headers sit OUTSIDE the SVG layer so carry arrows stay aligned. */}
           {placeValueHeaders && placeValueHeaders.length > 0 && (
-            <div className="flex justify-end items-center mb-1" style={{ marginRight: 2 }}>
+            <div className="flex items-center mb-1" style={{ width: svgW }}>
+              <div style={{ width: gutter, flexShrink: 0 }} />
               {Array.from({ length: maxCols }, (_, ci) => {
                 const header =
-                  placeValueHeaders[
-                    ci - (maxCols - placeValueHeaders.length)
-                  ] || "";
+                  placeValueHeaders[ci - (maxCols - placeValueHeaders.length)] ||
+                  "";
                 return (
                   <div
                     key={`pv-${ci}`}
@@ -247,158 +199,260 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
             </div>
           )}
 
-          {rows.map((row, ri) => {
-            const cleaned = normalizeColumnDigits(row);
-            const showOperator = ri === operatorRow && operatorChar;
-            const operatorVisible = !reveal || cellVisible(ri, maxCols - cleaned.length);
-            const carryH = carryHeights[ri] ?? 6;
+          <div className="relative" style={{ width: svgW, minHeight: svgH }}>
+            {resolvedMoves.length > 0 && (
+              <svg
+                className="absolute left-0 top-0 pointer-events-none overflow-visible"
+                width={svgW}
+                height={svgH}
+                style={{ zIndex: 2 }}
+              >
+                {resolvedMoves.map((move, mi) => {
+                  if (!moveVisible(move)) return null;
+                  const kind = move.kind ?? "carry";
+                  const from = withGutter(
+                    cellCenter(
+                      move.fromRow,
+                      move.fromCol,
+                      maxCols,
+                      cellW,
+                      cellH,
+                      carryHeights,
+                    ),
+                  );
+                  const to = withGutter(
+                    kind === "carry"
+                      ? carrySlotCenter(
+                          move.toRow,
+                          move.toCol,
+                          cellW,
+                          cellH,
+                          carryHeights,
+                        )
+                      : cellCenter(
+                          move.toRow,
+                          move.toCol,
+                          maxCols,
+                          cellW,
+                          cellH,
+                          carryHeights,
+                        ),
+                  );
+                  const color = kind === "borrow" ? BORROW_COLOR : CARRY_COLOR;
+                  const pathD = buildArrowPath(
+                    from.x,
+                    from.y,
+                    to.x,
+                    to.y,
+                    kind,
+                    move.laneIndex,
+                  );
+                  const headD = arrowheadPoints(from.x, from.y, to.x, to.y);
+                  const delay = stepMode
+                    ? reveal?.active.has(cellKey(move.toRow, move.toCol))
+                      ? writeDelay(move.toRow, move.toCol) + 0.15
+                      : 0.1
+                    : baseDelay +
+                      Math.max(move.fromRow, move.toRow) * 0.15 +
+                      0.25 +
+                      mi * 0.1;
 
-            return (
-              <div key={ri}>
-                <div className="flex justify-end items-end" style={{ height: carryH, marginRight: 2 }}>
-                  {Array.from({ length: maxCols }, (_, ci) => {
-                    const carry = carryMap.get(`${ri}-${ci}`);
-                    const visible = !!carry && carryVisible(ri, ci);
-                    const active = visible && cellActive(ri, ci);
-                    return (
-                      <motion.div
-                        key={`carry-${ri}-${ci}`}
-                        className="flex items-center justify-center"
-                        style={{ width: cellW }}
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: visible ? 1 : 0, y: 0 }}
-                        transition={{
-                          delay: stepMode
-                            ? active
-                              ? writeDelay(ri, ci)
-                              : 0
-                            : baseDelay + ri * 0.15 + 0.1,
-                        }}
-                      >
-                        {carry && (
-                          <motion.span
-                            className="text-base font-semibold text-amber-600 font-[family-name:var(--font-caveat)] rounded px-0.5"
-                            animate={{
-                              backgroundColor: active ? "rgba(251, 191, 36, 0.35)" : "rgba(251, 191, 36, 0)",
-                            }}
-                            transition={{ duration: 0.3 }}
-                          >
-                            {carry}
-                          </motion.span>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                  return (
+                    <g key={mi}>
+                      <motion.path
+                        d={pathD}
+                        stroke={color}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        fill="none"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ delay, duration: 0.4, ease: "easeInOut" }}
+                      />
+                      <motion.path
+                        d={headD}
+                        stroke={color}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        fill="none"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: delay + 0.35, duration: 0.15 }}
+                      />
+                    </g>
+                  );
+                })}
+              </svg>
+            )}
 
-                <motion.div
-                  className="flex justify-end items-center"
-                  initial={{ opacity: 0, x: stepMode ? 0 : -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: stepMode ? 0 : baseDelay + ri * 0.15 }}
-                >
-                  {showOperator && (
-                    <motion.div
+            {rows.map((row, ri) => {
+              const cleaned = normalizeColumnDigits(row);
+              const showOperator = ri === operatorRow && operatorChar;
+              const operatorVisible =
+                !reveal || cellVisible(ri, maxCols - cleaned.length);
+              const carryH = carryHeights[ri] ?? 6;
+
+              return (
+                <div key={ri}>
+                  <div className="flex items-end" style={{ height: carryH }}>
+                    <div style={{ width: gutter, flexShrink: 0 }} />
+                    {Array.from({ length: maxCols }, (_, ci) => {
+                      const carry = carryMap.get(`${ri}-${ci}`);
+                      const visible = !!carry && carryVisible(ri, ci);
+                      const active = visible && cellActive(ri, ci);
+                      return (
+                        <motion.div
+                          key={`carry-${ri}-${ci}`}
+                          className="flex items-center justify-center"
+                          style={{ width: cellW }}
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: visible ? 1 : 0, y: 0 }}
+                          transition={{
+                            delay: stepMode
+                              ? active
+                                ? writeDelay(ri, ci)
+                                : 0
+                              : baseDelay + ri * 0.15 + 0.1,
+                          }}
+                        >
+                          {carry && (
+                            <motion.span
+                              className="text-base font-semibold text-amber-600 font-[family-name:var(--font-caveat)] rounded px-0.5"
+                              animate={{
+                                backgroundColor: active
+                                  ? "rgba(251, 191, 36, 0.35)"
+                                  : "rgba(251, 191, 36, 0)",
+                              }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              {carry}
+                            </motion.span>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+
+                  <motion.div
+                    className="flex items-center"
+                    initial={{ opacity: 0, x: stepMode ? 0 : -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: stepMode ? 0 : baseDelay + ri * 0.15 }}
+                  >
+                    <div
                       className="flex items-center justify-center shrink-0 text-indigo-600 font-bold"
                       style={{
-                        width: cellW,
+                        width: gutter,
                         height: cellH,
                         fontFamily: "var(--font-caveat), cursive",
                         fontSize: "28px",
                       }}
-                      animate={{ opacity: operatorVisible ? 1 : 0 }}
                     >
-                      {operatorChar}
-                    </motion.div>
-                  )}
+                      {showOperator && (
+                        <motion.span animate={{ opacity: operatorVisible ? 1 : 0 }}>
+                          {operatorChar}
+                        </motion.span>
+                      )}
+                    </div>
 
-                  {Array.from({ length: maxCols }, (_, ci) => {
-                    const charIdx = ci - (maxCols - cleaned.length);
-                    const char = charIdx >= 0 ? cleaned[charIdx] : "";
-                    const note = noteMap.get(`${ri}-${ci}`);
-                    const applyNote = !!note && noteApplied(ri, ci);
-                    const visible = char === "" || cellVisible(ri, ci);
-                    const active = char !== "" && cellActive(ri, ci);
-                    const highlighted = highlightSet.has(`${ri}-${ci}`);
+                    {Array.from({ length: maxCols }, (_, ci) => {
+                      const charIdx = ci - (maxCols - cleaned.length);
+                      const char = charIdx >= 0 ? cleaned[charIdx] : "";
+                      const note = noteMap.get(`${ri}-${ci}`);
+                      const applyNote = !!note && noteApplied(ri, ci);
+                      const visible = char === "" || cellVisible(ri, ci);
+                      const active = char !== "" && cellActive(ri, ci);
+                      const highlighted = highlightSet.has(`${ri}-${ci}`);
 
-                    return (
-                      <div
-                        key={`cell-${ri}-${ci}`}
-                        className="relative flex items-center justify-center text-gray-900"
-                        style={{
-                          width: cellW,
-                          height: cellH,
-                          fontFamily: "var(--font-caveat), cursive",
-                          fontSize: "28px",
-                        }}
-                      >
-                        {highlighted && (
-                          <motion.span
-                            className="absolute inset-0.5 rounded-md border-2 border-amber-400 bg-amber-100/40"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: visible ? 1 : 0, scale: 1 }}
-                            transition={{ delay: 0.2 }}
-                          />
-                        )}
-                        {applyNote && note?.rewrite && (
-                          <motion.span
-                            className="absolute text-sm font-semibold text-sky-600 font-[family-name:var(--font-caveat)]"
-                            style={{ top: 4, right: 6 }}
-                            initial={{ opacity: 0, scale: 0.6 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{
-                              duration: 0.25,
-                              delay: active ? writeDelay(ri, ci) : 0,
-                            }}
-                          >
-                            {note.rewrite}
-                          </motion.span>
-                        )}
-                        <motion.span
-                          className="relative rounded px-0.5"
-                          initial={stepMode ? { opacity: 0, scale: 0.6 } : false}
-                          animate={{
-                            opacity: !visible ? 0 : applyNote && note?.strike ? 0.5 : 1,
-                            scale: 1,
-                            backgroundColor: active
-                              ? "rgba(251, 191, 36, 0.35)"
-                              : "rgba(251, 191, 36, 0)",
-                          }}
-                          transition={{
-                            duration: 0.3,
-                            delay: active ? writeDelay(ri, ci) : 0,
-                          }}
+                      return (
+                        <div
+                          key={`cell-${ri}-${ci}`}
+                          className="relative flex items-center justify-center text-gray-900"
                           style={{
-                            textDecoration: applyNote && note?.strike ? "line-through" : undefined,
-                            textDecorationColor: applyNote && note?.strike ? "#ef4444" : undefined,
+                            width: cellW,
+                            height: cellH,
+                            fontFamily: "var(--font-caveat), cursive",
+                            fontSize: "28px",
                           }}
                         >
-                          {char}
-                        </motion.span>
-                      </div>
-                    );
-                  })}
-                </motion.div>
+                          {highlighted && (
+                            <motion.span
+                              className="absolute inset-0.5 rounded-md border-2 border-amber-400 bg-amber-100/40"
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: visible ? 1 : 0, scale: 1 }}
+                              transition={{ delay: 0.2 }}
+                            />
+                          )}
+                          {applyNote && note?.rewrite && (
+                            <motion.span
+                              className="absolute text-sm font-semibold text-sky-600 font-[family-name:var(--font-caveat)]"
+                              style={{ top: 4, right: 6 }}
+                              initial={{ opacity: 0, scale: 0.6 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{
+                                duration: 0.25,
+                                delay: active ? writeDelay(ri, ci) : 0,
+                              }}
+                            >
+                              {note.rewrite}
+                            </motion.span>
+                          )}
+                          <motion.span
+                            className="relative rounded px-0.5"
+                            initial={stepMode ? { opacity: 0, scale: 0.6 } : false}
+                            animate={{
+                              opacity: !visible
+                                ? 0
+                                : applyNote && note?.strike
+                                  ? 0.5
+                                  : 1,
+                              scale: 1,
+                              backgroundColor: active
+                                ? "rgba(251, 191, 36, 0.35)"
+                                : "rgba(251, 191, 36, 0)",
+                            }}
+                            transition={{
+                              duration: 0.3,
+                              delay: active ? writeDelay(ri, ci) : 0,
+                            }}
+                            style={{
+                              textDecoration:
+                                applyNote && note?.strike
+                                  ? "line-through"
+                                  : undefined,
+                              textDecorationColor:
+                                applyNote && note?.strike ? "#ef4444" : undefined,
+                            }}
+                          >
+                            {char}
+                          </motion.span>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
 
-                {separators.has(ri) && (
-                  <motion.div
-                    className="mx-1"
-                    style={{
-                      height: ROW_SEPARATOR_H,
-                      background:
-                        "linear-gradient(90deg, transparent 0%, #818cf8 20%, #818cf8 80%, transparent 100%)",
-                    }}
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: separatorVisible(ri) ? 1 : 0 }}
-                    transition={{
-                      delay: stepMode ? 0.1 : baseDelay + ri * 0.15 + 0.1,
-                      duration: 0.3,
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
+                  {separators.has(ri) && (
+                    <motion.div
+                      className="mx-1"
+                      style={{
+                        marginLeft: gutter,
+                        height: ROW_SEPARATOR_H,
+                        background:
+                          "linear-gradient(90deg, transparent 0%, #818cf8 20%, #818cf8 80%, transparent 100%)",
+                      }}
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: separatorVisible(ri) ? 1 : 0 }}
+                      transition={{
+                        delay: stepMode ? 0.1 : baseDelay + ri * 0.15 + 0.1,
+                        duration: 0.3,
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

@@ -76,7 +76,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: "column_multiplication",
     requiredBlocks: ["column_method", "equation_steps"],
     keywords:
-      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
+      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit|multiplication\s*(?:and|&)\s*division|written multiplication)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
     vocabulary: [
       "multiplicand",
       "multiplier",
