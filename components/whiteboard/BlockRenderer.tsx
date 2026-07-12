@@ -15,6 +15,7 @@ import {
   AreaModelRenderer,
   BarModelRenderer,
   FractionBarRenderer,
+  FractionGridRenderer,
   FractionWallRenderer,
   HundredSquareRenderer,
   KeyInfoRenderer,
@@ -42,6 +43,8 @@ export default function BlockRenderer({ block, index, baseDelay }: Props) {
       return <NumberLineRenderer block={block} baseDelay={baseDelay} />;
     case "fraction_bar":
       return <FractionBarRenderer block={block} baseDelay={baseDelay} />;
+    case "fraction_grid":
+      return <FractionGridRenderer block={block} baseDelay={baseDelay} />;
     case "fraction_wall":
       return <FractionWallRenderer block={block} baseDelay={baseDelay} />;
     case "bar_model":

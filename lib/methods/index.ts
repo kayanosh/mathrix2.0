@@ -40,6 +40,10 @@ import {
   parseFractionCompare,
 } from "@/lib/methods/fraction-number-line";
 import {
+  buildFractionSimplify,
+  parseFractionSimplify,
+} from "@/lib/methods/fraction-simplify";
+import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
@@ -171,6 +175,16 @@ function tryLongDivision(text: string): MethodBuildResult | null {
   if (!div || [10, 100, 1000].includes(div.b)) return null;
   try {
     return buildLongDivision(div.a, div.b);
+  } catch {
+    return null;
+  }
+}
+
+function tryFractionSimplify(text: string): MethodBuildResult | null {
+  const parsed = parseFractionSimplify(text);
+  if (!parsed) return null;
+  try {
+    return buildFractionSimplify(parsed.n, parsed.d);
   } catch {
     return null;
   }
@@ -322,6 +336,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   rounding_number_line: tryRoundingNumberLine,
   place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
+  fraction_simplify: tryFractionSimplify,
   fraction_number_line: tryFractionNumberLine,
   fraction_ops: tryFractionOps,
   decimal_column: tryDecimalColumn,
@@ -349,6 +364,7 @@ const DEFAULT_ORDER: MethodBuilderId[] = [
   "rounding_number_line",
   "place_value_chart",
   "place_value_shift",
+  "fraction_simplify",
   "fraction_number_line",
   "fraction_ops",
   "angle_diagram",
@@ -395,6 +411,7 @@ export {
   buildRoundingNumberLine,
   buildFractionOps,
   buildFractionNumberLine,
+  buildFractionSimplify,
   buildDecimalColumn,
   buildLinearEquation,
   buildQuadraticFactorSolve,

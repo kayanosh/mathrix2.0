@@ -31,6 +31,7 @@ export type MethodBuilderId =
   | "rounding_number_line"
   | "fraction_ops"
   | "fraction_number_line"
+  | "fraction_simplify"
   | "decimal_column"
   | "linear_equation"
   | "quadratic_solve"

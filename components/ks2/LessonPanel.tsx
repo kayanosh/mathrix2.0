@@ -72,7 +72,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v17_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v19_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 function asStringArray(value: unknown): string[] {
@@ -519,6 +519,30 @@ export default function LessonPanel(props: Props) {
           <p className="text-gray-800">
             <InlineMath text={lesson.recap} />
           </p>
+        </motion.div>
+      )}
+
+      {/* Guided practice */}
+      {Array.isArray(lesson.guidedPractice) && lesson.guidedPractice.length > 0 && (
+        <motion.div variants={fadeUp} className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
+          <p className="text-[12px] font-bold uppercase tracking-wide text-teal-700 mb-2">
+            Guided practice
+          </p>
+          <ul className="space-y-3">
+            {lesson.guidedPractice.map((item, i) => (
+              <li key={i} className="text-sm space-y-1">
+                <p className="font-medium text-gray-900">
+                  <InlineMath text={item.question} />
+                </p>
+                {item.hint && (
+                  <p className="text-[13px] text-teal-800">
+                    <span className="font-semibold">Hint: </span>
+                    <InlineMath text={item.hint} />
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
         </motion.div>
       )}
 

@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
+import { scienceLessonExtra } from "@/lib/ks2-science";
+import { computingLessonExtra } from "@/lib/ks2-computing";
+import { arabicLessonExtra } from "@/lib/ks2-arabic";
 import {
   ks2LessonCacheKey,
   lookupKS2LessonCache,
@@ -27,6 +30,11 @@ import {
   ks2TeachingEnginePrompt,
 } from "@/lib/ks2-teaching-prompt";
 import type { KS2TeachingLesson } from "@/types/ks2-lesson";
+import {
+  defaultPrerequisites,
+  usesTeachingEngine,
+} from "@/lib/ks2-subject-pedagogy/shared";
+import { getKS2TopicById } from "@/lib/ks2";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -82,10 +90,12 @@ function enrichTeachingFields(
   topic: string,
   subtopics: string[],
   topicId: string,
+  subjectId = "maths",
 ): KS2Lesson {
   const taxonomy = topicId
     ? resolveKS2Taxonomy(topicId, subtopics[0])
     : null;
+  const sid = taxonomy?.subjectId || subjectId;
   const normalized = normalizeToTeachingLesson(
     lesson as unknown as Record<string, unknown>,
     {
@@ -97,9 +107,7 @@ function enrichTeachingFields(
     },
   );
 
-  if (
-    (!normalized.commonMistakes || normalized.commonMistakes.length === 0)
-  ) {
+  if (!normalized.commonMistakes || normalized.commonMistakes.length === 0) {
     const watch = (normalized.workedExample.teachingSteps || []).find((s) =>
       /watch out|mistake|do not/i.test(`${s.title} ${s.explanation}`),
     );
@@ -111,11 +119,13 @@ function enrichTeachingFields(
             watch.why || "Use the method shown in the worked example.",
         },
       ];
-    } else if (taxonomy?.pedagogyId) {
+    } else if (taxonomy?.commonMistakes?.length) {
+      normalized.commonMistakes = taxonomy.commonMistakes.slice(0, 2);
+    } else {
       normalized.commonMistakes = [
         {
           mistake: "Rushing to an answer without showing the method.",
-          correction: `Use ${taxonomy.method} and check each step.`,
+          correction: `Use ${taxonomy?.method || "the steps shown"} and check carefully.`,
         },
       ];
     }
@@ -127,13 +137,50 @@ function enrichTeachingFields(
       : `Learn ${topic}.`;
   }
   if (!normalized.prerequisiteKnowledge?.length) {
-    normalized.prerequisiteKnowledge = [
-      "Place value and times tables",
-      "Reading number lines and tables",
-    ];
+    normalized.prerequisiteKnowledge =
+      taxonomy?.prerequisites?.length
+        ? taxonomy.prerequisites
+        : defaultPrerequisites(sid);
   }
   if (!normalized.recap) {
-    normalized.recap = `Today we practised ${topic}. Use the method shown in the worked example and check your answer.`;
+    normalized.recap = taxonomy
+      ? `Remember: for ${taxonomy.skill}, use ${taxonomy.method}. Check each step carefully.`
+      : `Remember the method for ${topic} and check each step carefully.`;
+  }
+
+  // UK KS2: never leave GCD wording in child-facing copy
+  const scrubGcd = (s: string) =>
+    s
+      .replace(/\bGCD\b/g, "HCF")
+      .replace(/\bgreatest common divisor\b/gi, "highest common factor")
+      .replace(/\bgreatest common denominator\b/gi, "highest common factor");
+
+  if (sid === "maths") {
+    normalized.recap = scrubGcd(normalized.recap);
+    if (normalized.learningObjective) {
+      normalized.learningObjective = scrubGcd(normalized.learningObjective);
+    }
+    if (Array.isArray(normalized.commonMistakes)) {
+      normalized.commonMistakes = normalized.commonMistakes.map((m) => ({
+        mistake: scrubGcd(m.mistake),
+        correction: scrubGcd(m.correction),
+      }));
+    }
+  }
+
+  // Prefer taxonomy skill-matched mistakes when LLM mistakes look off-topic for simplify
+  if (
+    sid === "maths" &&
+    taxonomy?.pedagogyId === "fraction_simplify" &&
+    taxonomy.commonMistakes?.length
+  ) {
+    const blob = (normalized.commonMistakes || [])
+      .map((m) => `${m.mistake} ${m.correction}`)
+      .join(" ")
+      .toLowerCase();
+    if (/add(?:ing)? fractions|common denominator|compare/.test(blob) || !blob) {
+      normalized.commonMistakes = taxonomy.commonMistakes.slice(0, 2);
+    }
   }
 
   return {
@@ -152,6 +199,22 @@ function enrichTeachingFields(
     skill: normalized.skill,
     method: normalized.method,
     tryThis: lesson.tryThis || normalized.tryThis,
+    intro: lesson.intro ? scrubGcd(String(lesson.intro)) : lesson.intro,
+    sections: Array.isArray(lesson.sections)
+      ? lesson.sections.map((s) => ({
+          ...s,
+          heading: scrubGcd(String(s.heading || "")),
+          body: scrubGcd(String(s.body || "")),
+        }))
+      : lesson.sections,
+    workedExample: lesson.workedExample
+      ? {
+          ...lesson.workedExample,
+          question: scrubGcd(String(lesson.workedExample.question || "")),
+          steps: (lesson.workedExample.steps || []).map((st) => scrubGcd(String(st))),
+          answer: scrubGcd(String(lesson.workedExample.answer || "")),
+        }
+      : lesson.workedExample,
   };
 }
 
@@ -282,6 +345,21 @@ export async function POST(req: NextRequest) {
     const force: boolean = body.force === true;
 
     const isMaths = /math/i.test(subject);
+    const topicCtx = topicId ? getKS2TopicById(topicId) : null;
+    const subjectId =
+      topicCtx?.subject.id ||
+      (/math/i.test(subject)
+        ? "maths"
+        : /english/i.test(subject)
+          ? "english"
+          : /science/i.test(subject)
+            ? "science"
+            : /comput/i.test(subject)
+              ? "computing"
+              : /arabic/i.test(subject)
+                ? "arabic"
+                : "english");
+    const teachingSubject = usesTeachingEngine(subjectId);
     const mathsRule = isMaths
       ? `Wrap every number, calculation, fraction, or symbol in $...$ so it renders nicely. In JSON every LaTeX backslash MUST be doubled: write "$12 \\\\times 4$" and "$\\\\frac{3}{4}$". A single backslash before t becomes a tab and shows as the broken word "imes" — never do that.`
       : "Do not use LaTeX or $ symbols.";
@@ -368,19 +446,22 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             topic,
             subtopics,
           );
-          const enriched = enrichTeachingFields(
-            cached,
-            topic,
-            subtopics,
-            topicId,
-          );
-          return NextResponse.json({ lesson: enriched, cached: true });
         } else if (cached.workedExample?.whiteboard) {
           cached.workedExample.whiteboard =
             parseWorkedExampleWhiteboard(
               cached.workedExample.whiteboard,
               cached.workedExample.question || "",
             ) || undefined;
+        }
+        if (teachingSubject) {
+          const enriched = enrichTeachingFields(
+            cached,
+            topic,
+            subtopics,
+            topicId,
+            subjectId,
+          );
+          return NextResponse.json({ lesson: enriched, cached: true });
         }
         return NextResponse.json({ lesson: cached, cached: true });
       }
@@ -392,18 +473,17 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
 
     const guidedExtra =
       kind === "guided"
-        ? `This is a GUIDED PRACTICE lesson: focus the sections on worked examples with helpful HINTS, and always include "tryThis" (a question the pupil attempts, with its answer). Show the method on a whiteboard-style diagram — steps are hints, not a word-only solution.`
-        : `This is a LEARN lesson: teach the idea clearly from the start. Show the method visually first ("I do"), then name each step. Include "tryThis" if it helps.`;
+        ? `This is a GUIDED PRACTICE lesson: focus the sections on worked examples with helpful HINTS, and always include "tryThis" (a question the pupil attempts, with its answer). Steps are hints that teach the method.`
+        : `This is a LEARN lesson: teach the idea clearly from the start ("I do"), then name each step. Include "tryThis" if it helps.`;
 
-    const mathsVisualExtra = isMaths
+    const taxonomy = topicId
+      ? resolveKS2Taxonomy(topicId, subtopics[0])
+      : null;
+
+    const teachingEngineExtra = teachingSubject
       ? `
-MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:
-${ks2LessonVisualsPrompt(topic, subtopics)}
-${KS2_LESSON_VISUAL_SCHEMA}
-${ks2TeachingEnginePrompt(
-  topicId ? resolveKS2Taxonomy(topicId, subtopics[0]) : null,
-  kind,
-)}
+${isMaths ? `MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:\n${ks2LessonVisualsPrompt(topic, subtopics)}\n${KS2_LESSON_VISUAL_SCHEMA}\n` : ""}
+${ks2TeachingEnginePrompt(taxonomy, kind, subject)}
 ${KS2_TEACHING_JSON_SHAPE}
 `
       : "";
@@ -420,9 +500,21 @@ ${KS2_TEACHING_JSON_SHAPE}
       "conclusion": "one sentence with the answer"
     }
   }`
-      : `"workedExample": { "question": "an example question", "steps": ["step 1", "step 2"], "answer": "the final answer", "emoji": "a single emoji" }`;
+      : teachingSubject
+        ? `"workedExample": {
+    "question": "an example question",
+    "steps": ["micro-step 1", "micro-step 2", "micro-step 3", "micro-step 4"],
+    "answer": "the final answer",
+    "emoji": "a single emoji",
+    "whiteboard": {
+      "intro": "optional — one sentence before a helpful table or key_info card",
+      "blocks": [{ "type": "table", "headers": ["..."], "rows": [["..."]] }],
+      "conclusion": "one sentence wrapping up"
+    }
+  }`
+        : `"workedExample": { "question": "an example question", "steps": ["step 1", "step 2"], "answer": "the final answer", "emoji": "a single emoji" }`;
 
-    const teachingFieldsShape = isMaths
+    const teachingFieldsShape = teachingSubject
       ? `,
   "learningObjective": "one clear sentence",
   "prerequisiteKnowledge": ["short prior skill"],
@@ -434,6 +526,15 @@ ${KS2_TEACHING_JSON_SHAPE}
 `
       : "";
 
+    const subjectExtras = [
+      englishLessonExtra(subject, topic, subtopics),
+      scienceLessonExtra(subject, topic, subtopics),
+      computingLessonExtra(subject, topic, subtopics),
+      arabicLessonExtra(subject, topic, subtopics),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
     const sys = `You are a warm, encouraging UK primary school teacher creating a ${targetPhrase(target)} lesson for a Year 5/6 pupil.
 Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
 Difficulty: ${tierPhrase(tier)}.
@@ -441,7 +542,8 @@ ${guidedExtra}
 Write in simple, friendly language for a 9-11 year old. Be concrete and use everyday examples. ${mathsRule}
 Make it playful and visual: pick a "heroEmoji" that represents the whole topic, and give every section a fitting "emoji".
 Never use GCSE language — this is Key Stage 2 only.
-${mathsVisualExtra}
+${teachingEngineExtra}
+${subjectExtras}
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {
   "intro": "1-2 friendly sentences introducing the topic",
@@ -451,8 +553,7 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "keyPoints": ["short thing to remember", "another"],
   "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }${teachingFieldsShape}
 }
-Use 3-5 sections, ${isMaths ? "4-8" : "2-4"} worked-example steps, and 2-4 key points.
-${englishLessonExtra(subject, topic, subtopics)}`;
+Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2-4 key points.`;
 
     async function generateOnce(): Promise<KS2Lesson | null> {
       const completion = await openai.chat.completions.create({
@@ -462,7 +563,7 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
           { role: "system", content: sys },
           { role: "user", content: `Create the ${kind} lesson now.` },
         ],
-        max_tokens: isMaths ? 3200 : 1400,
+        max_tokens: isMaths ? 3200 : teachingSubject ? 2200 : 1400,
         temperature: 0.7,
       });
 
@@ -546,48 +647,83 @@ ${englishLessonExtra(subject, topic, subtopics)}`;
       return NextResponse.json({ error: "Could not generate lesson" }, { status: 502 });
     }
 
-    // Prefer deterministic method builders + drop unfit LLM sketches.
+    // Prefer deterministic method builders (maths) + enrich teaching fields.
     if (isMaths && lesson.workedExample?.question) {
       lesson.workedExample = hardenWorkedExample(
         lesson.workedExample,
         topic,
         subtopics,
       );
-      lesson = enrichTeachingFields(lesson, topic, subtopics, topicId);
+    } else if (lesson.workedExample?.whiteboard) {
+      lesson.workedExample.whiteboard =
+        parseWorkedExampleWhiteboard(
+          lesson.workedExample.whiteboard,
+          lesson.workedExample.question || "",
+        ) || undefined;
+    }
 
+    if (teachingSubject) {
+      lesson = enrichTeachingFields(
+        lesson,
+        topic,
+        subtopics,
+        topicId,
+        subjectId,
+      );
+
+      const taxMeta = topicId
+        ? resolveKS2Taxonomy(topicId, subtopics[0])
+        : null;
       const teaching = normalizeToTeachingLesson(
         lesson as unknown as Record<string, unknown>,
         {
           topic,
-          skill: subtopics[0],
+          skill: subtopics[0] || taxMeta?.skill,
+          yearGroup: taxMeta?.yearGroup,
+          strand: taxMeta?.strand,
+          method: taxMeta?.method,
         },
       ) as KS2TeachingLesson;
-      let validation = validateKS2TeachingLesson(teaching, { maths: true });
+      let validation = validateKS2TeachingLesson(teaching, {
+        subject: subjectId,
+        requireVisual: isMaths,
+      });
       if (!validation.ok) {
-        // One regenerate attempt with stricter user nudge
         const retry = await generateOnce();
         if (retry) {
-          if (retry.workedExample?.question) {
+          if (isMaths && retry.workedExample?.question) {
             retry.workedExample = hardenWorkedExample(
               retry.workedExample,
               topic,
               subtopics,
             );
           }
-          lesson = enrichTeachingFields(retry, topic, subtopics, topicId);
+          lesson = enrichTeachingFields(
+            retry,
+            topic,
+            subtopics,
+            topicId,
+            subjectId,
+          );
           validation = validateKS2TeachingLesson(
             normalizeToTeachingLesson(
               lesson as unknown as Record<string, unknown>,
               { topic, skill: subtopics[0] },
             ),
-            { maths: true },
+            { subject: subjectId, requireVisual: isMaths },
           );
         }
-        // Soft-accept after enrich (builders often supply steps/why/mistakes)
         if (!validation.ok) {
           console.warn(
-            "[ks2-lesson] validation issues after enrich:",
+            "[ks2-lesson] rejected after regenerate:",
             validation.issues.map((i) => i.code).join(", "),
+          );
+          return NextResponse.json(
+            {
+              error: "Lesson failed quality checks",
+              issues: validation.issues,
+            },
+            { status: 422 },
           );
         }
       }

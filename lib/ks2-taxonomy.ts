@@ -1,9 +1,14 @@
 /**
  * KS2 taxonomy — Key Stage → Year → Strand → Topic → Skill → Method.
  * Thin layer over lib/ks2.ts topic ids; does not change routes.
+ * Covers maths + English/Science/Computing/Arabic teaching-engine subjects.
  */
 
-import { getKS2TopicById, listAllKS2Topics } from "@/lib/ks2";
+import {
+  getKS2TopicById,
+  listAllKS2Topics,
+  type KS2SubjectId,
+} from "@/lib/ks2";
 import {
   KS2_PEDAGOGY,
   KS2_MATHS_TOPIC_COVERAGE,
@@ -12,6 +17,15 @@ import {
 } from "@/lib/ks2-pedagogy/registry";
 import type { KS2VisualRuleId } from "@/lib/ks2-visual-rules";
 import { getVisualRule } from "@/lib/ks2-visual-rules";
+import { englishPedagogy } from "@/lib/ks2-subject-pedagogy/english";
+import { sciencePedagogy } from "@/lib/ks2-subject-pedagogy/science";
+import { computingPedagogy } from "@/lib/ks2-subject-pedagogy/computing";
+import { arabicPedagogy } from "@/lib/ks2-subject-pedagogy/arabic";
+import {
+  defaultPrerequisites,
+  usesTeachingEngine,
+  type SubjectPedagogyHint,
+} from "@/lib/ks2-subject-pedagogy/shared";
 
 export type KS2Strand =
   | "Number"
@@ -20,11 +34,29 @@ export type KS2Strand =
   | "Geometry & Measure"
   | "Statistics"
   | "Algebra"
-  | "Problem Solving";
+  | "Problem Solving"
+  | "Reading"
+  | "Writing"
+  | "Grammar, Punctuation & Spelling"
+  | "Science"
+  | "Forces"
+  | "Electricity"
+  | "Earth & Space"
+  | "Living things"
+  | "Materials"
+  | "Working Scientifically"
+  | "Computing"
+  | "Online safety"
+  | "Programming"
+  | "Data & information"
+  | "Arabic"
+  | "Vocabulary"
+  | "Grammar & sentences";
 
 export interface KS2TaxonomyNode {
   keyStage: "KS2";
   yearGroup: string;
+  subjectId: KS2SubjectId;
   strand: KS2Strand;
   topicId: string;
   topic: string;
@@ -34,10 +66,13 @@ export interface KS2TaxonomyNode {
   builderId: string | null;
   visualRuleId: KS2VisualRuleId;
   preferredBlocks: string[];
+  prerequisites: string[];
+  commonMistakes: { mistake: string; correction: string }[];
+  guidance: string;
   route: string;
 }
 
-function strandForTopic(topicName: string): KS2Strand {
+function mathsStrandForTopic(topicName: string): KS2Strand {
   const n = topicName.toLowerCase();
   if (/ratio/.test(n)) return "Ratio";
   if (/algebra/.test(n)) return "Algebra";
@@ -49,16 +84,14 @@ function strandForTopic(topicName: string): KS2Strand {
   ) {
     return "Geometry & Measure";
   }
-  if (
-    /fraction|decimal|percent/.test(n)
-  ) {
+  if (/fraction|decimal|percent/.test(n)) {
     return "Fractions, Decimals & Percentages";
   }
   if (/problem|project|consolidation|themed/.test(n)) return "Problem Solving";
   return "Number";
 }
 
-function visualRuleForPedagogy(
+function visualRuleForMathsPedagogy(
   pedagogy: PedagogyEntry | undefined,
   strand: KS2Strand,
 ): KS2VisualRuleId {
@@ -90,17 +123,27 @@ function visualRuleForPedagogy(
   ) {
     return id === "converting_units" ? "measurement" : "geometry";
   }
-  if (id.startsWith("place_value") || id === "column_addition" || id === "column_subtraction")
+  if (
+    id.startsWith("place_value") ||
+    id === "column_addition" ||
+    id === "column_subtraction"
+  ) {
     return "place_value";
+  }
   if (id === "problem_solving") return "word_problems";
   return "place_value";
 }
 
-function methodForPedagogy(pedagogy: PedagogyEntry | undefined, skill: string): string {
+function methodForMathsPedagogy(
+  pedagogy: PedagogyEntry | undefined,
+  skill: string,
+): string {
   if (!pedagogy) return "Teacher explanation with visual model";
   switch (pedagogy.id) {
     case "fractions_compare":
       return "Common denominator method";
+    case "fraction_simplify":
+      return "Simplify using highest common factor (HCF)";
     case "fraction_ops":
       return "Fraction operations with equivalent fractions";
     case "place_value_rounding":
@@ -113,7 +156,6 @@ function methodForPedagogy(pedagogy: PedagogyEntry | undefined, skill: string): 
       return "Bus-stop / long division";
     case "fdp_equivalence":
       return "Fraction–decimal–percentage links";
-    case "ratio_table":
     case "ratio":
       return "Ratio table / sharing parts";
     default:
@@ -121,53 +163,122 @@ function methodForPedagogy(pedagogy: PedagogyEntry | undefined, skill: string): 
   }
 }
 
-/** Resolve taxonomy for a maths topic + optional skill (subtopic). */
+function subjectHint(
+  subjectId: KS2SubjectId,
+  topic: string,
+  skill: string,
+): SubjectPedagogyHint | null {
+  switch (subjectId) {
+    case "english":
+      return englishPedagogy(topic, skill);
+    case "science":
+      return sciencePedagogy(topic, skill);
+    case "computing":
+      return computingPedagogy(topic, skill);
+    case "arabic":
+      return arabicPedagogy(topic, skill);
+    default:
+      return null;
+  }
+}
+
+function visualRuleForSubject(subjectId: KS2SubjectId): KS2VisualRuleId {
+  switch (subjectId) {
+    case "english":
+      return "literacy";
+    case "science":
+      return "science_enquiry";
+    case "computing":
+      return "computing";
+    case "arabic":
+      return "languages";
+    default:
+      return "place_value";
+  }
+}
+
+/** Resolve taxonomy for a teaching-engine subject + optional skill (subtopic). */
 export function resolveKS2Taxonomy(
   topicId: string,
   skill?: string,
 ): KS2TaxonomyNode | null {
   const ctx = getKS2TopicById(topicId);
-  if (!ctx || ctx.subject.id !== "maths") return null;
+  if (!ctx || !usesTeachingEngine(ctx.subject.id)) return null;
 
   const topicName = ctx.topic.name;
-  const skillName =
-    skill ||
-    ctx.topic.subtopics[0] ||
-    topicName;
-  const strand = strandForTopic(topicName);
-  const hits = lookupPedagogy(skillName, topicName, ctx.topic.subtopics);
-  const pedagogy =
-    hits[0] ||
-    KS2_PEDAGOGY.find(
-      (p) => p.id === KS2_MATHS_TOPIC_COVERAGE[topicName],
-    ) ||
-    undefined;
-  const visualRuleId = visualRuleForPedagogy(pedagogy, strand);
-  const rule = getVisualRule(visualRuleId);
+  const skillName = skill || ctx.topic.subtopics[0] || topicName;
+  const subjectId = ctx.subject.id;
 
+  if (subjectId === "maths") {
+    const strand = mathsStrandForTopic(topicName);
+    const hits = lookupPedagogy(skillName, topicName);
+    const pedagogy =
+      hits[0] ||
+      KS2_PEDAGOGY.find((p) => p.id === KS2_MATHS_TOPIC_COVERAGE[topicName]) ||
+      undefined;
+    const visualRuleId = visualRuleForMathsPedagogy(pedagogy, strand);
+    const rule = getVisualRule(visualRuleId);
+    return {
+      keyStage: "KS2",
+      yearGroup: ctx.year,
+      subjectId,
+      strand,
+      topicId,
+      topic: topicName,
+      skill: skillName,
+      method: methodForMathsPedagogy(pedagogy, skillName),
+      pedagogyId: pedagogy?.id ?? KS2_MATHS_TOPIC_COVERAGE[topicName] ?? null,
+      builderId: pedagogy?.builderId ?? null,
+      visualRuleId,
+      preferredBlocks: pedagogy?.requiredBlocks?.length
+        ? pedagogy.requiredBlocks
+        : rule.preferredBlocks,
+      prerequisites: defaultPrerequisites("maths"),
+      commonMistakes: (pedagogy?.commonMistakes || []).map((m) => ({
+        mistake: m,
+        correction: "Use the method shown in the worked example.",
+      })),
+      guidance: rule.guidance,
+      route: `/ks2/topic/${topicId}`,
+    };
+  }
+
+  const hint = subjectHint(subjectId, topicName, skillName)!;
+  const visualRuleId = visualRuleForSubject(subjectId);
+  const rule = getVisualRule(visualRuleId);
   return {
     keyStage: "KS2",
     yearGroup: ctx.year,
-    strand,
+    subjectId,
+    strand: hint.strand as KS2Strand,
     topicId,
     topic: topicName,
     skill: skillName,
-    method: methodForPedagogy(pedagogy, skillName),
-    pedagogyId: pedagogy?.id ?? KS2_MATHS_TOPIC_COVERAGE[topicName] ?? null,
-    builderId: pedagogy?.builderId ?? null,
+    method: hint.method,
+    pedagogyId: `${subjectId}_${hint.strand.toLowerCase().replace(/\s+/g, "_")}`,
+    builderId: null,
     visualRuleId,
-    preferredBlocks: pedagogy?.requiredBlocks?.length
-      ? pedagogy.requiredBlocks
+    preferredBlocks: hint.preferredBlocks.length
+      ? hint.preferredBlocks
       : rule.preferredBlocks,
+    prerequisites: hint.prerequisites,
+    commonMistakes: hint.commonMistakes,
+    guidance: hint.guidance,
     route: `/ks2/topic/${topicId}`,
   };
 }
 
-/** Flat audit rows for every maths curriculum topic × subtopic. */
+/** Flat audit rows for curriculum teaching-engine subjects × subtopics. */
 export function auditAllKS2MathsTopics(): KS2TaxonomyNode[] {
+  return auditKS2CurriculumSubjects(["maths"]);
+}
+
+export function auditKS2CurriculumSubjects(
+  subjects: KS2SubjectId[] = ["maths", "english", "science", "computing", "arabic"],
+): KS2TaxonomyNode[] {
   const rows: KS2TaxonomyNode[] = [];
   for (const t of listAllKS2Topics()) {
-    if (t.subjectId !== "maths") continue;
+    if (!subjects.includes(t.subjectId)) continue;
     if (t.section !== "curriculum") continue;
     const ctx = getKS2TopicById(t.id);
     if (!ctx) continue;
@@ -183,7 +294,7 @@ export function auditAllKS2MathsTopics(): KS2TaxonomyNode[] {
 
 export function taxonomyPromptFragment(node: KS2TaxonomyNode): string {
   const rule = getVisualRule(node.visualRuleId);
-  return `Taxonomy: ${node.keyStage} → ${node.yearGroup} → ${node.strand} → ${node.topic} → ${node.skill} → ${node.method}.
-${rule.guidance}
+  return `Taxonomy: ${node.keyStage} → ${node.yearGroup} → ${node.subjectId} → ${node.strand} → ${node.topic} → ${node.skill} → ${node.method}.
+${node.guidance || rule.guidance}
 Preferred visuals: ${node.preferredBlocks.join(", ")}.`;
 }

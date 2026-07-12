@@ -123,6 +123,15 @@ function fractionBarFit(block: VisualBlock): boolean {
   );
 }
 
+function fractionGridFit(block: VisualBlock): boolean {
+  if (block.type !== "fraction_grid") return false;
+  return (
+    Number.isFinite(block.numerator) &&
+    Number.isFinite(block.denominator) &&
+    block.denominator > 0
+  );
+}
+
 function fractionWallFit(block: VisualBlock): boolean {
   if (block.type !== "fraction_wall") return false;
   return Array.isArray(block.rows) && block.rows.length > 0;
@@ -166,6 +175,8 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return equationStepsFit(block);
     case "fraction_bar":
       return fractionBarFit(block);
+    case "fraction_grid":
+      return fractionGridFit(block);
     case "fraction_wall":
       return fractionWallFit(block);
     case "bar_model":

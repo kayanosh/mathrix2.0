@@ -1,8 +1,5 @@
 /**
- * Regenerate KS2 maths lessons through the teaching-engine validator.
- *
- * Dry-run by default (no API calls): validates builder-hardened fixtures.
- * With --live: POSTs /api/ks2-lesson for each curriculum maths topic (requires server + OPENAI_API_KEY).
+ * Regenerate KS2 teaching-engine lessons through the validator (dry-run or live).
  *
  * Usage:
  *   npx tsx scripts/regenerate-ks2-lessons.ts
@@ -18,6 +15,7 @@ import {
   normalizeToTeachingLesson,
   validateKS2TeachingLesson,
 } from "../lib/ks2-lesson-validator";
+import { usesTeachingEngine } from "../lib/ks2-subject-pedagogy/shared";
 import type { KS2TeachingLesson } from "../types/ks2-lesson";
 
 const live = process.argv.includes("--live");
@@ -25,8 +23,11 @@ const baseIdx = process.argv.indexOf("--base");
 const base =
   baseIdx >= 0 ? process.argv[baseIdx + 1] : "http://localhost:3000";
 
+const SUBJECTS = ["maths", "english", "science", "computing", "arabic"] as const;
+
 interface LogRow {
   topicId: string;
+  subjectId: string;
   topic: string;
   skill: string;
   ok: boolean;
@@ -41,7 +42,7 @@ async function liveGenerate(topicId: string): Promise<LogRow> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       topicId,
-      subject: "Mathematics",
+      subject: ctx.subject.name,
       topic: ctx.topic.name,
       subtopics: ctx.topic.subtopics,
       target: "curriculum",
@@ -53,6 +54,7 @@ async function liveGenerate(topicId: string): Promise<LogRow> {
   if (!res.ok) {
     return {
       topicId,
+      subjectId: ctx.subject.id,
       topic: ctx.topic.name,
       skill,
       ok: false,
@@ -64,9 +66,13 @@ async function liveGenerate(topicId: string): Promise<LogRow> {
     topic: ctx.topic.name,
     skill,
   });
-  const v = validateKS2TeachingLesson(teaching, { maths: true });
+  const v = validateKS2TeachingLesson(teaching, {
+    subject: ctx.subject.id,
+    requireVisual: ctx.subject.id === "maths",
+  });
   return {
     topicId,
+    subjectId: ctx.subject.id,
     topic: ctx.topic.name,
     skill,
     ok: v.ok,
@@ -76,25 +82,35 @@ async function liveGenerate(topicId: string): Promise<LogRow> {
 
 function dryRunFixture(topicId: string): LogRow {
   const tax = resolveKS2Taxonomy(topicId)!;
-  // Use a representative question per pedagogy
   const sampleQ =
-    tax.pedagogyId === "fractions_compare"
-      ? "Compare/order 1/2, 3/4, 2/3"
-      : tax.pedagogyId === "column_multiplication"
-        ? "Multiply 36 × 15"
-        : tax.pedagogyId === "long_division"
-          ? "Divide 384 ÷ 12"
-          : tax.skill;
+    tax.subjectId === "maths"
+      ? tax.pedagogyId === "fraction_simplify" || /simplif/i.test(tax.skill)
+        ? "Simplify 12/16"
+        : tax.pedagogyId === "fractions_compare"
+          ? "Compare/order 1/2, 3/4, 2/3"
+          : tax.skill
+      : tax.subjectId === "english"
+        ? "Find evidence that shows how the character feels."
+        : tax.subjectId === "science"
+          ? "Plan a fair test to compare which surface has more friction."
+          : tax.subjectId === "computing"
+            ? "Write an algorithm to make a sprite move three steps."
+            : "Match these Arabic greetings to their English meanings.";
 
-  const built = buildMethodForQuestion(sampleQ, tax.builderId as never);
-  const steps =
-    built?.teachingSteps?.map((s) => s.explanation) ||
-    [
-      "Read the question carefully.",
-      `Choose the method: ${tax.method}.`,
-      "Work through each part of the calculation.",
-      "Check the answer makes sense.",
-    ];
+  const built =
+    tax.subjectId === "maths"
+      ? buildMethodForQuestion(sampleQ, tax.builderId as never)
+      : null;
+
+  const steps = built?.teachingSteps?.map((s) => s.explanation) || [
+    "Read the question carefully.",
+    `Choose the method: ${tax.method}.`,
+    "Work through each part carefully.",
+    "Explain why this step works for the skill.",
+    "Check the answer makes sense because the method fits the skill.",
+    "Write the final answer clearly.",
+  ];
+
   const teachingSteps =
     built?.teachingSteps?.map((s, i) =>
       i === 0 || s.why
@@ -120,23 +136,33 @@ function dryRunFixture(topicId: string): LogRow {
     skill: tax.skill,
     method: tax.method,
     learningObjective: `Learn ${tax.skill}`,
-    prerequisiteKnowledge: ["Prior KS2 number skills"],
+    prerequisiteKnowledge: tax.prerequisites,
     teachingBlocks: [],
     workedExamples: [],
-    guidedPractice: [{ question: sampleQ, answer: built?.answer || "?" }],
-    independentPractice: [{ question: sampleQ, answer: built?.answer || "?" }],
-    quickCheck: { question: sampleQ, answer: built?.answer || "?" },
-    commonMistakes: [
-      {
-        mistake: "Skipping the method",
-        correction: `Use ${tax.method}`,
-      },
+    guidedPractice: [{ question: sampleQ, answer: built?.answer || "see method" }],
+    independentPractice: [
+      { question: sampleQ, answer: built?.answer || "see method" },
     ],
-    recap: `We used ${tax.method} for ${tax.skill}.`,
+    quickCheck: { question: sampleQ, answer: built?.answer || "see method" },
+    commonMistakes:
+      tax.pedagogyId === "fraction_simplify"
+        ? [
+            {
+              mistake: "Dividing only the numerator and not the denominator",
+              correction: "Divide numerator and denominator by the same HCF",
+            },
+          ]
+        : tax.commonMistakes.length
+          ? tax.commonMistakes
+          : [
+              {
+                mistake: "Skipping the method",
+                correction: `Use ${tax.method}`,
+              },
+            ],
+    recap: `For ${tax.skill}, use ${tax.method}. Check your working.`,
     intro: `Let's learn ${tax.skill}.`,
-    sections: [
-      { heading: "Idea", body: `We will use ${tax.method}.` },
-    ],
+    sections: [{ heading: "Idea", body: `We will use ${tax.method}.` }],
     workedExample: {
       question: sampleQ,
       steps,
@@ -154,29 +180,32 @@ function dryRunFixture(topicId: string): LogRow {
   };
 
   const v = validateKS2TeachingLesson(lesson, {
-    maths: true,
-    requireVisual: Boolean(built),
+    subject: tax.subjectId,
+    requireVisual: tax.subjectId === "maths" && Boolean(built),
   });
   return {
     topicId,
+    subjectId: tax.subjectId,
     topic: tax.topic,
     skill: tax.skill,
-    ok: v.ok || Boolean(built),
+    ok: v.ok,
     issues: v.issues.map((i) => i.code),
   };
 }
 
 async function main() {
-  const maths = listAllKS2Topics().filter(
-    (t) => t.subjectId === "maths" && t.section === "curriculum",
+  const topics = listAllKS2Topics().filter(
+    (t) =>
+      SUBJECTS.includes(t.subjectId as (typeof SUBJECTS)[number]) &&
+      t.section === "curriculum" &&
+      usesTeachingEngine(t.subjectId),
   );
   const logs: LogRow[] = [];
 
-  for (const t of maths) {
+  for (const t of topics) {
     if (live) {
       logs.push(await liveGenerate(t.id));
     } else {
-      // One skill per topic for dry-run speed
       logs.push(dryRunFixture(t.id));
     }
   }
@@ -204,8 +233,10 @@ async function main() {
   );
   if (failed.length) {
     console.log("Failures:");
-    for (const f of failed.slice(0, 20)) {
-      console.log(`  ${f.topicId} (${f.skill}): ${f.issues.join(", ")}`);
+    for (const f of failed.slice(0, 25)) {
+      console.log(
+        `  ${f.subjectId}/${f.topicId} (${f.skill}): ${f.issues.join(", ")}`,
+      );
     }
   }
 }

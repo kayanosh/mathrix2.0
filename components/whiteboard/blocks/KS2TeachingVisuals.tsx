@@ -46,6 +46,55 @@ export function FractionBarRenderer({
   );
 }
 
+export function FractionGridRenderer({
+  block,
+  baseDelay,
+}: {
+  block: import("@/types/whiteboard").FractionGridBlock;
+  baseDelay: number;
+}) {
+  const d = Math.max(1, Math.floor(block.denominator));
+  const shaded = Math.min(d, Math.max(0, block.shaded ?? block.numerator));
+  const group = Math.max(1, block.groupSize || 1);
+  const cols = Math.min(d, Math.max(group, Math.ceil(Math.sqrt(d))));
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: baseDelay }}
+      className="space-y-2"
+    >
+      {block.label && (
+        <p className="text-sm font-semibold text-gray-800">{block.label}</p>
+      )}
+      <div
+        className="grid gap-0.5 border-2 border-violet-300 rounded-lg overflow-hidden p-0.5 bg-violet-100"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
+        {Array.from({ length: d }, (_, i) => {
+          const groupIndex = Math.floor(i / group);
+          const isGroupEdge = (i + 1) % group === 0 || i === d - 1;
+          return (
+            <div
+              key={i}
+              className={`aspect-square rounded-sm ${
+                i < shaded ? "bg-violet-500" : "bg-white"
+              } ${isGroupEdge ? "ring-1 ring-violet-700/40" : ""}`}
+              title={`cell ${i + 1}, group ${groupIndex + 1}`}
+            />
+          );
+        })}
+      </div>
+      {block.simplifiedNumerator != null && block.simplifiedDenominator != null && (
+        <p className="text-xs text-violet-800 font-medium">
+          Groups of {group}: {block.simplifiedNumerator}/
+          {block.simplifiedDenominator}
+        </p>
+      )}
+    </motion.div>
+  );
+}
+
 export function FractionWallRenderer({
   block,
   baseDelay,

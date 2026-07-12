@@ -16,7 +16,11 @@ export type KS2VisualRuleId =
   | "place_value"
   | "negatives"
   | "algebra"
-  | "measurement";
+  | "measurement"
+  | "literacy"
+  | "science_enquiry"
+  | "computing"
+  | "languages";
 
 export interface KS2VisualRule {
   id: KS2VisualRuleId;
@@ -121,6 +125,32 @@ export const KS2_VISUAL_RULES: Record<KS2VisualRuleId, KS2VisualRule> = {
     label: "Measurement",
     preferredBlocks: ["labeled_shape", "table", "equation_steps"],
     guidance: "Use labelled shapes for perimeter/area/volume and conversion tables.",
+  },
+  literacy: {
+    id: "literacy",
+    label: "Literacy",
+    preferredBlocks: ["key_info", "table", "text"],
+    guidance:
+      "Use key-information highlights, evidence tables, and success-criteria checklists.",
+  },
+  science_enquiry: {
+    id: "science_enquiry",
+    label: "Science enquiry",
+    preferredBlocks: ["table", "key_info", "labeled_shape", "chart"],
+    guidance:
+      "Use fair-test tables, labelled diagrams, and key-fact highlights.",
+  },
+  computing: {
+    id: "computing",
+    label: "Computing",
+    preferredBlocks: ["table", "key_info", "text"],
+    guidance: "Use step tables, algorithm lists, and safety key-info cards.",
+  },
+  languages: {
+    id: "languages",
+    label: "Languages",
+    preferredBlocks: ["table", "key_info", "text"],
+    guidance: "Use bilingual vocabulary tables and short model sentences.",
   },
 };
 

@@ -72,6 +72,20 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     ],
   },
   {
+    id: "fraction_simplify",
+    label: "Simplify Fractions (HCF)",
+    years: "5-6",
+    builderId: "fraction_simplify",
+    requiredBlocks: ["fraction_bar", "fraction_grid"],
+    keywords:
+      /\b(simplif(?:y|ying)\s+fractions?|simplif(?:y|ying)\s+\d+\s*\/\s*\d+|lowest terms|simplest form|cancel\s+(?:the\s+)?fractions?|hcf\b|highest common factor)\b/i,
+    vocabulary: ["numerator", "denominator", "HCF", "equivalent", "simplest form"],
+    commonMistakes: [
+      "Dividing only the numerator and not the denominator",
+      "Using a common factor that is not the highest one",
+    ],
+  },
+  {
     id: "fractions_compare",
     label: "Compare and Order Fractions",
     years: "5-6",
@@ -395,6 +409,7 @@ const STOP_AFTER = new Set([
   "place_value_rounding",
   "place_value_chart",
   "fractions_compare",
+  "fraction_simplify",
   "fraction_ops",
   "decimals_fdp",
   "decimal_column",

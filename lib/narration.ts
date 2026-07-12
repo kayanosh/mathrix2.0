@@ -100,6 +100,19 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
           kind: "hint",
         });
         break;
+      case "fraction_grid":
+        cues.push({
+          blockIndex: bi,
+          text: block.label
+            ? `Look at the fraction grid: ${block.label}.`
+            : `Look at this fraction grid showing ${block.numerator} out of ${block.denominator}${
+                block.groupSize
+                  ? `, grouped in ${block.groupSize}s`
+                  : ""
+              }.`,
+          kind: "hint",
+        });
+        break;
       case "fraction_wall":
         cues.push({
           blockIndex: bi,

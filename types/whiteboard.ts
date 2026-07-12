@@ -259,6 +259,19 @@ export interface FractionBarBlock {
   shaded?: number;
 }
 
+/** Grid view for simplifying: group cells by HCF to show equivalent fraction. */
+export interface FractionGridBlock {
+  type: "fraction_grid";
+  numerator: number;
+  denominator: number;
+  shaded?: number;
+  /** Size of each group when simplifying (usually the HCF) */
+  groupSize?: number;
+  simplifiedNumerator?: number;
+  simplifiedDenominator?: number;
+  label?: string;
+}
+
 export interface FractionWallRow {
   denominator: number;
   /** Optional highlight of one cell index (0-based) */
@@ -469,6 +482,7 @@ export type VisualBlock =
   | VennDiagramBlock
   | NumberLineBlock
   | FractionBarBlock
+  | FractionGridBlock
   | FractionWallBlock
   | BarModelBlock
   | HundredSquareBlock

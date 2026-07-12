@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest --verbose",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "validate:ks2-lessons": "npx tsx scripts/validate-ks2-lessons.ts",
+    "regenerate:ks2-lessons": "npx tsx scripts/regenerate-ks2-lessons.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

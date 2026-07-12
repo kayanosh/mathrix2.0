@@ -42,14 +42,14 @@ export interface CachedKS2Lesson {
   method?: string;
 }
 
-/** Stable cache key. v17 = teaching-engine schema + new KS2 visuals. */
+/** Stable cache key. v18 = multi-subject teaching engine (English/Science/Computing/Arabic). */
 export function ks2LessonCacheKey(
   topicId: string,
   target: string,
   tier: string,
   kind: string
 ): string {
-  return `v17|${topicId}|${target}|${tier}|${kind}`;
+  return `v18|${topicId}|${target}|${tier}|${kind}`;
 }
 
 export async function lookupKS2LessonCache(
