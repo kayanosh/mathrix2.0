@@ -11,6 +11,20 @@ interface Props {
   className?: string;
 }
 
+function speechTokens(text: string): Array<{
+  token: string;
+  isSpace: boolean;
+  wordIndex: number;
+}> {
+  let wordIndex = 0;
+  return text.split(/(\s+)/).filter(Boolean).map((token) => {
+    const isSpace = /^\s+$/.test(token);
+    const result = { token, isSpace, wordIndex };
+    if (!isSpace) wordIndex += 1;
+    return result;
+  });
+}
+
 /** Karaoke-style word highlight synced to estimated speech progress. */
 export default function SpeechHighlighter({
   text,
@@ -18,22 +32,17 @@ export default function SpeechHighlighter({
   isSpeaking,
   className = "",
 }: Props) {
-  const words = useMemo(() => text.split(/(\s+)/).filter(Boolean), [text]);
-
-  let wordIdx = 0;
+  const words = useMemo(() => speechTokens(text), [text]);
 
   return (
     <p
       className={`text-[15px] sm:text-base leading-relaxed text-slate-600 ${className}`}
       aria-live="polite"
     >
-      {words.map((token, i) => {
-        const isSpace = /^\s+$/.test(token);
+      {words.map(({ token, isSpace, wordIndex: thisWord }, i) => {
         if (isSpace) {
           return <span key={i}>{token}</span>;
         }
-        const thisWord = wordIdx;
-        wordIdx += 1;
         const isActive = isSpeaking && thisWord === activeWordIndex;
         const isPast = isSpeaking && thisWord < activeWordIndex;
 
@@ -42,7 +51,9 @@ export default function SpeechHighlighter({
             key={i}
             animate={{
               color: isActive ? "#1d4ed8" : isPast ? "#0f172a" : "#64748b",
-              backgroundColor: isActive ? "rgba(59,130,246,0.12)" : "transparent",
+              backgroundColor: isActive
+                ? "rgba(59,130,246,0.12)"
+                : "rgba(0,0,0,0)",
             }}
             transition={{ duration: 0.12 }}
             className="rounded-sm px-0.5"

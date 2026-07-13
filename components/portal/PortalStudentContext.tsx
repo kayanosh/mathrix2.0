@@ -82,7 +82,7 @@ export function PortalStudentProvider({
   }, []);
 
   useEffect(() => {
-    reloadStudents();
+    queueMicrotask(() => void reloadStudents());
   }, [reloadStudents]);
 
   const setActiveStudent = useCallback(
@@ -123,41 +123,42 @@ export function PortalStudentProvider({
 
   useEffect(() => {
     if (loading || rosterStudents.length === 0) return;
+    queueMicrotask(() => {
+      const studentDetailMatch = pathname.match(/^\/portal\/students\/([^/]+)$/);
+      if (studentDetailMatch) {
+        const routeStudentId = studentDetailMatch[1];
+        if (rosterStudents.some((s) => s.id === routeStudentId)) {
+          setActiveStudentId(routeStudentId);
+          return;
+        }
+      }
 
-    const studentDetailMatch = pathname.match(/^\/portal\/students\/([^/]+)$/);
-    if (studentDetailMatch) {
-      const routeStudentId = studentDetailMatch[1];
-      if (rosterStudents.some((s) => s.id === routeStudentId)) {
-        setActiveStudentId(routeStudentId);
+      const fromUrl = searchParams.get("student");
+      if (fromUrl && rosterStudents.some((s) => s.id === fromUrl)) {
+        setActiveStudentId(fromUrl);
         return;
       }
-    }
 
-    const fromUrl = searchParams.get("student");
-    if (fromUrl && rosterStudents.some((s) => s.id === fromUrl)) {
-      setActiveStudentId(fromUrl);
-      return;
-    }
+      let fromStorage: string | null = null;
+      try {
+        fromStorage = sessionStorage.getItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      if (fromStorage && rosterStudents.some((s) => s.id === fromStorage)) {
+        setActiveStudentId(fromStorage);
+        return;
+      }
 
-    let fromStorage: string | null = null;
-    try {
-      fromStorage = sessionStorage.getItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    if (fromStorage && rosterStudents.some((s) => s.id === fromStorage)) {
-      setActiveStudentId(fromStorage);
-      return;
-    }
-
-    if (!activeStudentId || !rosterStudents.some((s) => s.id === activeStudentId)) {
-      setActiveStudentId(rosterStudents[0].id);
-    }
-  }, [loading, rosterStudents, searchParams, activeStudentId]);
+      if (!activeStudentId || !rosterStudents.some((s) => s.id === activeStudentId)) {
+        setActiveStudentId(rosterStudents[0].id);
+      }
+    });
+  }, [loading, rosterStudents, searchParams, activeStudentId, pathname]);
 
   useEffect(() => {
     if (filterMode === "mine" && myStudents.length === 0 && students.length > 0) {
-      setFilterMode("all");
+      queueMicrotask(() => setFilterMode("all"));
     }
   }, [filterMode, myStudents.length, students.length]);
 

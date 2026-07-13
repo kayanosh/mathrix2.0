@@ -26,22 +26,26 @@ export default function SectionBrowser({ section }: Props) {
   const [skillData, setSkillData] = useState<SkillData>({});
 
   useEffect(() => {
-    setSkillData(getSkillData());
-    syncSkillsFromServer().then((merged) => {
-      if (merged) setSkillData(merged);
+    let active = true;
+    const local = getSkillData();
+    queueMicrotask(() => {
+      if (active) setSkillData(local);
     });
+    syncSkillsFromServer().then((merged) => {
+      if (active && merged) setSkillData(merged);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const subjects = useMemo(() => getKS2Content(section, year), [section, year]);
   const showTerms = section === "curriculum" && yearHasTerms(year);
 
-  useEffect(() => {
-    if (!subjects.some((s) => s.id === activeSubject)) {
-      setActiveSubject(subjects[0]?.id ?? "maths");
-    }
-  }, [subjects, activeSubject]);
-
-  const current = subjects.find((s) => s.id === activeSubject) ?? subjects[0];
+  const effectiveActiveSubject = subjects.some((s) => s.id === activeSubject)
+    ? activeSubject
+    : subjects[0]?.id ?? "maths";
+  const current = subjects.find((s) => s.id === effectiveActiveSubject) ?? subjects[0];
 
   // Subjects with at least one topic in the selected term, plus any year-long
   // (no-term) topics gathered into an "ongoing" group.
@@ -177,7 +181,7 @@ export default function SectionBrowser({ section }: Props) {
             key={s.id}
             onClick={() => setActiveSubject(s.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
-              activeSubject === s.id
+              effectiveActiveSubject === s.id
                 ? "bg-indigo-50 text-indigo-700 ring-2 ring-indigo-300 scale-105"
                 : "bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50"
             }`}

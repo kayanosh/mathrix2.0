@@ -41,6 +41,7 @@ interface Props {
 const WRITE_MS = 900;
 /** Pause after a step finishes speaking so the pupil can absorb it. */
 const STEP_PAUSE_MS = 1100;
+const audioBlobCache = new Map<string, Blob>();
 
 // ── Speech (cloud TTS + word-progress estimates) ─────────────────────────────
 
@@ -146,15 +147,23 @@ function useSpeech() {
         abortRef.current?.abort();
         abortRef.current = new AbortController();
 
-        const res = await fetch("/api/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, speed: rate * 1.1 }),
-          signal: abortRef.current.signal,
-        });
-        if (!res.ok) throw new Error("TTS API error");
-
-        const blob = await res.blob();
+        const cacheKey = `${rate}|${text}`;
+        let blob = audioBlobCache.get(cacheKey);
+        if (!blob) {
+          const res = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, speed: rate * 1.1 }),
+            signal: abortRef.current.signal,
+          });
+          if (!res.ok) throw new Error("TTS API error");
+          blob = await res.blob();
+          if (audioBlobCache.size >= 100) {
+            const oldest = audioBlobCache.keys().next().value;
+            if (oldest) audioBlobCache.delete(oldest);
+          }
+          audioBlobCache.set(cacheKey, blob);
+        }
         if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
@@ -289,6 +298,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const [pointerVisible, setPointerVisible] = useState(false);
   const [pointerMode, setPointerMode] = useState<"point" | "write">("point");
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const { speak, cancel } = useSpeech();
   const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -373,7 +383,6 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         const pause =
           Math.max(STEP_PAUSE_MS, Math.max(1200, text.length * 55)) /
           speedRef.current;
-        const words = countWords(text);
         const start = performance.now();
         const tick = () => {
           if (!isPlayingRef.current) return;
@@ -414,6 +423,22 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
     };
   }, [cancel, clearTimers]);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [onClose]);
 
   const handlePlay = () => setIsPlaying(true);
   const handlePause = () => {
@@ -477,6 +502,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       transition={{ duration: 0.25 }}
       className="fixed inset-0 z-50 flex flex-col bg-[#f4f6fa]"
       role="dialog"
+      aria-modal="true"
       aria-label="Whiteboard Tutor"
     >
       {/* Header */}
@@ -502,6 +528,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           </div>
         </div>
         <button
+          ref={closeButtonRef}
           onClick={onClose}
           aria-label="Close tutor"
           className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"

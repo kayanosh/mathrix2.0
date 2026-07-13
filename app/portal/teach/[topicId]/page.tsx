@@ -70,30 +70,32 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
   const skipPackSaveRef = useRef(false);
 
   useEffect(() => {
-    if (!activeStudentId) {
-      setLesson(null);
-      setWorksheet(null);
-      setLevel("");
-      setCount(8);
-      packLoadedRef.current = null;
-      return;
-    }
-    const key = `${activeStudentId}:${topicId}`;
-    if (packLoadedRef.current === key) return;
-    packLoadedRef.current = key;
-    skipPackSaveRef.current = true;
-    const pack = loadStudentTopicPack(centreId, tutorId, activeStudentId, topicId);
-    if (pack) {
-      setLevel(pack.level);
-      setCount(pack.count);
-      setLesson((pack.lesson as TutorLesson | null) ?? null);
-      setWorksheet((pack.worksheet as TutorWorksheet | null) ?? null);
-    } else {
-      setLesson(null);
-      setWorksheet(null);
-      setLevel("");
-      setCount(8);
-    }
+    queueMicrotask(() => {
+      if (!activeStudentId) {
+        setLesson(null);
+        setWorksheet(null);
+        setLevel("");
+        setCount(8);
+        packLoadedRef.current = null;
+        return;
+      }
+      const key = `${activeStudentId}:${topicId}`;
+      if (packLoadedRef.current === key) return;
+      packLoadedRef.current = key;
+      skipPackSaveRef.current = true;
+      const pack = loadStudentTopicPack(centreId, tutorId, activeStudentId, topicId);
+      if (pack) {
+        setLevel(pack.level);
+        setCount(pack.count);
+        setLesson((pack.lesson as TutorLesson | null) ?? null);
+        setWorksheet((pack.worksheet as TutorWorksheet | null) ?? null);
+      } else {
+        setLesson(null);
+        setWorksheet(null);
+        setLevel("");
+        setCount(8);
+      }
+    });
   }, [activeStudentId, topicId, centreId, tutorId]);
 
   useEffect(() => {

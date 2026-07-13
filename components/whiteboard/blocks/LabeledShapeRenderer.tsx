@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
-import MathRenderer from "@/components/MathRenderer";
 
 interface Props {
   block: LabeledShapeBlock;
@@ -206,25 +205,13 @@ const COLORS = {
 };
 
 export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
-  const { shape, vertices: vertexDefs, sides, angles, circle, arrows } = block;
+  const { shape, vertices: vertexDefs, sides, angles } = block;
 
   const width = 400;
   const height = 300;
   const cx = width / 2;
   const cy = height / 2;
   const r = 100;
-
-  // Handle circle separately
-  if (shape === "circle") {
-    return (
-      <CircleRenderer
-        block={block}
-        baseDelay={baseDelay}
-        width={width}
-        height={height}
-      />
-    );
-  }
 
   // Compute vertices
   const numV = vertexDefs?.length || (shape === "triangle" ? 3 : shape === "rectangle" ? 4 : 5);
@@ -237,8 +224,19 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
       if (accurate) return accurate;
     }
     return computeVertices(shape, numV, cx, cy, r);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shape, numV, cx, cy, r]);
+  }, [shape, numV, cx, cy, r, vertexDefs, angles, sides]);
+
+  // Handle circle separately, after hooks have been called consistently.
+  if (shape === "circle") {
+    return (
+      <CircleRenderer
+        block={block}
+        baseDelay={baseDelay}
+        width={width}
+        height={height}
+      />
+    );
+  }
 
   const points = vertexDefs
     ? vertexDefs.map((v, i) =>

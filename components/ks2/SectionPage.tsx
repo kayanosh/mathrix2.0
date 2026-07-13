@@ -22,7 +22,7 @@ export default function SectionPage({ section }: Props) {
   const [school, setSchool] = useState<KS2SchoolMeta | null>(null);
 
   useEffect(() => {
-    setSchool(getKS2SchoolMeta());
+    queueMicrotask(() => setSchool(getKS2SchoolMeta()));
   }, []);
 
   const title =

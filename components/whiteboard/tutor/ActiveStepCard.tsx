@@ -60,7 +60,7 @@ export default function ActiveStepCard({
               className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm shadow-emerald-200"
               initial={celebrating ? { scale: 0.4 } : false}
               animate={{ scale: celebrating ? [0.4, 1.25, 1] : 1 }}
-              transition={{ type: "spring", stiffness: 420, damping: 16 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
             >
               <Check size={15} strokeWidth={3} />
             </motion.span>
@@ -145,7 +145,9 @@ export default function ActiveStepCard({
               <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1">
                 <Lightbulb size={12} /> Why this works
               </p>
-              <p className="text-sm leading-relaxed text-amber-900/90">{step.why}</p>
+              <p className="text-sm leading-relaxed text-amber-900/90">
+                <InlineMath text={step.why} />
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -153,7 +155,7 @@ export default function ActiveStepCard({
         {step.why && isCompleted && (
           <p className="text-[12px] text-slate-500 leading-snug">
             <span className="font-semibold text-slate-600">Why: </span>
-            {step.why}
+            <InlineMath text={step.why} />
           </p>
         )}
       </div>
@@ -288,13 +290,6 @@ function EquationVisual({
   const hasArrows = !!(step.arrows && step.arrows.length > 0);
   const hasBefore = !!step.latexBefore && !isFirst;
 
-  const Latex = ({ tex }: { tex: string }) =>
-    animateWrite ? (
-      <MathWriteIn latex={tex} display />
-    ) : (
-      <MathRenderer latex={tex} display />
-    );
-
   if (hasArrows && hasBefore) {
     return (
       <div ref={pairRef} className="relative space-y-2">
@@ -307,7 +302,7 @@ function EquationVisual({
           </div>
         )}
         <div className={`flex items-center gap-2 ${isFinal ? "text-emerald-700" : ""}`}>
-          <Latex tex={step.latexAfter} />
+          <EquationLatex tex={step.latexAfter} animateWrite={animateWrite} />
         </div>
         {animateWrite &&
           step.arrows?.map((arrow, ai) => (
@@ -346,7 +341,7 @@ function EquationVisual({
       )}
       <div className={isFinal ? "text-emerald-700" : ""}>
         {latex ? (
-          <Latex tex={latex} />
+          <EquationLatex tex={latex} animateWrite={animateWrite} />
         ) : animateWrite ? (
           <HandwrittenInline text={step.explanation} />
         ) : (
@@ -363,5 +358,19 @@ function EquationVisual({
           />
         ))}
     </div>
+  );
+}
+
+function EquationLatex({
+  tex,
+  animateWrite,
+}: {
+  tex: string;
+  animateWrite: boolean;
+}) {
+  return animateWrite ? (
+    <MathWriteIn latex={tex} display />
+  ) : (
+    <MathRenderer latex={tex} display />
   );
 }

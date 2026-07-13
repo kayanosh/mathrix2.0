@@ -25,7 +25,11 @@ import {
   normalizeToTeachingLesson,
   validateKS2TeachingLesson,
 } from "@/lib/ks2-lesson-validator";
-import { coerceCanonicalLessonKeys } from "@/lib/ks2-lesson-zod";
+import {
+  coerceCanonicalLessonKeys,
+  microStepsToTeachingSteps,
+  type KS2MicroStep,
+} from "@/lib/ks2-lesson-zod";
 import {
   KS2_TEACHING_JSON_SHAPE,
   ks2TeachingEnginePrompt,
@@ -36,6 +40,7 @@ import {
   usesTeachingEngine,
 } from "@/lib/ks2-subject-pedagogy/shared";
 import { getKS2TopicById } from "@/lib/ks2";
+import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -50,6 +55,7 @@ interface WorkedExample {
   answer: string;
   emoji?: string;
   whiteboard?: CachedKS2WorkedExampleWhiteboard;
+  teachingSteps?: CachedKS2Lesson["workedExample"]["teachingSteps"];
 }
 type KS2Lesson = CachedKS2Lesson;
 
@@ -335,12 +341,21 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!allowRequest(`ks2-lesson:${requestClientKey(req.headers)}`, 120, 600_000)) {
+      return NextResponse.json({ error: "Too many lesson requests" }, { status: 429 });
+    }
     const body = await req.json().catch(() => ({}));
-    const subject: string = body.subject || "Mathematics";
-    const topic: string = body.topic || "general";
-    const subtopics: string[] = Array.isArray(body.subtopics) ? body.subtopics : [];
-    const target: string = body.target || "curriculum";
-    const tier: string = body.tier || "secure";
+    const subject: string = String(body.subject || "Mathematics").slice(0, 80);
+    const topic: string = String(body.topic || "general").slice(0, 160);
+    const subtopics: string[] = Array.isArray(body.subtopics)
+      ? body.subtopics.slice(0, 20).map((value: unknown) => String(value).slice(0, 160))
+      : [];
+    const target: string = ["curriculum", "sats", "eleven_plus"].includes(body.target)
+      ? body.target
+      : "curriculum";
+    const tier: string = ["developing", "secure", "greater_depth"].includes(body.tier)
+      ? body.tier
+      : "secure";
     const kind: string = ["lesson", "guided", "explain"].includes(body.kind) ? body.kind : "lesson";
     const topicId: string = (body.topicId || "").toString();
     const force: boolean = body.force === true;
@@ -438,7 +453,8 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
 
     // ── Full lesson / guided lesson ──────────────────────────────────────────
     if (topicId && !force) {
-      const key = ks2LessonCacheKey(topicId, target, tier, kind);
+      const requestedSkill = String(body.skill || subtopics[0] || topic || "").slice(0, 160);
+      const key = ks2LessonCacheKey(topicId, target, tier, kind, requestedSkill);
       const cached = await lookupKS2LessonCache(key);
       if (cached) {
         if (isMaths && cached.workedExample?.question) {
@@ -462,13 +478,41 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             topicId,
             subjectId,
           );
-          return NextResponse.json({ lesson: enriched, cached: true });
+          const cachedTaxonomy = resolveKS2Taxonomy(
+            topicId,
+            requestedSkill || undefined,
+          );
+          const cachedValidation = validateKS2TeachingLesson(
+            normalizeToTeachingLesson(
+              enriched as unknown as Record<string, unknown>,
+              {
+                topic,
+                skill: requestedSkill || cachedTaxonomy?.skill,
+                yearGroup: cachedTaxonomy?.yearGroup,
+                strand: cachedTaxonomy?.strand,
+                method: cachedTaxonomy?.method,
+              },
+            ),
+            { subject: subjectId, requireVisual: isMaths },
+          );
+          if (cachedValidation.ok) {
+            return NextResponse.json({ lesson: enriched, cached: true });
+          }
+          console.warn(
+            "[ks2-lesson] ignoring invalid cached lesson:",
+            cachedValidation.issues.map((issue) => issue.code).join(", "),
+          );
+        } else {
+          return NextResponse.json({ lesson: cached, cached: true });
         }
-        return NextResponse.json({ lesson: cached, cached: true });
       }
     }
 
-    const focusSkill = (subtopics[0] || topic || "").toString();
+    const requestedSkill = String(body.skill || subtopics[0] || topic || "").slice(0, 160);
+    const focusSkill =
+      subtopics.length === 0 || subtopics.includes(requestedSkill)
+        ? requestedSkill
+        : subtopics[0];
     const subtopicLine = focusSkill
       ? `Teach ONLY this one skill: "${focusSkill}". Do not mix nearby skills or cover the whole topic list.`
       : "";
@@ -547,6 +591,11 @@ ${KS2_TEACHING_JSON_SHAPE}
     ]
       .filter(Boolean)
       .join("\n");
+    const lessonInputGuard = detectPromptInjection(
+      [subject, topic, focusSkill].join(" "),
+    )
+      ? INJECTION_GUARD
+      : "";
 
     const sys = isMaths
       ? `You are a UK Year 5 and Year 6 maths teacher creating a ${targetPhrase(target)} lesson.
@@ -557,6 +606,7 @@ Return valid JSON only. Teach one skill only. Do not mix nearby topics.
 ${mathsRule}
 ${teachingEngineExtra}
 ${subjectExtras}
+${lessonInputGuard}
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {
   "intro": "1-2 friendly sentences introducing THIS skill",
@@ -572,10 +622,12 @@ Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
 Difficulty: ${tierPhrase(tier)}.
 ${guidedExtra}
 Write in simple, friendly language for a 9-11 year old. Be concrete and use everyday examples. ${mathsRule}
+Keep sentences short (aim for 18 words or fewer) and define each new subject word immediately.
 Make it playful and visual: pick a "heroEmoji" that represents the whole topic, and give every section a fitting "emoji".
 Never use GCSE language — this is Key Stage 2 only.
 ${teachingEngineExtra}
 ${subjectExtras}
+${lessonInputGuard}
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {
   "intro": "1-2 friendly sentences introducing the topic",
@@ -646,6 +698,13 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
                     weRaw.whiteboard,
                     (weRaw.question || "").toString(),
                   ),
+                  teachingSteps: Array.isArray(weRaw.microSteps)
+                    ? microStepsToTeachingSteps(
+                        weRaw.microSteps as KS2MicroStep[],
+                      )
+                    : Array.isArray(weRaw.teachingSteps)
+                      ? (weRaw.teachingSteps as WorkedExample["teachingSteps"])
+                      : undefined,
                 }
               : { question: "", steps: [], answer: "" },
           keyPoints: Array.isArray(parsed.keyPoints)
@@ -771,11 +830,16 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
           );
         }
         if (!validation.ok) {
-          // Never block Learn/Guided with a hard failure — builders already
-          // hardened the board; log and serve so pupils can still learn.
-          console.warn(
-            "[ks2-lesson] quality issues (serving anyway):",
+          console.error(
+            "[ks2-lesson] rejected lesson after quality retry:",
             validation.issues.map((i) => i.code).join(", "),
+          );
+          return NextResponse.json(
+            {
+              error: "The generated lesson did not meet the KS2 teaching standard.",
+              issues: validation.issues.map((issue) => issue.code),
+            },
+            { status: 422 },
           );
         }
       }
@@ -783,7 +847,7 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
 
     if (topicId) {
       await writeKS2LessonCache({
-        cacheKey: ks2LessonCacheKey(topicId, target, tier, kind),
+        cacheKey: ks2LessonCacheKey(topicId, target, tier, kind, focusSkill),
         topicId,
         subject,
         topicName: topic,

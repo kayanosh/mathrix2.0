@@ -30,7 +30,7 @@ function Dashboard({ ctx }: { ctx: PortalContext }) {
   }, []);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => void load());
   }, [load]);
 
   async function addStudent(e: React.FormEvent) {

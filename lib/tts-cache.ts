@@ -17,6 +17,7 @@ import { normalizeTtsText, normalizeSpeed, hashTtsKey } from "./tts-cache-key";
 export { normalizeTtsText, normalizeSpeed, hashTtsKey };
 
 export const TTS_BUCKET = "tts-cache";
+let storageAvailable = true;
 
 function objectPath(hash: string): string {
   return `${hash}.mp3`;
@@ -27,12 +28,16 @@ function objectPath(hash: string): string {
  * miss / any error.
  */
 export async function lookupTtsAudio(hash: string): Promise<Buffer | null> {
+  if (!storageAvailable) return null;
   try {
     const { data, error } = await supabaseAdmin.storage
       .from(TTS_BUCKET)
       .download(objectPath(hash));
 
-    if (error || !data) return null;
+    if (error || !data) {
+      if (error && /bucket not found/i.test(error.message)) storageAvailable = false;
+      return null;
+    }
 
     const buffer = Buffer.from(await data.arrayBuffer());
     if (buffer.length === 0) return null;
@@ -62,6 +67,7 @@ export async function writeTtsAudio(entry: {
   voice: string;
   speed: number;
 }): Promise<void> {
+  if (!storageAvailable) return;
   try {
     const { error: uploadError } = await supabaseAdmin.storage
       .from(TTS_BUCKET)
@@ -72,6 +78,7 @@ export async function writeTtsAudio(entry: {
 
     // "already exists" is fine (another request cached it first).
     if (uploadError && !/exists|duplicate/i.test(uploadError.message)) {
+      if (/bucket not found/i.test(uploadError.message)) storageAvailable = false;
       console.warn("[TTSCache] Upload failed:", uploadError.message);
       return;
     }

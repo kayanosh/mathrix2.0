@@ -5,6 +5,7 @@ import type {
   KS2PracticeItem,
   KS2TeachingBlock,
 } from "@/types/ks2-lesson";
+import type { TeachingStep } from "@/lib/methods/types";
 
 export interface CachedKS2WorkedExampleWhiteboard {
   intro: string;
@@ -22,6 +23,7 @@ export interface CachedKS2Lesson {
     answer: string;
     emoji?: string;
     whiteboard?: CachedKS2WorkedExampleWhiteboard;
+    teachingSteps?: TeachingStep[];
   };
   keyPoints: string[];
   tryThis?: { question: string; answer: string };
@@ -47,9 +49,13 @@ export function ks2LessonCacheKey(
   topicId: string,
   target: string,
   tier: string,
-  kind: string
+  kind: string,
+  skill = "",
 ): string {
-  return `v18|${topicId}|${target}|${tier}|${kind}`;
+  return `v19|${topicId}|${target}|${tier}|${kind}|${skill
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")}`;
 }
 
 export async function lookupKS2LessonCache(

@@ -524,6 +524,13 @@ export interface WhiteboardResponse {
   intro: string;
   /** Visual blocks rendered in order on the whiteboard */
   blocks: VisualBlock[];
+  /** KS2 teacher-script steps. When present, the tutor narrates these in order. */
+  teachingSteps?: Array<{
+    title: string;
+    explanation: string;
+    why?: string;
+    narration: string;
+  }>;
   /** Final answer clearly stated */
   conclusion: string;
   /** Common mistake to avoid */

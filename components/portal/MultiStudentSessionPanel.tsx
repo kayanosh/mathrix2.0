@@ -84,15 +84,17 @@ export default function MultiStudentSessionPanel({ payload }: { payload: LogPayl
 
   useEffect(() => {
     if (!activeStudentId || !activeStudent) return;
-    setFormByStudent((prev) => {
-      if (prev[activeStudentId]) return prev;
-      return {
-        ...prev,
-        [activeStudentId]: {
-          ...DEFAULT_FORM,
-          notifyParent: Boolean(activeStudent.parent_email),
-        },
-      };
+    queueMicrotask(() => {
+      setFormByStudent((prev) => {
+        if (prev[activeStudentId]) return prev;
+        return {
+          ...prev,
+          [activeStudentId]: {
+            ...DEFAULT_FORM,
+            notifyParent: Boolean(activeStudent.parent_email),
+          },
+        };
+      });
     });
   }, [activeStudentId, activeStudent]);
 

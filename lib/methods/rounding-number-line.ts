@@ -110,18 +110,32 @@ export function parseDecimalRoundingQuestion(
   return null;
 }
 
-function integerPlaceValueTable(value: number, decideDigit: number): TableBlock {
-  const s = String(Math.abs(value));
-  const headers = ["Hundreds", "Tens", "Ones"];
-  const digits = s.padStart(3, " ").slice(-3).split("").map((c) =>
-    c === " " ? "" : c,
-  );
+function integerPlaceValueTable(
+  value: number,
+  place: number,
+  decideDigit: number,
+): TableBlock {
+  const allHeaders = [
+    "Millions",
+    "Hundred Thousands",
+    "Ten Thousands",
+    "Thousands",
+    "Hundreds",
+    "Tens",
+    "Ones",
+  ];
+  const minimumColumns = Math.log10(place) + 1;
+  const columnCount = Math.max(String(Math.abs(value)).length, minimumColumns);
+  const headers = allHeaders.slice(-columnCount);
+  const digits = String(Math.abs(value)).padStart(columnCount, "0").split("");
+  const targetIndex = columnCount - 1 - Math.log10(place);
+  const decidingIndex = Math.min(columnCount - 1, targetIndex + 1);
   return {
     type: "table",
     headers,
     rows: [digits],
     caption: `Place-value chart — deciding digit ${decideDigit}`,
-    highlightCells: [[0, 2]],
+    highlightCells: [[0, decidingIndex]],
   };
 }
 
@@ -197,7 +211,7 @@ export function buildRoundingNumberLine(
     ],
   };
 
-  const table = integerPlaceValueTable(value, decideDigit);
+  const table = integerPlaceValueTable(value, place, decideDigit);
 
   const teachingSteps: TeachingStep[] = [
     {

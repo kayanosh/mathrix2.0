@@ -47,7 +47,7 @@ export default function TeacherClassesPage() {
   }
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => void load());
   }, []);
 
   async function createClass(e: React.FormEvent) {

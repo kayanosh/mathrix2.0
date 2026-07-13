@@ -7,6 +7,7 @@ import InlineMath from "@/components/InlineMath";
 import PracticeWhiteboardModal from "@/components/PracticeWhiteboardModal";
 import KS2ExplainModal from "@/components/ks2/KS2ExplainModal";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
+import { fetchKS2Questions } from "@/lib/ks2-quiz-client";
 
 interface QuizQuestion {
   question: string;
@@ -32,19 +33,16 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
 
   const isMaths = /math/i.test(subjectName) || subjectId === "maths";
 
-  async function load() {
+  async function load(force = false) {
     setLoading(true);
     setError(false);
     setRevealed({});
     try {
-      const res = await fetch("/api/ks2-quiz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: subjectName, topic: topicName, subtopics, target, tier, count: 6 }),
-      });
-      if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { questions: QuizQuestion[] };
-      setQuestions(data.questions);
+      const nextQuestions = await fetchKS2Questions(
+        { subject: subjectName, topic: topicName, subtopics, target, tier, count: 6 },
+        force,
+      );
+      setQuestions(nextQuestions);
     } catch {
       setError(true);
     } finally {
@@ -55,7 +53,7 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicName, target, tier]);
+  }, [topicName, subtopics, target, tier]);
 
   if (loading) {
     return (
@@ -70,7 +68,7 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
     return (
       <div className="text-center py-10">
         <p className="text-gray-600 mb-3">Sorry, the questions couldn&rsquo;t load.</p>
-        <button onClick={load} className="inline-flex items-center gap-2 text-indigo-600 font-medium">
+        <button onClick={() => load(true)} className="inline-flex items-center gap-2 text-indigo-600 font-medium">
           <RotateCcw size={15} /> Try again
         </button>
       </div>
@@ -134,7 +132,7 @@ export default function PracticePanel({ subjectId, subjectName, topicName, subto
       ))}
 
       <div className="flex justify-end">
-        <button onClick={load} className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-600">
+        <button onClick={() => load(true)} className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 hover:text-gray-600">
           <RotateCcw size={13} /> New questions
         </button>
       </div>

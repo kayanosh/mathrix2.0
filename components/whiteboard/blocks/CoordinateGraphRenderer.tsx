@@ -326,7 +326,6 @@ function evaluateFn(fn: string, x: number): number {
     .replace(/\bpow\b/g, "Math.pow")
     .replace(/\^/g, "**");
 
-  // eslint-disable-next-line no-new-func
   return new Function("Math", `return ${expr}`)(Math);
 }
 

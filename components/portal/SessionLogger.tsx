@@ -36,7 +36,7 @@ export default function SessionLogger({
   const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
-    setNotifyParent(Boolean(student?.parent_email));
+    queueMicrotask(() => setNotifyParent(Boolean(student?.parent_email)));
   }, [student]);
 
   async function log() {

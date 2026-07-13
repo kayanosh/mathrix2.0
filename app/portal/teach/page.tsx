@@ -95,15 +95,17 @@ export default function TeachHubPage() {
 
   useEffect(() => {
     if (!activeStudentId || !activeStudent) return;
-    skipSaveRef.current = true;
     const saved = getPrefs(activeStudentId);
     const defaults = getStudentTeachDefaults(activeStudent);
     const prefs = saved ?? defaults;
-    setStageId(prefs.stageId);
-    setSubjectId(prefs.subjectId);
-    setBoard(prefs.board);
-    setScienceTrack(prefs.scienceTrack);
-    setSearch("");
+    queueMicrotask(() => {
+      skipSaveRef.current = true;
+      setStageId(prefs.stageId);
+      setSubjectId(prefs.subjectId);
+      setBoard(prefs.board);
+      setScienceTrack(prefs.scienceTrack);
+      setSearch("");
+    });
   }, [activeStudentId, activeStudent, getPrefs]);
 
   useEffect(() => {

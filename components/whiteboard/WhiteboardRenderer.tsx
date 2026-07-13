@@ -118,9 +118,16 @@ export default function WhiteboardRenderer({
 
   // Reset when data changes
   useEffect(() => {
-    setRevealed(revealAll ? Infinity : 1);
-    setShowCelebration(false);
-    setSessionKey((k) => k + 1);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setRevealed(revealAll ? Infinity : 1);
+      setShowCelebration(false);
+      setSessionKey((k) => k + 1);
+    });
+    return () => {
+      active = false;
+    };
   }, [data, revealAll]);
 
   // Persist playback position as the student advances.

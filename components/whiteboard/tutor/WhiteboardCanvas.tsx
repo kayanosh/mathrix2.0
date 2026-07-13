@@ -39,10 +39,12 @@ export default function WhiteboardCanvas({ children, focusEl, className = "" }: 
 
     const narrow = typeof window !== "undefined" && window.innerWidth < 640;
     const nextScale = reduceMotion ? 1 : narrow ? 1.02 : 1.04;
-    setScale(nextScale);
-
+    const frame = requestAnimationFrame(() => setScale(nextScale));
     const t = setTimeout(() => setScale(1), 900);
-    return () => clearTimeout(t);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(t);
+    };
   }, [focusEl, reduceMotion]);
 
   return (

@@ -28,7 +28,7 @@ export default function KS2Page() {
   const [school, setSchool] = useState<KS2SchoolMeta | null>(null);
 
   useEffect(() => {
-    setSchool(getKS2SchoolMeta());
+    queueMicrotask(() => setSchool(getKS2SchoolMeta()));
     fetch("/api/assignments")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setAssigned(d.assignments || []))

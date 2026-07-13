@@ -11,7 +11,6 @@
 
 import type {
   WhiteboardResponse,
-  VisualBlock,
   EquationStepBlock,
   TextBlock,
   CoordinateGraphBlock,
@@ -44,6 +43,7 @@ export interface NarrationCue {
     | "table"
     | "chart"
     | "column"
+    | "teaching_step"
     | "text"
     | "conclusion"
     | "hint";
@@ -58,8 +58,34 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
     cues.push({ blockIndex: -1, text: data.intro, kind: "intro" });
   }
 
-  // ── Blocks ──────────────────────────────────────────────
-  data.blocks.forEach((block, bi) => {
+  // ── Rich KS2 teaching steps ─────────────────────────────
+  if (data.teachingSteps?.length) {
+    data.teachingSteps.forEach((step, si) => {
+      const searchable = `${step.title} ${step.explanation}`.toLowerCase();
+      const preferredType = /number line|halfway|between|multiple|round up|round down|check/.test(
+        searchable,
+      )
+        ? "number_line"
+        : /place.?value chart|table|column/.test(searchable)
+          ? "table"
+          : null;
+      const preferredIndex = preferredType
+        ? data.blocks.findIndex((block) => block.type === preferredType)
+        : -1;
+      const visualIndex =
+        preferredIndex >= 0
+          ? preferredIndex
+          : data.blocks.length > 0
+            ? Math.min(si, data.blocks.length - 1)
+            : -1;
+      cues.push({
+        blockIndex: visualIndex,
+        subIndex: si,
+        text: step.narration || step.explanation,
+        kind: "teaching_step",
+      });
+    });
+  } else data.blocks.forEach((block, bi) => {
     switch (block.type) {
       case "equation_steps":
         cuesForEquationSteps(cues, block, bi);

@@ -66,6 +66,25 @@ export function buildTutorSteps(
       };
     }
 
+    if (cue.kind === "teaching_step") {
+      const teachingStep = data.teachingSteps?.[cue.subIndex ?? 0];
+      if (teachingStep) {
+        const visualBlock =
+          cue.blockIndex >= 0 ? data.blocks[cue.blockIndex] : undefined;
+        return {
+          cueIndex,
+          kind: cue.kind,
+          title: teachingStep.title || `Step ${(cue.subIndex ?? 0) + 1}`,
+          explanation: teachingStep.explanation,
+          why: teachingStep.why,
+          narration,
+          visual: visualBlock
+            ? { type: "block", block: visualBlock, blockIndex: cue.blockIndex }
+            : { type: "text", content: teachingStep.explanation },
+        };
+      }
+    }
+
     if (cue.kind === "equation_step") {
       const block = data.blocks[cue.blockIndex];
       if (block?.type === "equation_steps") {

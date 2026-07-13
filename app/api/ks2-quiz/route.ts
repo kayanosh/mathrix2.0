@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishQuizExtra } from "@/lib/ks2-english";
+import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -20,10 +21,15 @@ interface QuizQuestion {
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!allowRequest(`ks2-quiz:${requestClientKey(req.headers)}`, 180, 600_000)) {
+      return NextResponse.json({ error: "Too many quiz requests" }, { status: 429 });
+    }
     const body = await req.json().catch(() => ({}));
-    const subject: string = body.subject || "Mathematics";
-    const topic: string = body.topic || "general";
-    const subtopics: string[] = Array.isArray(body.subtopics) ? body.subtopics : [];
+    const subject: string = String(body.subject || "Mathematics").slice(0, 80);
+    const topic: string = String(body.topic || "general").slice(0, 160);
+    const subtopics: string[] = Array.isArray(body.subtopics)
+      ? body.subtopics.slice(0, 20).map((value: unknown) => String(value).slice(0, 160))
+      : [];
     const target: string = body.target || "curriculum";
     const tier: string = body.tier || "secure";
     const count: number = Math.min(Math.max(Number(body.count) || 4, 1), 8);

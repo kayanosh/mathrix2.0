@@ -69,7 +69,6 @@ export function targetMeta(target: KS2Target) {
 
 /** Human context phrase for prompts, e.g. "an 11+ Greater Depth". */
 export function targetTierPhrase(target: KS2Target, tier: KS2Tier): string {
-  const t = targetMeta(target).label;
   const d = tierMeta(tier).label;
   if (target === "eleven_plus") return `an 11+ (${d}) standard`;
   if (target === "sats") return `a KS2 SATs (${d}) standard`;

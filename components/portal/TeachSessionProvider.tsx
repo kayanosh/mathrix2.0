@@ -70,9 +70,11 @@ export default function TeachSessionProvider({
 
   useEffect(() => {
     const stored = loadTeachSession(centreId, tutorId);
-    setRosterStudentIds(stored.rosterStudentIds);
-    setActiveStudentId(stored.activeStudentId);
-    setHydrated(true);
+    queueMicrotask(() => {
+      setRosterStudentIds(stored.rosterStudentIds);
+      setActiveStudentId(stored.activeStudentId);
+      setHydrated(true);
+    });
   }, [centreId, tutorId]);
 
   useEffect(() => {

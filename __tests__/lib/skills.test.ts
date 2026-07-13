@@ -1,5 +1,4 @@
 import { getMastery } from "@/lib/skills";
-import type { MasteryLevel } from "@/lib/skills";
 
 describe("getMastery", () => {
   const rec = (attempts: number, correct: number) => ({ attempts, correct, lastSeen: Date.now() });
@@ -40,7 +39,7 @@ describe("getSkillData", () => {
   let getSkillData: typeof import("@/lib/skills").getSkillData;
   let recordSkillAttempt: typeof import("@/lib/skills").recordSkillAttempt;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Mock localStorage
     const store: Record<string, string> = {};
     Object.defineProperty(global, "window", {
@@ -68,7 +67,7 @@ describe("getSkillData", () => {
 
     // Re-import to pick up the mocked global
     jest.resetModules();
-    const skills = require("@/lib/skills");
+    const skills = await import("@/lib/skills");
     getSkillData = skills.getSkillData;
     recordSkillAttempt = skills.recordSkillAttempt;
   });

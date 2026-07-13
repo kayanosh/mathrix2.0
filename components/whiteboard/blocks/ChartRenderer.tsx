@@ -172,8 +172,6 @@ function PieChartRenderer({
   const cy = 140;
   const r = 100;
 
-  let currentAngle = -Math.PI / 2;
-
   return (
     <div
       className="rounded-xl p-4"
@@ -191,9 +189,11 @@ function PieChartRenderer({
         <svg viewBox="0 0 320 280" className="w-64 flex-shrink-0">
           {slices.map((slice, i) => {
             const angle = (slice.value / total) * 2 * Math.PI;
-            const startAngle = currentAngle;
-            const endAngle = currentAngle + angle;
-            currentAngle = endAngle;
+            const previousTotal = slices
+              .slice(0, i)
+              .reduce((sum, previous) => sum + previous.value, 0);
+            const startAngle = -Math.PI / 2 + (previousTotal / total) * 2 * Math.PI;
+            const endAngle = startAngle + angle;
 
             const x1 = cx + r * Math.cos(startAngle);
             const y1 = cy + r * Math.sin(startAngle);

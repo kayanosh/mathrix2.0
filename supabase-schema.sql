@@ -240,7 +240,14 @@ create policy "Authenticated users can read topic lesson cache" on topic_lesson_
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- TTS NARRATION CACHE — metadata for cached narration audio
--- The mp3 bytes live in the Storage bucket 'tts-cache' (create it once, private).
+-- The mp3 bytes live in a private Storage bucket. This is idempotent so a
+-- fresh school deployment does not silently fall back to paid regeneration.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('tts-cache', 'tts-cache', false, 10485760, array['audio/mpeg'])
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 -- This table only holds lightweight metadata + hit telemetry; audio is served
 -- through the /api/tts route using the service-role key.
 -- ═══════════════════════════════════════════════════════════════════════════

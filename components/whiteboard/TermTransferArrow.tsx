@@ -47,6 +47,8 @@ export default function TermTransferArrow({
   delay,
   color = "#dc2626",
 }: Props) {
+  void fromTerm;
+  void toTerm;
   const [pts, setPts] = useState<ArrowPoints | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
 

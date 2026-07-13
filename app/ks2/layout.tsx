@@ -19,7 +19,7 @@ export default function KS2Layout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    setReady(true);
+    queueMicrotask(() => setReady(true));
   }, [pathname, router]);
 
   if (!ready) {

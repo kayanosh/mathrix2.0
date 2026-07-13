@@ -22,7 +22,7 @@ export default function KS2SchoolPage() {
       router.replace("/ks2");
       return;
     }
-    setChecking(false);
+    queueMicrotask(() => setChecking(false));
   }, [router]);
 
   function handleContinue() {

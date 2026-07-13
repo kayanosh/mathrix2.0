@@ -26,11 +26,15 @@ function useChecklist() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    let stored: Set<string> | null = null;
     try {
       const raw = localStorage.getItem(CHECKLIST_KEY);
-      if (raw) setChecked(new Set(JSON.parse(raw)));
+      if (raw) stored = new Set(JSON.parse(raw));
     } catch { /* ignore */ }
-    setLoaded(true);
+    queueMicrotask(() => {
+      if (stored) setChecked(stored);
+      setLoaded(true);
+    });
   }, []);
 
   const toggle = useCallback((key: string) => {

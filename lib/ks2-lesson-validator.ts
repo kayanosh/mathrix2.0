@@ -260,6 +260,19 @@ export function validateKS2TeachingLesson(
   }
 
   const prose = collectProse(lesson);
+  const longestSentenceWords = prose
+    .split(/[.!?\n]+/)
+    .reduce(
+      (longest, sentence) =>
+        Math.max(longest, sentence.trim().split(/\s+/).filter(Boolean).length),
+      0,
+    );
+  if (longestSentenceWords > 32) {
+    issues.push({
+      code: "sentence_too_long",
+      message: "Break long explanations into short child-friendly sentences.",
+    });
+  }
   if (VAGUE.test(prose)) {
     issues.push({
       code: "vague_language",

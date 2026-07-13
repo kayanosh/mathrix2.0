@@ -36,8 +36,15 @@ export default function StepController({
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    setIndex(0);
-    setShowAll(false);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setIndex(0);
+      setShowAll(false);
+    });
+    return () => {
+      active = false;
+    };
   }, [steps]);
 
   if (reasoning.length === 0) return null;

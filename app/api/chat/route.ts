@@ -1,10 +1,8 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
 
-// Allow larger request bodies (base64 images) and longer execution time
-export const config = {
-  maxDuration: 120,
-};
+// Allow longer execution time for multi-stage solving and verification.
+export const maxDuration = 120;
 import { classifyQuestion, detectRequiredVisuals, getRequiredBlockTypes } from "@/lib/prompts/classify";
 import { buildSystemPrompt, buildFollowUpPrompt } from "@/lib/prompts/system";
 import { buildTeacherExplanationPrompt, buildLessonPrompt, getTeacherRequiredVisuals } from "@/lib/prompts/teacher";

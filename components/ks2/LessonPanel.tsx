@@ -65,6 +65,7 @@ interface Props {
   subjectName: string;
   topicId: string;
   topicName: string;
+  skillName: string;
   subtopics: string[];
   target: KS2Target;
   tier: KS2Tier;
@@ -74,6 +75,10 @@ interface Props {
 
 const CACHE_PREFIX = "mathrix_ks2_lesson_v21_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
+const lessonRequests = new Map<
+  string,
+  Promise<{ lesson: KS2Lesson; cached?: boolean }>
+>();
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((x) => String(x)) : [];
@@ -84,7 +89,7 @@ function asTeachingSteps(value: unknown): TeachingStep[] {
 }
 
 function cacheKey(p: Props): string {
-  return `${CACHE_PREFIX}${p.topicId}|${p.target}|${p.tier}|${p.kind}`;
+  return `${CACHE_PREFIX}${p.topicId}|${p.skillName}|${p.target}|${p.tier}|${p.kind}`;
 }
 
 function readCache(key: string): KS2Lesson | null {
@@ -117,7 +122,7 @@ const fadeUp = {
 };
 
 export default function LessonPanel(props: Props) {
-  const { subjectId, subjectName, topicId, topicName, subtopics, target, tier, kind, accentHex } = props;
+  const { subjectId, subjectName, topicId, topicName, skillName, subtopics, target, tier, kind, accentHex } = props;
   const [lesson, setLesson] = useState<KS2Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -126,6 +131,7 @@ export default function LessonPanel(props: Props) {
   const [fromLibrary, setFromLibrary] = useState(false);
   const [watchMode, setWatchMode] = useState(false);
   const [tryWatchMode, setTryWatchMode] = useState(false);
+  const [staffMode, setStaffMode] = useState(false);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
@@ -144,22 +150,37 @@ export default function LessonPanel(props: Props) {
     setShowTryAnswer(false);
     setFromLibrary(false);
     try {
-      const res = await fetch("/api/ks2-lesson", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topicId,
-          subject: subjectName,
-          topic: topicName,
-          subtopics,
-          target,
-          tier,
-          kind,
-          force,
-        }),
-      });
-      if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { lesson: KS2Lesson; cached?: boolean };
+      const requestKey = `${key}|force:${force}`;
+      let request = lessonRequests.get(requestKey);
+      if (!request) {
+        request = fetch("/api/ks2-lesson", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topicId,
+            subject: subjectName,
+            topic: topicName,
+            skill: skillName,
+            subtopics,
+            target,
+            tier,
+            kind,
+            force,
+          }),
+        }).then(async (res) => {
+          if (!res.ok) throw new Error("failed");
+          return (await res.json()) as {
+            lesson: KS2Lesson;
+            cached?: boolean;
+          };
+        });
+        lessonRequests.set(requestKey, request);
+        void request.then(
+          () => lessonRequests.delete(requestKey),
+          () => lessonRequests.delete(requestKey),
+        );
+      }
+      const data = await request;
       setLesson(data.lesson);
       setFromLibrary(data.cached === true);
       writeCache(key, data.lesson);
@@ -175,7 +196,7 @@ export default function LessonPanel(props: Props) {
     setTryWatchMode(false);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicName, target, tier, kind]);
+  }, [topicName, skillName, target, tier, kind]);
 
   const displayExample = useMemo(() => {
     if (!lesson?.workedExample?.question) return lesson?.workedExample;
@@ -195,6 +216,7 @@ export default function LessonPanel(props: Props) {
       ? {
           intro: displayExample.whiteboard.intro || displayExample.question,
           blocks: displayExample.whiteboard.blocks,
+          teachingSteps: displayExample.teachingSteps,
           conclusion:
             displayExample.whiteboard.conclusion || displayExample.answer,
           subject: subjectName,
@@ -230,6 +252,7 @@ export default function LessonPanel(props: Props) {
       ? {
           intro: trySolution.whiteboard.intro || trySolution.question,
           blocks: trySolution.whiteboard.blocks,
+          teachingSteps: trySolution.teachingSteps,
           conclusion:
             trySolution.whiteboard.conclusion ||
             trySolution.answer ||
@@ -289,6 +312,18 @@ export default function LessonPanel(props: Props) {
               Include try-this answer
             </label>
           )}
+          <button
+            type="button"
+            onClick={() => setStaffMode((shown) => !shown)}
+            aria-pressed={staffMode}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-semibold ${
+              staffMode
+                ? "bg-amber-100 text-amber-900 ring-1 ring-amber-300"
+                : "bg-white text-gray-700 ring-1 ring-gray-200"
+            }`}
+          >
+            <Eye size={14} /> {staffMode ? "Hide staff guide" : "Staff guide"}
+          </button>
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-gray-800"
@@ -351,6 +386,23 @@ export default function LessonPanel(props: Props) {
             </ul>
           </motion.div>
         )}
+
+      {staffMode && (
+        <motion.aside
+          variants={fadeUp}
+          className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4"
+          aria-label="Cover staff guide"
+        >
+          <p className="text-[12px] font-bold uppercase tracking-wide text-amber-800 mb-2">
+            Cover staff guide
+          </p>
+          <ol className="space-y-2 text-sm text-amber-950">
+            <li><strong>Say:</strong> Read the core idea aloud, then open the worked example.</li>
+            <li><strong>Ask:</strong> “Which part of the question tells us which method to use?”</li>
+            <li><strong>Check:</strong> Ask the pupil to explain one step in their own words before showing the answer.</li>
+          </ol>
+        </motion.aside>
+      )}
 
       {/* Sections */}
       {(Array.isArray(lesson.sections) ? lesson.sections : []).map((s, i) => (
@@ -540,6 +592,12 @@ export default function LessonPanel(props: Props) {
                     <InlineMath text={item.hint} />
                   </p>
                 )}
+                {staffMode && item.answer && (
+                  <p className="text-[13px] text-emerald-800">
+                    <span className="font-semibold">Answer: </span>
+                    <InlineMath text={item.answer} />
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -555,8 +613,14 @@ export default function LessonPanel(props: Props) {
             </p>
             <ul className="space-y-2">
               {lesson.independentPractice.map((item, i) => (
-                <li key={i} className="text-sm text-gray-800">
-                  <InlineMath text={item.question} />
+                <li key={i} className="text-sm text-gray-800 space-y-1">
+                  <p><InlineMath text={item.question} /></p>
+                  {staffMode && item.answer && (
+                    <p className="text-[13px] text-emerald-800">
+                      <span className="font-semibold">Answer: </span>
+                      <InlineMath text={item.answer} />
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -570,6 +634,12 @@ export default function LessonPanel(props: Props) {
           <p className="font-medium text-gray-900">
             <InlineMath text={lesson.quickCheck.question} />
           </p>
+          {staffMode && lesson.quickCheck.answer && (
+            <p className="mt-1 text-[13px] text-emerald-800">
+              <span className="font-semibold">Answer: </span>
+              <InlineMath text={lesson.quickCheck.answer} />
+            </p>
+          )}
         </motion.div>
       )}
 

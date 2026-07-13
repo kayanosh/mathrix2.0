@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Loader2, Check, RotateCcw, Star, Eye } from "lucide-react";
+import InlineMath from "@/components/InlineMath";
 import { recordCorrect, recordIncorrect, markTopicMastered, type SkillMeta } from "@/lib/skills";
 import { ks2SkillKey } from "@/lib/ks2";
 import { MASTERY_QUIZ_SIZE, MASTERY_PASS_MARK, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
+import { fetchKS2Questions } from "@/lib/ks2-quiz-client";
 
 interface QuizQuestion {
   question: string;
@@ -22,6 +24,27 @@ interface Props {
   tier: KS2Tier;
   onClose: () => void;
   onPassed: () => void;
+}
+
+function normalizedAnswer(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/[£$%]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function answersMatch(response: string, expected: string): boolean {
+  const actual = normalizedAnswer(response);
+  const target = normalizedAnswer(expected);
+  if (!actual) return false;
+  if (actual === target) return true;
+  if (/^-?\d+(?:\.\d+)?(?:\/\d+)?$/.test(actual)) {
+    const candidates = target.match(/-?\d+(?:\.\d+)?(?:\/\d+)?/g) || [];
+    return candidates.some((candidate) => candidate === actual);
+  }
+  return false;
 }
 
 export default function MasteryQuiz({
@@ -42,27 +65,22 @@ export default function MasteryQuiz({
   const [revealed, setRevealed] = useState(false);
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
+  const [response, setResponse] = useState("");
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const res = await fetch("/api/ks2-quiz", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const nextQuestions = await fetchKS2Questions({
             subject: subjectName,
             topic: topicName,
             subtopics,
             target,
             tier,
             count: MASTERY_QUIZ_SIZE,
-          }),
         });
-        if (!res.ok) throw new Error("quiz failed");
-        const data = (await res.json()) as { questions: QuizQuestion[] };
         if (active) {
-          setQuestions(data.questions);
+          setQuestions(nextQuestions);
           setLoading(false);
         }
       } catch {
@@ -78,7 +96,8 @@ export default function MasteryQuiz({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const topicKey = ks2SkillKey(topicName, "Mastery quiz");
+  const skillName = subtopics[0] || "Mastery quiz";
+  const topicKey = ks2SkillKey(topicName, skillName);
 
   function mark(gotIt: boolean) {
     const meta2: SkillMeta = { ...meta, target, tier };
@@ -98,6 +117,7 @@ export default function MasteryQuiz({
     } else {
       setIdx((i) => i + 1);
       setRevealed(false);
+      setResponse("");
     }
   }
 
@@ -106,10 +126,15 @@ export default function MasteryQuiz({
     setRevealed(false);
     setCorrect(0);
     setDone(false);
+    setResponse("");
   }
 
   const passed = correct >= MASTERY_PASS_MARK;
   const current = questions[idx];
+  const isMaths = subjectId === "maths" || /math/i.test(subjectName);
+  const answerCorrect = current
+    ? answersMatch(response, current.answer || "")
+    : false;
 
   return (
     <motion.div
@@ -125,16 +150,19 @@ export default function MasteryQuiz({
         exit={{ y: 60, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 28 }}
         className="bg-white w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mastery-quiz-title"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
-            <h2 className="font-extrabold text-lg text-gray-900">Mastery Quiz ⭐</h2>
+            <h2 id="mastery-quiz-title" className="font-extrabold text-lg text-gray-900">Mastery Quiz ⭐</h2>
             <p className="text-[12px] text-gray-400">
               {topicName} · {tierMeta(tier).label}
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100">
+          <button aria-label="Close mastery quiz" onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-100">
             <X size={16} />
           </button>
         </div>
@@ -194,22 +222,53 @@ export default function MasteryQuiz({
               <p className="text-[12px] font-semibold text-gray-400 mb-1">
                 Question {idx + 1} of {questions.length}
               </p>
-              <p className="text-lg text-gray-900 font-medium mb-5 whitespace-pre-line">{current.question}</p>
+              <p className="text-lg text-gray-900 font-medium mb-5 whitespace-pre-line">
+                <InlineMath text={current.question} />
+              </p>
 
               {!revealed ? (
-                <button
-                  onClick={() => setRevealed(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100"
-                >
-                  <Eye size={16} /> Show answer
-                </button>
+                <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-gray-700" htmlFor="mastery-response">
+                    Your answer
+                  </label>
+                  <textarea
+                    id="mastery-response"
+                    value={response}
+                    onChange={(event) => setResponse(event.target.value)}
+                    rows={isMaths ? 2 : 4}
+                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    placeholder={isMaths ? "Type your answer" : "Write your answer before checking"}
+                  />
+                  <button
+                    onClick={() => setRevealed(true)}
+                    disabled={!response.trim()}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Eye size={16} /> Check answer
+                  </button>
+                </div>
               ) : (
                 <>
                   <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 mb-5">
                     <p className="text-[12px] font-bold text-emerald-700 mb-1">Answer</p>
-                    <p className="text-emerald-900 whitespace-pre-line">{current.answer || "Check with your teacher."}</p>
+                    <p className="text-emerald-900 whitespace-pre-line">
+                      <InlineMath text={current.answer || "Check with your teacher."} />
+                    </p>
                   </div>
-                  <p className="text-center text-sm text-gray-500 mb-3">Did you get it right?</p>
+                  {isMaths ? (
+                    <>
+                      <p className={`text-center text-sm font-semibold mb-3 ${answerCorrect ? "text-emerald-700" : "text-rose-700"}`}>
+                        {answerCorrect ? "Correct — well done!" : "Not yet. Compare your answer with the worked answer."}
+                      </p>
+                      <button
+                        onClick={() => mark(answerCorrect)}
+                        className="w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
+                      >
+                        Continue
+                      </button>
+                    </>
+                  ) : (
+                  <><p className="text-center text-sm text-gray-500 mb-3">Use the model answer to check your work.</p>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => mark(false)}
@@ -224,6 +283,8 @@ export default function MasteryQuiz({
                       <Check size={16} /> I got it!
                     </button>
                   </div>
+                  </>
+                  )}
                 </>
               )}
             </div>

@@ -94,6 +94,9 @@ ${pedagogy}
 UK PRIMARY RULES:
 - Use UK terminology (HCF not GCD; numerator/denominator in child-friendly language).
 - Explain why the method works.
+- Keep sentences short: aim for 18 words or fewer.
+- Define every new maths word the first time it appears.
+- Use concrete numbers and tell the pupil exactly what to look at.
 - Ban vague phrases: "it is easy", "simply", "obviously", "just".
 - Never put the final answer as the first step.
 - Never use GCSE language.

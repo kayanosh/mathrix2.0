@@ -27,7 +27,7 @@ interface Props {
   baseDelay: number;
 }
 
-export default function BlockRenderer({ block, index, baseDelay }: Props) {
+export default function BlockRenderer({ block, baseDelay }: Props) {
   switch (block.type) {
     case "equation_steps":
       return <EquationStepsRenderer block={block} baseDelay={baseDelay} />;

@@ -44,7 +44,7 @@ function StudentDetail({ ctx, studentId }: { ctx: PortalContext; studentId: stri
   }, [studentId]);
 
   useEffect(() => {
-    load();
+    queueMicrotask(() => void load());
   }, [load]);
 
   async function deleteTopic(id: string) {

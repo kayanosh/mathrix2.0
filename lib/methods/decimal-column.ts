@@ -84,7 +84,7 @@ export function buildDecimalColumn(problem: DecimalProblem): MethodBuildResult {
   const width = Math.max(aStr.length, bStr.length + 1, rStr.length);
   const pad = (s: string) => s.padStart(width, " ");
   const row0 = pad(aStr);
-  let row1Core = pad(bStr);
+  const row1Core = pad(bStr);
   // Place operator in the space immediately left of the first non-space of b
   const first = row1Core.search(/\S/);
   const row1Chars = row1Core.split("");

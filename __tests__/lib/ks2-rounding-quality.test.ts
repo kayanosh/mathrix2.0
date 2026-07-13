@@ -119,6 +119,13 @@ describe("KS2 rounding lesson quality", () => {
     expect(types).toContain("table");
     expect(types).toContain("number_line");
     expect(built.teachingSteps.length).toBeGreaterThanOrEqual(6);
+    const table = (built.extraBlocks || []).find((block) => block.type === "table");
+    expect(table).toMatchObject({
+      type: "table",
+      headers: ["Ten Thousands", "Thousands", "Hundreds", "Tens", "Ones"],
+      rows: [["5", "7", "8", "9", "2"]],
+      highlightCells: [[0, 1]],
+    });
   });
 
   it("overlays builder onto shallow LLM rounding lesson", () => {

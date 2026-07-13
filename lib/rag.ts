@@ -30,7 +30,7 @@ export async function retrieveContentChunks(
 
     // Build RPC call for vector similarity search
     // We use a raw query since Supabase JS client doesn't natively support pgvector ordering
-    let query = supabaseAdmin.rpc("match_content_chunks", {
+    const query = supabaseAdmin.rpc("match_content_chunks", {
       query_embedding: JSON.stringify(questionEmbedding),
       match_threshold: 0.3,
       match_count: limit,

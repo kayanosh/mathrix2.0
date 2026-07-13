@@ -40,16 +40,34 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   const [skillData, setSkillData] = useState<SkillData>({});
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeStage, setActiveStage] = useState<KS2StageId | null>(null);
+  const [skillSelection, setSkillSelection] = useState<{
+    topicId: string;
+    skill: string;
+  }>(() => ({
+    topicId,
+    skill: ctx?.topic.subtopics[0] || "",
+  }));
 
   useEffect(() => {
-    setSkillData(getSkillData());
-    syncSkillsFromServer().then((m) => m && setSkillData(m));
+    let active = true;
+    const localSkills = getSkillData();
+    let storedTier: KS2Tier | null = null;
     try {
-      const ti = localStorage.getItem("ks2_tier") as KS2Tier | null;
-      if (ti) setTier(ti);
+      storedTier = localStorage.getItem("ks2_tier") as KS2Tier | null;
     } catch {
       /* ignore */
     }
+    queueMicrotask(() => {
+      if (!active) return;
+      setSkillData(localSkills);
+      if (storedTier) setTier(storedTier);
+    });
+    syncSkillsFromServer().then((m) => {
+      if (active && m) setSkillData(m);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (!ctx) {
@@ -64,6 +82,11 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   }
 
   const { topic, subject, section, year } = ctx;
+  const selectedSkill =
+    skillSelection.topicId === topicId &&
+    topic.subtopics.includes(skillSelection.skill)
+      ? skillSelection.skill
+      : topic.subtopics[0] || topic.name;
   // The framework ("working towards") is determined by the section the topic
   // belongs to — KS2Section and KS2Target share the same string union.
   const target: KS2Target = section;
@@ -79,7 +102,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
   };
 
   // Topic mastery: derived from the mastery-quiz skill record.
-  const masteryKey = ks2SkillKey(topic.name, "Mastery quiz");
+  const masteryKey = ks2SkillKey(topic.name, selectedSkill);
   const masteryRec = skillData[masteryKey];
   const isMastered = getMastery(masteryRec) === "mastered";
 
@@ -100,7 +123,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
     const next = activeStage === stage ? null : stage;
     setActiveStage(next);
     if (next) {
-      recordSkillAttempt(ks2SkillKey(topic.name, PATHWAY_STAGES.find((s) => s.id === stage)!.label), meta);
+      recordSkillAttempt(ks2SkillKey(topic.name, selectedSkill), meta);
     }
   }
 
@@ -158,6 +181,25 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
           ))}
         </div>
 
+        {/* Skill selector */}
+        <label htmlFor="ks2-skill" className="block text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">
+          Skill to learn
+        </label>
+        <select
+          id="ks2-skill"
+          value={selectedSkill}
+          onChange={(event) => {
+            setSkillSelection({ topicId, skill: event.target.value });
+            setActiveStage(null);
+            setShowQuiz(false);
+          }}
+          className="mb-7 w-full rounded-2xl border border-indigo-200 bg-white px-4 py-3 text-base font-semibold text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+        >
+          {topic.subtopics.map((subtopic) => (
+            <option key={subtopic} value={subtopic}>{subtopic}</option>
+          ))}
+        </select>
+
         {/* Pathway stages */}
         <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mb-2">Your learning path</p>
         <div className="space-y-3">
@@ -200,7 +242,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
                         subjectId={subject.id}
                         subjectName={subject.name}
                         topicName={topic.name}
-                        subtopics={topic.subtopics}
+                        subtopics={[selectedSkill]}
                         target={target}
                         tier={tier}
                       />
@@ -210,7 +252,8 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
                         subjectName={subject.name}
                         topicId={topic.id}
                         topicName={topic.name}
-                        subtopics={topic.subtopics}
+                        skillName={selectedSkill}
+                        subtopics={[selectedSkill]}
                         target={target}
                         tier={tier}
                         kind={stage.id === "guided" ? "guided" : "lesson"}
@@ -225,7 +268,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
         </div>
 
         {/* Skills in this topic */}
-        <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mt-8 mb-2">Skills in this topic</p>
+        <p className="text-[12px] font-bold uppercase tracking-wide text-gray-400 mt-8 mb-2">Skill progress</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {topic.subtopics.map((sub) => {
             const rec = skillData[ks2SkillKey(topic.name, sub)];
@@ -233,10 +276,24 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
             const dot =
               m === "mastered" ? "bg-emerald-500" : m === "unseen" ? "bg-gray-300" : "bg-amber-400";
             return (
-              <div key={sub} className="flex items-center gap-2.5 rounded-lg px-3 py-2 bg-white ring-1 ring-gray-100">
+              <button
+                key={sub}
+                type="button"
+                onClick={() => {
+                  setSkillSelection({ topicId, skill: sub });
+                  setActiveStage("learn");
+                  setShowQuiz(false);
+                }}
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all ${
+                  selectedSkill === sub
+                    ? "bg-indigo-50 ring-2 ring-indigo-300"
+                    : "bg-white ring-1 ring-gray-100 hover:ring-indigo-200"
+                }`}
+                aria-pressed={selectedSkill === sub}
+              >
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dot}`} />
                 <span className="text-sm text-gray-700 truncate">{sub}</span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -262,7 +319,7 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
             subjectId={subject.id}
             subjectName={subject.name}
             topicName={topic.name}
-            subtopics={topic.subtopics}
+            subtopics={[selectedSkill]}
             meta={meta}
             target={target}
             tier={tier}
