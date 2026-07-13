@@ -28,6 +28,7 @@ export type MethodBuilderId =
   | "long_division"
   | "place_value_shift"
   | "place_value_chart"
+  | "roman_numerals"
   | "rounding_number_line"
   | "fraction_ops"
   | "fraction_number_line"

@@ -72,6 +72,20 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     ],
   },
   {
+    id: "roman_numerals",
+    label: "Roman Numerals",
+    years: "5-6",
+    builderId: "roman_numerals",
+    requiredBlocks: ["table"],
+    keywords: /\broman\s+numerals?\b/i,
+    vocabulary: ["Roman numeral", "symbol", "value", "subtract", "place value"],
+    commonMistakes: [
+      "Writing four identical symbols instead of using IV, IX, XL, XC, CD or CM",
+      "Putting the place-value parts in the wrong order",
+    ],
+    notes: "Split the number by place value, convert each part, then join the symbols from largest to smallest.",
+  },
+  {
     id: "fraction_simplify",
     label: "Simplify Fractions (HCF)",
     years: "5-6",
@@ -312,7 +326,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     builderId: null,
     requiredBlocks: ["table"],
     keywords:
-      /\b(place value|numbers to|read,?\s*write|compare and order numbers|roman numerals|powers of 10|more or less)\b/i,
+      /\b(place value|numbers to|read,?\s*write|compare and order numbers|powers of 10|more or less)\b/i,
     vocabulary: ["place value", "round", "compare", "digit", "million"],
     commonMistakes: [
       "Rounding to the wrong place",
@@ -408,6 +422,7 @@ const STOP_AFTER = new Set([
   "place_value_shift",
   "place_value_rounding",
   "place_value_chart",
+  "roman_numerals",
   "fractions_compare",
   "fraction_simplify",
   "fraction_ops",

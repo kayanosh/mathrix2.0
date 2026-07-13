@@ -28,6 +28,12 @@ import {
   parsePlaceValueChart,
 } from "@/lib/methods/place-value-chart";
 import {
+  buildRomanNumeralToNumber,
+  buildRomanNumerals,
+  parseRomanNumeralQuestion,
+  parseRomanToNumberQuestion,
+} from "@/lib/methods/roman-numerals";
+import {
   buildRoundingNumberLine,
   parseRoundingQuestion,
   parseDecimalRoundingQuestion,
@@ -132,6 +138,17 @@ function tryPlaceValueChart(text: string): MethodBuildResult | null {
   if (!parsed) return null;
   try {
     return buildPlaceValueChart(parsed.value, parsed.digit);
+  } catch {
+    return null;
+  }
+}
+
+function tryRomanNumerals(text: string): MethodBuildResult | null {
+  const value = parseRomanNumeralQuestion(text);
+  try {
+    if (value != null) return buildRomanNumerals(value);
+    const inverse = parseRomanToNumberQuestion(text);
+    return inverse ? buildRomanNumeralToNumber(inverse.numeral) : null;
   } catch {
     return null;
   }
@@ -344,6 +361,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   quadratic_solve: tryQuadraticSolve,
   linear_equation: tryLinearEquation,
   rounding_number_line: tryRoundingNumberLine,
+  roman_numerals: tryRomanNumerals,
   place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
   fraction_simplify: tryFractionSimplify,
@@ -372,6 +390,7 @@ const DEFAULT_ORDER: MethodBuilderId[] = [
   "quadratic_solve",
   "linear_equation",
   "rounding_number_line",
+  "roman_numerals",
   "place_value_chart",
   "place_value_shift",
   "fraction_simplify",
@@ -418,6 +437,8 @@ export {
   buildLongDivision,
   buildPlaceValueShift,
   buildPlaceValueChart,
+  buildRomanNumerals,
+  buildRomanNumeralToNumber,
   buildRoundingNumberLine,
   buildDecimalRounding,
   buildFractionOps,

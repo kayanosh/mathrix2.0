@@ -77,7 +77,12 @@ const CACHE_PREFIX = "mathrix_ks2_lesson_v21_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const lessonRequests = new Map<
   string,
-  Promise<{ lesson: KS2Lesson; cached?: boolean }>
+  Promise<{
+    lesson: KS2Lesson;
+    cached?: boolean;
+    cacheable?: boolean;
+    qualityWarnings?: string[];
+  }>
 >();
 
 function asStringArray(value: unknown): string[] {
@@ -132,6 +137,7 @@ export default function LessonPanel(props: Props) {
   const [watchMode, setWatchMode] = useState(false);
   const [tryWatchMode, setTryWatchMode] = useState(false);
   const [staffMode, setStaffMode] = useState(false);
+  const [qualityWarnings, setQualityWarnings] = useState<string[]>([]);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
@@ -149,6 +155,7 @@ export default function LessonPanel(props: Props) {
     setError(false);
     setShowTryAnswer(false);
     setFromLibrary(false);
+    setQualityWarnings([]);
     try {
       const requestKey = `${key}|force:${force}`;
       let request = lessonRequests.get(requestKey);
@@ -172,6 +179,8 @@ export default function LessonPanel(props: Props) {
           return (await res.json()) as {
             lesson: KS2Lesson;
             cached?: boolean;
+            cacheable?: boolean;
+            qualityWarnings?: string[];
           };
         });
         lessonRequests.set(requestKey, request);
@@ -183,7 +192,8 @@ export default function LessonPanel(props: Props) {
       const data = await request;
       setLesson(data.lesson);
       setFromLibrary(data.cached === true);
-      writeCache(key, data.lesson);
+      setQualityWarnings(data.qualityWarnings || []);
+      if (data.cacheable !== false) writeCache(key, data.lesson);
     } catch {
       setError(true);
     } finally {
@@ -300,6 +310,11 @@ export default function LessonPanel(props: Props) {
       <div className="flex flex-wrap items-center gap-3 justify-end">
         {fromLibrary && (
           <p className="text-[12px] font-medium text-indigo-600 mr-auto">Loaded from saved lesson library</p>
+        )}
+        {qualityWarnings.length > 0 && staffMode && (
+          <p className="text-[12px] font-medium text-amber-700 mr-auto">
+            Live lesson — review before reusing
+          </p>
         )}
           {lesson.tryThis && (
             <label className="inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-600 cursor-pointer select-none">

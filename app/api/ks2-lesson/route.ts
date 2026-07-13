@@ -16,6 +16,10 @@ import {
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
+import {
+  parseRomanNumeralQuestion,
+  parseRomanToNumberQuestion,
+} from "@/lib/methods/roman-numerals";
 import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
 import { deepRepairStrings } from "@/lib/validate";
 import { detectPromptInjection, INJECTION_GUARD } from "@/lib/input-safety";
@@ -43,6 +47,26 @@ import { getKS2TopicById } from "@/lib/ks2";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const BLOCKING_LESSON_ISSUES = new Set([
+  "answer_before_reasoning",
+  "uk_gcd_forbidden",
+  "mistake_mismatch",
+  "hcf_not_explained",
+  "rounding_not_explained",
+  "mixed_skill",
+  "missing_visual",
+  "unfit_visual",
+  "visual_mismatch",
+  "number_line_no_markers",
+  "fraction_bar_invalid",
+  "fraction_grid_invalid",
+  "fraction_wall_empty",
+  "bar_model_empty",
+  "hundred_square_invalid",
+  "area_model_invalid",
+  "key_info_empty",
+]);
 
 interface LessonSection {
   heading: string;
@@ -310,6 +334,22 @@ function parseWorkedExampleWhiteboard(
 
 function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: string[]): WorkedExample {
   let next = example;
+  if (subtopics.some((skill) => /roman numerals?\s+to\s+1000/i.test(skill))) {
+    const romanValue =
+      parseRomanNumeralQuestion(next.question) ??
+      parseRomanToNumberQuestion(next.question)?.value ??
+      null;
+    if (romanValue != null && romanValue > 1000) {
+      next = {
+        ...next,
+        question: "How do we write 944 in Roman numerals?",
+        steps: [],
+        answer: "",
+        teachingSteps: undefined,
+        whiteboard: undefined,
+      };
+    }
+  }
   if (next.whiteboard) {
     next = {
       ...next,
@@ -778,6 +818,9 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
         ) || undefined;
     }
 
+    let cacheable = true;
+    let qualityWarnings: string[] = [];
+
     if (teachingSubject) {
       lesson = enrichTeachingFields(
         lesson,
@@ -830,22 +873,33 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
           );
         }
         if (!validation.ok) {
-          console.error(
-            "[ks2-lesson] rejected lesson after quality retry:",
-            validation.issues.map((i) => i.code).join(", "),
+          const blocking = validation.issues.filter((issue) =>
+            BLOCKING_LESSON_ISSUES.has(issue.code),
           );
-          return NextResponse.json(
-            {
-              error: "The generated lesson did not meet the KS2 teaching standard.",
-              issues: validation.issues.map((issue) => issue.code),
-            },
-            { status: 422 },
+          qualityWarnings = validation.issues.map((issue) => issue.code);
+          if (blocking.length > 0) {
+            console.error(
+              "[ks2-lesson] rejected unsafe lesson after quality retry:",
+              qualityWarnings.join(", "),
+            );
+            return NextResponse.json(
+              {
+                error: "The generated lesson contained unsafe or mismatched teaching content.",
+                issues: qualityWarnings,
+              },
+              { status: 422 },
+            );
+          }
+          cacheable = false;
+          console.warn(
+            "[ks2-lesson] serving recoverable lesson without caching:",
+            qualityWarnings.join(", "),
           );
         }
       }
     }
 
-    if (topicId) {
+    if (topicId && cacheable) {
       await writeKS2LessonCache({
         cacheKey: ks2LessonCacheKey(topicId, target, tier, kind, focusSkill),
         topicId,
@@ -858,7 +912,12 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
       });
     }
 
-    return NextResponse.json({ lesson, cached: false });
+    return NextResponse.json({
+      lesson,
+      cached: false,
+      cacheable,
+      qualityWarnings,
+    });
   } catch (err) {
     console.error("ks2-lesson error:", err);
     return NextResponse.json({ error: "Failed to generate lesson" }, { status: 500 });
