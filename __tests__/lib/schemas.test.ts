@@ -455,6 +455,30 @@ describe("WhiteboardResponseSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts the KS2 teaching visual primitives", () => {
+    const data = {
+      intro: "Compare the fractions.",
+      blocks: [
+        { type: "fraction_bar", numerator: 2, denominator: 3, shaded: 2 },
+        {
+          type: "fraction_grid",
+          numerator: 6,
+          denominator: 9,
+          groupSize: 3,
+          simplifiedNumerator: 2,
+          simplifiedDenominator: 3,
+        },
+        {
+          type: "key_info",
+          stem: "Find two thirds of 12.",
+          highlights: [{ text: "two thirds", kind: "operation" }],
+        },
+      ],
+      conclusion: "The fractions are equivalent.",
+    };
+    expect(WhiteboardResponseSchema.safeParse(data).success).toBe(true);
+  });
+
   it("rejects more than 20 blocks", () => {
     const blocks = Array.from({ length: 21 }, () => ({
       type: "text",

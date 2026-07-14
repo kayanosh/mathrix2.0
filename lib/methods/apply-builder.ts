@@ -554,6 +554,7 @@ export function applyMethodBuilderToWhiteboard(
     ...data,
     intro: applied.whiteboard?.intro || data.intro,
     blocks: applied.whiteboard?.blocks || data.blocks,
+    teachingSteps: applied.teachingSteps || data.teachingSteps,
     conclusion: applied.whiteboard?.conclusion || data.conclusion,
   };
 }

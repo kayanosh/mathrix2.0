@@ -60,6 +60,71 @@ describe("buildNarrationPlan", () => {
     expect(stepCues[1].subIndex).toBe(1);
   });
 
+  it("speaks the reason and pupil check for rich teaching steps", () => {
+    const data: WhiteboardResponse = {
+      intro: "Let's round carefully.",
+      blocks: [
+        {
+          type: "number_line",
+          range: [40, 50],
+          tickInterval: 1,
+          markers: [{ value: 47, style: "filled" }],
+        },
+      ],
+      teachingSteps: [
+        {
+          title: "Find halfway",
+          explanation: "Find the halfway point.",
+          why: "Halfway tells us which multiple is nearer.",
+          check: "Is 47 above or below 45?",
+          narration: "Find the halfway point.",
+        },
+      ],
+      conclusion: "47 rounds to 50.",
+    };
+
+    const cue = buildNarrationPlan(data).find((item) => item.kind === "teaching_step");
+    expect(cue?.blockIndex).toBe(0);
+    expect(cue?.text).toContain("Halfway tells us");
+    expect(cue?.text).toContain("Quick check");
+  });
+
+  it("keeps a column-method teaching sequence on its primary visual", () => {
+    const data: WhiteboardResponse = {
+      intro: "Add using columns.",
+      blocks: [
+        {
+          type: "column_method",
+          method: "column_addition",
+          rows: ["47", "+38", "85"],
+          question: "47 + 38",
+          answer: "85",
+        },
+        {
+          type: "equation_steps",
+          steps: [
+            {
+              stepNumber: 1,
+              operationLabel: "Check",
+              explanation: "Check the total.",
+              latexBefore: "47+38",
+              latexAfter: "85",
+              arrowDirection: "simplify",
+            },
+          ],
+        },
+      ],
+      teachingSteps: [
+        { title: "Add the ones", explanation: "Add 7 and 8.", narration: "Add 7 and 8." },
+        { title: "Carry the ten", explanation: "Carry 1 into the tens.", narration: "Carry 1 into the tens." },
+      ],
+      conclusion: "The answer is 85.",
+    };
+
+    const teaching = buildNarrationPlan(data).filter((cue) => cue.kind === "teaching_step");
+    expect(teaching.map((cue) => cue.blockIndex)).toEqual([0, 0]);
+  });
+
   it("generates graph cue", () => {
     const data: WhiteboardResponse = {
       intro: "Graph",

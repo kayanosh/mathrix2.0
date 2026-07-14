@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Check, Lightbulb, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
+import { Check, CircleHelp, Lightbulb, Sparkles } from "lucide-react";
 import type { TutorStepModel } from "@/lib/tutor-steps";
 import type { ColumnMethodBlock, EquationStep } from "@/types/whiteboard";
 import MathWriteIn from "@/components/whiteboard/MathWriteIn";
@@ -16,12 +16,17 @@ import BlockRenderer from "@/components/whiteboard/BlockRenderer";
 import TextRenderer from "@/components/whiteboard/blocks/TextRenderer";
 import { estimateMathWriteMs } from "@/lib/handwriting";
 import type { WhiteboardResponse } from "@/types/whiteboard";
+import {
+  phaseHasReached,
+  type PlaybackPhase,
+} from "@/lib/whiteboard-playback";
 
 interface Props {
   step: TutorStepModel;
   data: WhiteboardResponse;
   runId: number;
-  setStepRef?: (el: HTMLDivElement | null) => void;
+  playbackPhase?: PlaybackPhase;
+  setStepRef?: (el: HTMLElement | null) => void;
   /** Active = highlighted current; completed = still fully visible with check */
   variant?: "active" | "completed";
   celebrating?: boolean;
@@ -35,6 +40,7 @@ export default function ActiveStepCard({
   step,
   data,
   runId,
+  playbackPhase = "complete",
   setStepRef,
   variant = "active",
   celebrating = false,
@@ -42,14 +48,15 @@ export default function ActiveStepCard({
 }: Props) {
   const isActive = variant === "active";
   const isCompleted = variant === "completed";
+  const writingStarted = phaseHasReached(playbackPhase, "write");
+  const explanationVisible = phaseHasReached(playbackPhase, "explain");
+  const checkVisible = phaseHasReached(playbackPhase, "check");
 
   const body = (
     <>
       {isActive && (
-        <motion.div
+        <div
           className="absolute inset-0 rounded-3xl ring-2 ring-blue-400/30 pointer-events-none"
-          animate={{ opacity: [0.35, 0.7, 0.35] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
         />
       )}
 
@@ -99,6 +106,8 @@ export default function ActiveStepCard({
         </div>
 
         <div
+          data-teacher-target="visual"
+          data-teacher-phase={playbackPhase}
           className={`rounded-2xl border px-4 py-4 sm:px-5 ${
             isCompleted
               ? "bg-white/70 border-emerald-100/80"
@@ -109,11 +118,16 @@ export default function ActiveStepCard({
             step={step}
             data={data}
             runId={runId}
-            animateWrite={isActive}
+            animateWrite={isActive && writingStarted}
           />
         </div>
 
-        <div>
+        <div
+          aria-hidden={isActive && !explanationVisible}
+          className={`transition-opacity duration-300 ${
+            isActive && !explanationVisible ? "opacity-0" : "opacity-100"
+          }`}
+        >
           {isActive && (
             <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Explanation
@@ -126,37 +140,47 @@ export default function ActiveStepCard({
                 : "text-[15px] sm:text-base text-slate-700"
             }`}
           >
-            {isActive ? (
-              <HandwrittenInline text={step.explanation} startDelay={120} />
-            ) : (
-              <InlineMath text={step.explanation} />
-            )}
+            <InlineMath text={step.explanation} />
           </p>
         </div>
 
-        <AnimatePresence>
-          {step.why && isActive && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="rounded-2xl bg-amber-50/90 border border-amber-100 px-4 py-3"
-            >
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1">
-                <Lightbulb size={12} /> Why this works
-              </p>
-              <p className="text-sm leading-relaxed text-amber-900/90">
-                <InlineMath text={step.why} />
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {step.why && isActive && (
+          <div
+            aria-hidden={!explanationVisible}
+            className={`rounded-2xl bg-amber-50/90 border border-amber-100 px-4 py-3 transition-opacity duration-300 ${
+              explanationVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-1">
+              <Lightbulb size={12} /> Why this works
+            </p>
+            <p className="text-sm leading-relaxed text-amber-900/90">
+              <InlineMath text={step.why} />
+            </p>
+          </div>
+        )}
 
         {step.why && isCompleted && (
           <p className="text-[12px] text-slate-500 leading-snug">
             <span className="font-semibold text-slate-600">Why: </span>
             <InlineMath text={step.why} />
           </p>
+        )}
+
+        {step.check && isActive && (
+          <div
+            aria-hidden={!checkVisible}
+            className={`rounded-2xl border border-emerald-100 bg-emerald-50/90 px-4 py-3 transition-opacity duration-300 ${
+              checkVisible ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <p className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+              <CircleHelp size={13} /> Quick check
+            </p>
+            <p className="text-sm leading-relaxed text-emerald-950/90">
+              <InlineMath text={step.check} />
+            </p>
+          </div>
         )}
       </div>
     </>
@@ -170,7 +194,6 @@ export default function ActiveStepCard({
     return (
       <motion.button
         type="button"
-        layout
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 28 }}
@@ -183,18 +206,13 @@ export default function ActiveStepCard({
   }
 
   return (
-    <motion.article
+    <article
       ref={setStepRef}
-      key={`${step.cueIndex}-${runId}`}
-      layout
-      initial={{ opacity: 0, y: 28, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -16, scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 320, damping: 28 }}
       className={className}
+      data-teacher-phase={playbackPhase}
     >
       {body}
-    </motion.article>
+    </article>
   );
 }
 
@@ -214,6 +232,7 @@ function StepVisual({
   if (v.type === "intro" || v.type === "conclusion" || v.type === "hint") {
     return (
       <p
+        data-teacher-target="primary"
         className={`font-[family-name:var(--font-caveat)] leading-snug ${
           animateWrite ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl"
         } ${
@@ -258,15 +277,21 @@ function StepVisual({
 
   if (v.type === "text") {
     return (
-      <TextRenderer
-        block={{ type: "text", content: v.content, latex: v.latex }}
-        writeIn={animateWrite}
-      />
+      <div data-teacher-target="primary">
+        <TextRenderer
+          block={{ type: "text", content: v.content, latex: v.latex }}
+          writeIn={animateWrite}
+        />
+      </div>
     );
   }
 
   if (v.type === "block") {
-    return <BlockRenderer block={v.block} index={v.blockIndex} baseDelay={0} />;
+    return (
+      <div data-teacher-reveal="visual">
+        <BlockRenderer block={v.block} index={v.blockIndex} baseDelay={0} />
+      </div>
+    );
   }
 
   return null;
@@ -292,7 +317,7 @@ function EquationVisual({
 
   if (hasArrows && hasBefore) {
     return (
-      <div ref={pairRef} className="relative space-y-2">
+      <div ref={pairRef} data-teacher-target="primary" className="relative space-y-2">
         <div className="opacity-45">
           <MathRenderer latex={step.latexBefore} display />
         </div>
@@ -333,7 +358,7 @@ function EquationVisual({
   }
 
   return (
-    <div ref={lineRef} className="relative">
+    <div ref={lineRef} data-teacher-target="primary" className="relative">
       {step.balanceNotation && (
         <div className="font-[family-name:var(--font-caveat)] text-lg text-blue-700 mb-2 ml-1">
           <MathRenderer latex={step.balanceNotation} />

@@ -529,7 +529,17 @@ export interface WhiteboardResponse {
     title: string;
     explanation: string;
     why?: string;
+    /** Optional pupil-facing check spoken after the explanation. */
+    check?: string;
     narration: string;
+    /** Exact visual ownership when a lesson contains several diagrams. */
+    blockIndex?: number;
+    /** Progressive reveal position for column/equation renderers. */
+    revealStep?: number;
+    /** Deterministic digit targets emitted by KS2 method builders. */
+    cellKeys?: string[];
+    carryKeys?: string[];
+    noteKeys?: string[];
   }>;
   /** Final answer clearly stated */
   conclusion: string;

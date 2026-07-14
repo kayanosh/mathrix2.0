@@ -541,3 +541,67 @@ body {
     display: block !important;
   }
 }
+
+/* ── Whiteboard teacher focus ─────────────────────────────
+   The diagram keeps its dimensions throughout playback. Only emphasis changes,
+   which prevents the board from jumping while still revealing the working in
+   the same order a teacher would point it out. */
+[data-teacher-phase] [data-teacher-target="primary"] {
+  transition-property: opacity, filter, box-shadow;
+  transition-duration: 320ms;
+  transition-timing-function: ease-out;
+  transition-delay: calc(var(--teacher-sequence, 0) * 45ms);
+}
+
+[data-teacher-phase] [data-teacher-reveal="visual"] {
+  transition: opacity 280ms ease-out, filter 280ms ease-out;
+}
+
+[data-teacher-phase="focus"] [data-teacher-target="primary"] {
+  opacity: 0.28 !important;
+  filter: saturate(0.55);
+}
+
+[data-teacher-phase="focus"] [data-teacher-reveal="visual"] {
+  opacity: 0.25;
+  filter: saturate(0.55);
+}
+
+[data-teacher-phase="point"] [data-teacher-target="primary"] {
+  opacity: 0.55 !important;
+  filter: saturate(0.75) drop-shadow(0 0 4px rgba(37, 99, 235, 0.3));
+}
+
+[data-teacher-phase="point"] [data-teacher-reveal="visual"] {
+  opacity: 0.7;
+  filter: saturate(0.8);
+}
+
+[data-teacher-phase="write"] [data-teacher-target="primary"],
+[data-teacher-phase="explain"] [data-teacher-target="primary"] {
+  opacity: 1 !important;
+  filter: saturate(1) drop-shadow(0 0 5px rgba(37, 99, 235, 0.22));
+}
+
+[data-teacher-phase="write"] [data-teacher-reveal="visual"],
+[data-teacher-phase="explain"] [data-teacher-reveal="visual"],
+[data-teacher-phase="check"] [data-teacher-reveal="visual"],
+[data-teacher-phase="pupil_pause"] [data-teacher-reveal="visual"] {
+  opacity: 1;
+  filter: saturate(1);
+}
+
+[data-teacher-phase="check"] [data-teacher-target="primary"],
+[data-teacher-phase="pupil_pause"] [data-teacher-target="primary"] {
+  opacity: 1 !important;
+  filter: saturate(1) drop-shadow(0 0 5px rgba(5, 150, 105, 0.3));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-teacher-phase] [data-teacher-target="primary"] {
+    transition: none;
+  }
+  [data-teacher-phase] [data-teacher-reveal="visual"] {
+    transition: none;
+  }
+}

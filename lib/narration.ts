@@ -49,6 +49,63 @@ export interface NarrationCue {
     | "hint";
 }
 
+type TeachingStep = NonNullable<WhiteboardResponse["teachingSteps"]>[number];
+
+function findTeachingVisualIndex(
+  data: WhiteboardResponse,
+  step: TeachingStep,
+): number {
+  if (
+    typeof step.blockIndex === "number" &&
+    step.blockIndex >= 0 &&
+    step.blockIndex < data.blocks.length
+  ) {
+    return step.blockIndex;
+  }
+
+  const searchable = `${step.title} ${step.explanation} ${step.narration}`.toLowerCase();
+  const preferredTypes: Array<WhiteboardResponse["blocks"][number]["type"]> = [];
+
+  if (/carry|borrow|exchange|partial product|bus.?stop|bring down|ones|tens|hundreds/.test(searchable)) {
+    preferredTypes.push("column_method");
+  }
+  if (/number line|halfway|between|multiple|round up|round down|below zero/.test(searchable)) {
+    preferredTypes.push("number_line");
+  }
+  if (/place.?value|chart|table|column/.test(searchable)) {
+    preferredTypes.push("table");
+  }
+  if (/fraction grid|group.*fraction|simplif/.test(searchable)) {
+    preferredTypes.push("fraction_grid", "fraction_bar");
+  } else if (/fraction bar|equal parts|shaded/.test(searchable)) {
+    preferredTypes.push("fraction_bar", "fraction_wall");
+  }
+  if (/shape|angle|side|perimeter|area of/.test(searchable)) {
+    preferredTypes.push("labeled_shape", "area_model");
+  }
+  if (/equation|calculate|work out|missing number/.test(searchable)) {
+    preferredTypes.push("equation_steps");
+  }
+
+  for (const type of preferredTypes) {
+    const index = data.blocks.findIndex((block) => block.type === type);
+    if (index >= 0) return index;
+  }
+
+  // Method builders put their primary teaching visual first. Keep using that
+  // visual for the whole micro-sequence instead of jumping between blocks.
+  return data.blocks.length > 0 ? 0 : -1;
+}
+
+function appendTeachingDetail(text: string, detail?: string, prefix = ""): string {
+  if (!detail?.trim()) return text;
+  const clean = detail.trim();
+  const fingerprint = clean.toLowerCase().replace(/[^a-z0-9 ]/g, "").slice(0, 28);
+  const haystack = text.toLowerCase().replace(/[^a-z0-9 ]/g, "");
+  if (fingerprint && haystack.includes(fingerprint)) return text;
+  return `${text.trim()} ${prefix}${clean}`.trim();
+}
+
 /** Build a flat narration timeline from a WhiteboardResponse */
 export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
   const cues: NarrationCue[] = [];
@@ -61,27 +118,14 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
   // ── Rich KS2 teaching steps ─────────────────────────────
   if (data.teachingSteps?.length) {
     data.teachingSteps.forEach((step, si) => {
-      const searchable = `${step.title} ${step.explanation}`.toLowerCase();
-      const preferredType = /number line|halfway|between|multiple|round up|round down|check/.test(
-        searchable,
-      )
-        ? "number_line"
-        : /place.?value chart|table|column/.test(searchable)
-          ? "table"
-          : null;
-      const preferredIndex = preferredType
-        ? data.blocks.findIndex((block) => block.type === preferredType)
-        : -1;
-      const visualIndex =
-        preferredIndex >= 0
-          ? preferredIndex
-          : data.blocks.length > 0
-            ? Math.min(si, data.blocks.length - 1)
-            : -1;
+      const visualIndex = findTeachingVisualIndex(data, step);
+      let text = step.narration || step.explanation;
+      text = appendTeachingDetail(text, step.why, "This works because ");
+      text = appendTeachingDetail(text, step.check, "Quick check: ");
       cues.push({
         blockIndex: visualIndex,
-        subIndex: si,
-        text: step.narration || step.explanation,
+        subIndex: step.revealStep ?? si,
+        text,
         kind: "teaching_step",
       });
     });
@@ -219,6 +263,8 @@ function cuesForEquationSteps(
       si === 0
         ? step.explanation || `Start with: ${strip(step.latexBefore || step.latexAfter)}`
         : step.explanation || step.operationLabel || `Step ${step.stepNumber}`;
+
+    text = appendTeachingDetail(text, step.why, "This works because ");
 
     // Append rule name for TTS awareness (e.g. "This uses the inverse operations rule.")
     if (step.rule && si > 0) {

@@ -85,6 +85,8 @@ type KS2Lesson = CachedKS2Lesson;
 
 interface ExplainStep {
   text: string;
+  why?: string;
+  check?: string;
   emoji?: string;
 }
 interface ExplainTable {
@@ -429,17 +431,23 @@ export async function POST(req: NextRequest) {
       const sys = `You are a kind, encouraging UK primary school teacher helping a Year 5/6 pupil with ${subject}.
 Explain how to answer the question below in clear, friendly steps a 9-11 year old understands. Be warm and encouraging. ${mathsRule}
 Break the explanation into short, logical steps. Give each step a fitting emoji.
-Keep every step to one short sentence in Year 5 language every pupil understands — never a paragraph or a chunk of text.
+Teach, do not merely state the answer. Each step must tell the pupil what to notice or do, explain why it helps, and end with a tiny check where useful.
+Keep each field to one short sentence in Year 5 language. Use concrete words and connect every step to the question.
 If a small comparison or list of facts would help (for example word classes, science facts, vocabulary), include an optional "table".
 Return ONLY valid JSON in exactly this shape (no markdown fences):
 {
   "intro": "1 friendly sentence introducing how we'll work it out",
-  "steps": [{ "text": "one clear step", "emoji": "a single emoji" }],
+  "steps": [{
+    "text": "what to notice or do in this step",
+    "why": "why this step helps or works",
+    "check": "a quick question or fact the pupil can use to check understanding",
+    "emoji": "a single emoji"
+  }],
   "table": { "headers": ["..."], "rows": [["..."]], "caption": "short caption" },
   "conclusion": "1 sentence wrapping up",
   "answer": "the final answer"
 }
-Use 2-5 steps. Omit "table" entirely if it would not help.
+Use 3-6 meaningful steps. Do not repeat the same idea in different words. Omit "table" entirely if it would not help.
 ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(question) ? "\n\n" + INJECTION_GUARD : ""}`;
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -448,7 +456,7 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
           { role: "system", content: sys },
           { role: "user", content: `Topic: ${topic}. Question: ${question}` },
         ],
-        max_tokens: 900,
+        max_tokens: 1300,
         temperature: 0.6,
       });
       const raw = completion.choices[0]?.message?.content || "{}";
@@ -458,7 +466,12 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
         const steps: ExplainStep[] = Array.isArray(parsed.steps)
           ? parsed.steps
               .filter((s: unknown): s is ExplainStep => !!s && typeof (s as ExplainStep).text === "string")
-              .map((s: ExplainStep) => ({ text: s.text.toString(), emoji: s.emoji ? s.emoji.toString() : undefined }))
+              .map((s: ExplainStep) => ({
+                text: s.text.toString(),
+                why: s.why ? s.why.toString() : undefined,
+                check: s.check ? s.check.toString() : undefined,
+                emoji: s.emoji ? s.emoji.toString() : undefined,
+              }))
           : [];
         let table: ExplainTable | undefined;
         if (

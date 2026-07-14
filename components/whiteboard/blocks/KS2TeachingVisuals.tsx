@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type {
   AreaModelBlock,
   BarModelBlock,
@@ -9,6 +10,10 @@ import type {
   HundredSquareBlock,
   KeyInfoBlock,
 } from "@/types/whiteboard";
+
+function sequence(index: number): CSSProperties {
+  return { "--teacher-sequence": index } as CSSProperties;
+}
 
 export function FractionBarRenderer({
   block,
@@ -33,6 +38,8 @@ export function FractionBarRenderer({
         {Array.from({ length: d }, (_, i) => (
           <div
             key={i}
+            data-teacher-target={i < shaded ? "primary" : undefined}
+            style={sequence(i)}
             className={`flex-1 border-r border-indigo-200 last:border-r-0 ${
               i < shaded ? "bg-indigo-400" : "bg-white"
             }`}
@@ -77,6 +84,8 @@ export function FractionGridRenderer({
           return (
             <div
               key={i}
+              data-teacher-target={i < shaded && isGroupEdge ? "primary" : undefined}
+              style={sequence(i)}
               className={`aspect-square rounded-sm ${
                 i < shaded ? "bg-violet-500" : "bg-white"
               } ${isGroupEdge ? "ring-1 ring-violet-700/40" : ""}`}
@@ -123,6 +132,8 @@ export function FractionWallRenderer({
               {Array.from({ length: d }, (_, i) => (
                 <div
                   key={i}
+                  data-teacher-target={row.highlightIndex === i ? "primary" : undefined}
+                  style={sequence(ri * d + i)}
                   className={`flex-1 border-r border-violet-200 last:border-r-0 text-[10px] flex items-center justify-center ${
                     row.highlightIndex === i
                       ? "bg-violet-400 text-white font-bold"
@@ -163,7 +174,8 @@ export function BarModelRenderer({
         {parts.map((p, i) => (
           <div
             key={i}
-            style={{ flex: p.weight ?? 1 }}
+            data-teacher-target={p.shaded !== false ? "primary" : undefined}
+            style={{ flex: p.weight ?? 1, ...sequence(i) }}
             className={`flex items-center justify-center border-r border-emerald-300 last:border-r-0 text-xs font-semibold ${
               p.shaded !== false ? "bg-emerald-300/80 text-emerald-950" : "bg-white text-gray-700"
             }`}
@@ -205,6 +217,8 @@ export function HundredSquareRenderer({
         {Array.from({ length: 100 }, (_, i) => (
           <div
             key={i}
+            data-teacher-target={i < shaded ? "primary" : undefined}
+            style={sequence(Math.floor(i / 10))}
             className={`aspect-square ${i < shaded ? "bg-amber-500" : "bg-white"}`}
           />
         ))}
@@ -245,7 +259,12 @@ export function AreaModelRenderer({
           style={{ gridTemplateColumns: `repeat(${c}, minmax(0, 1fr))` }}
         >
           {Array.from({ length: r * c }, (_, i) => (
-            <div key={i} className="aspect-square bg-sky-100" />
+            <div
+              key={i}
+              data-teacher-target={i % c === c - 1 ? "primary" : undefined}
+              style={sequence(Math.floor(i / c))}
+              className="aspect-square bg-sky-100"
+            />
           ))}
         </div>
       </div>
@@ -280,6 +299,8 @@ export function KeyInfoRenderer({
         {(block.highlights || []).map((h, i) => (
           <li
             key={i}
+            data-teacher-target="primary"
+            style={sequence(i)}
             className="rounded-lg bg-rose-200/80 px-2 py-1 text-xs font-semibold text-rose-900"
           >
             {h.text}

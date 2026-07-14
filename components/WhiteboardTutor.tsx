@@ -24,6 +24,16 @@ import {
 } from "@/lib/handwriting";
 import { getVerificationBadge } from "@/lib/verification-badge";
 import { buildTutorSteps } from "@/lib/tutor-steps";
+import { useWhiteboardSpeech } from "@/lib/hooks/useWhiteboardSpeech";
+import {
+  buildTeacherSpeechParts,
+  FOCUS_SETTLE_MS,
+  nextPlaybackPhase,
+  playbackPhaseLabel,
+  POINTER_SETTLE_MS,
+  pupilPauseDurationMs,
+  type PlaybackPhase,
+} from "@/lib/whiteboard-playback";
 import WhiteboardCanvas from "@/components/whiteboard/tutor/WhiteboardCanvas";
 import StepTimeline from "@/components/whiteboard/tutor/StepTimeline";
 import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
@@ -39,198 +49,6 @@ interface Props {
 }
 
 const WRITE_MS = 900;
-/** Pause after a step finishes speaking so the pupil can absorb it. */
-const STEP_PAUSE_MS = 1100;
-const audioBlobCache = new Map<string, Blob>();
-
-// ── Speech (cloud TTS + word-progress estimates) ─────────────────────────────
-
-function useSpeech() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const getAudio = useCallback((): HTMLAudioElement => {
-    if (!audioRef.current) audioRef.current = new Audio();
-    return audioRef.current;
-  }, []);
-
-  const clearProgress = useCallback(() => {
-    if (progressTimer.current) {
-      clearInterval(progressTimer.current);
-      progressTimer.current = null;
-    }
-  }, []);
-
-  const startWordProgress = useCallback(
-    (
-      text: string,
-      durationMs: number,
-      onWord: (idx: number) => void,
-    ) => {
-      clearProgress();
-      const start = performance.now();
-      progressTimer.current = setInterval(() => {
-        const elapsed = performance.now() - start;
-        onWord(wordIndexAtProgress(text, elapsed, durationMs));
-        if (elapsed >= durationMs) clearProgress();
-      }, 80);
-    },
-    [clearProgress],
-  );
-
-  const speakBrowser = useCallback(
-    (
-      text: string,
-      rate: number,
-      onEnd: () => void,
-      onWord: (idx: number) => void,
-    ) => {
-      if (typeof window === "undefined" || !window.speechSynthesis) {
-        const dur = Math.max(1200, countWords(text) * 280);
-        startWordProgress(text, dur / rate, onWord);
-        setTimeout(onEnd, dur / rate);
-        return;
-      }
-      window.speechSynthesis.cancel();
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = rate * 0.88;
-      utt.pitch = 0.85;
-      utt.volume = 1;
-
-      const estMs = Math.max(1400, countWords(text) * 320) / rate;
-      startWordProgress(text, estMs, onWord);
-
-      utt.onend = () => {
-        clearProgress();
-        onEnd();
-      };
-      utt.onerror = () => {
-        clearProgress();
-        onEnd();
-      };
-
-      // Prefer boundary events when the browser provides them
-      utt.onboundary = (ev) => {
-        if (ev.name === "word" && typeof ev.charIndex === "number") {
-          const before = text.slice(0, ev.charIndex);
-          onWord(countWords(before) - (before.endsWith(" ") || before.length === 0 ? 0 : 1));
-        }
-      };
-
-      const trySpeak = () => {
-        const voices = window.speechSynthesis.getVoices();
-        const voice =
-          voices.find((v) => v.name === "Daniel (Premium)") ||
-          voices.find((v) => v.name.includes("Google UK English Male")) ||
-          voices.find((v) => v.lang === "en-GB") ||
-          voices.find((v) => v.lang.startsWith("en"));
-        if (voice) utt.voice = voice;
-        window.speechSynthesis.speak(utt);
-      };
-
-      if (window.speechSynthesis.getVoices().length > 0) trySpeak();
-      else window.speechSynthesis.onvoiceschanged = trySpeak;
-    },
-    [clearProgress, startWordProgress],
-  );
-
-  const speakCloud = useCallback(
-    async (
-      text: string,
-      rate: number,
-      onEnd: () => void,
-      onWord: (idx: number) => void,
-    ) => {
-      try {
-        abortRef.current?.abort();
-        abortRef.current = new AbortController();
-
-        const cacheKey = `${rate}|${text}`;
-        let blob = audioBlobCache.get(cacheKey);
-        if (!blob) {
-          const res = await fetch("/api/tts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text, speed: rate * 1.1 }),
-            signal: abortRef.current.signal,
-          });
-          if (!res.ok) throw new Error("TTS API error");
-          blob = await res.blob();
-          if (audioBlobCache.size >= 100) {
-            const oldest = audioBlobCache.keys().next().value;
-            if (oldest) audioBlobCache.delete(oldest);
-          }
-          audioBlobCache.set(cacheKey, blob);
-        }
-        if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-        const url = URL.createObjectURL(blob);
-        blobUrlRef.current = url;
-
-        const audio = getAudio();
-        audio.onended = null;
-        audio.onerror = null;
-        audio.src = url;
-
-        await new Promise<void>((resolve, reject) => {
-          audio.onloadedmetadata = () => resolve();
-          audio.onerror = () => reject(new Error("audio load"));
-          // Some browsers fire loadedmetadata sync after src set
-          if (audio.readyState >= 1) resolve();
-        });
-
-        const durationMs =
-          Number.isFinite(audio.duration) && audio.duration > 0
-            ? audio.duration * 1000
-            : Math.max(1400, countWords(text) * 300) / rate;
-
-        startWordProgress(text, durationMs, onWord);
-
-        audio.onended = () => {
-          clearProgress();
-          onEnd();
-        };
-        audio.onerror = () => {
-          clearProgress();
-          onEnd();
-        };
-        await audio.play();
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        speakBrowser(text, rate, onEnd, onWord);
-      }
-    },
-    [getAudio, speakBrowser, startWordProgress, clearProgress],
-  );
-
-  const speak = useCallback(
-    (
-      text: string,
-      rate: number,
-      onEnd: () => void,
-      onWord: (idx: number) => void,
-    ) => {
-      speakCloud(text, rate, onEnd, onWord);
-    },
-    [speakCloud],
-  );
-
-  const cancel = useCallback(() => {
-    abortRef.current?.abort();
-    clearProgress();
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current.onerror = null;
-    }
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-  }, [clearProgress]);
-
-  return { speak, cancel };
-}
 
 // ── Main tutor ────────────────────────────────────────────────────────────────
 
@@ -280,6 +98,26 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
             step.cellKeys.length + step.carryKeys.length + step.noteKeys.length,
           );
         }
+        case "teaching_step": {
+          const b = data.blocks[cue.blockIndex];
+          if (b?.type === "column_method") {
+            const step = columnTimelines.get(cue.blockIndex)?.[cue.subIndex ?? 0];
+            if (step) {
+              return estimateColumnStepWriteMs(
+                step.cellKeys.length + step.carryKeys.length + step.noteKeys.length,
+              );
+            }
+          }
+          if (b?.type === "equation_steps" && b.steps.length > 0) {
+            const step = b.steps[Math.min(cue.subIndex ?? 0, b.steps.length - 1)];
+            const latex = step?.latexAfter || step?.latexBefore || "";
+            if (latex) return estimateMathWriteMs(latex);
+          }
+          const teacherStep = data.teachingSteps?.[cue.subIndex ?? 0];
+          return estimateTextWriteMs(
+            teacherStep?.explanation || teacherStep?.narration || "",
+          );
+        }
         default:
           return WRITE_MS;
       }
@@ -291,130 +129,243 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [phase, setPhase] = useState<PlaybackPhase>("focus");
   const [activeWord, setActiveWord] = useState(-1);
   const [justCompleted, setJustCompleted] = useState<number | null>(null);
   const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 });
   const [pointerVisible, setPointerVisible] = useState(false);
-  const [pointerMode, setPointerMode] = useState<"point" | "write">("point");
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const { speak, cancel } = useSpeech();
-  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentStep = steps[activeCue];
+  const speechParts = useMemo(
+    () => buildTeacherSpeechParts(currentStep),
+    [currentStep],
+  );
+  const nextSpeechParts = useMemo(
+    () => buildTeacherSpeechParts(steps[activeCue + 1]),
+    [activeCue, steps],
+  );
+
+  const { speak, prepare, cancel } = useWhiteboardSpeech();
+  const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mutedFrame = useRef<number | null>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isPlayingRef = useRef(isPlaying);
-  isPlayingRef.current = isPlaying;
-  const isMutedRef = useRef(isMuted);
-  isMutedRef.current = isMuted;
-  const speedRef = useRef(speed);
-  speedRef.current = speed;
-  const activeCueRef = useRef(activeCue);
-  activeCueRef.current = activeCue;
-
   const clearTimers = useCallback(() => {
-    if (writeTimer.current) clearTimeout(writeTimer.current);
-    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    if (phaseTimer.current) {
+      clearTimeout(phaseTimer.current);
+      phaseTimer.current = null;
+    }
+    if (mutedFrame.current != null) {
+      cancelAnimationFrame(mutedFrame.current);
+      mutedFrame.current = null;
+    }
   }, []);
 
-  const setActiveStepRef = useCallback((el: HTMLDivElement | null) => {
+  const setActiveStepRef = useCallback((el: HTMLElement | null) => {
     setFocusEl(el);
   }, []);
 
-  // Pointer follows active card
+  // Pointer follows the exact semantic target and stays attached while the
+  // canvas scrolls. Renderers mark precise digits/terms as "primary" and the
+  // visual panel is the safe fallback for diagrams without finer anchors.
   useEffect(() => {
     if (!focusEl) {
-      setPointerVisible(false);
-      return;
+      const hideFrame = requestAnimationFrame(() => setPointerVisible(false));
+      return () => cancelAnimationFrame(hideFrame);
     }
+
+    const preferLastTarget =
+      phase === "explain" ||
+      phase === "check" ||
+      phase === "pupil_pause" ||
+      phase === "complete";
+    let frame = 0;
+
+    const findTarget = (): HTMLElement | null => {
+      const equationTargets = Array.from(
+        focusEl.querySelectorAll<HTMLElement>('[id$="-from"], [id$="-to"]'),
+      ).filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (equationTargets.length > 0) {
+        const suffix = preferLastTarget ? "-to" : "-from";
+        return (
+          equationTargets.find((el) => el.id.endsWith(suffix)) ||
+          equationTargets[preferLastTarget ? equationTargets.length - 1 : 0]
+        );
+      }
+
+      const precise = Array.from(
+        focusEl.querySelectorAll<HTMLElement>('[data-teacher-target="primary"]'),
+      ).filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (precise.length > 0) {
+        return preferLastTarget ? precise[precise.length - 1] : precise[0];
+      }
+      return focusEl.querySelector<HTMLElement>('[data-teacher-target="visual"]');
+    };
+
     const place = () => {
-      const rect = focusEl.getBoundingClientRect();
-      setPointerPos({ x: rect.left + 28, y: rect.top + Math.min(rect.height * 0.35, 120) });
+      frame = 0;
+      const target = findTarget();
+      if (!target) {
+        setPointerVisible(false);
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const compact = rect.width <= 90 && rect.height <= 90;
+      const next = compact
+        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+        : {
+            x: rect.left + Math.min(Math.max(rect.width * 0.2, 34), 110),
+            y: rect.top + Math.min(Math.max(rect.height * 0.3, 30), 100),
+          };
+      setPointerPos((current) =>
+        Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
+          ? current
+          : next,
+      );
       setPointerVisible(true);
     };
-    place();
-    setPointerMode("write");
-    const writeMs = writeMsPlan[activeCue] ?? WRITE_MS;
-    const sweep = setTimeout(() => {
-      const rect = focusEl.getBoundingClientRect();
-      setPointerPos({
-        x: rect.left + Math.min(Math.max(rect.width - 40, 80), 320),
-        y: rect.top + Math.min(rect.height * 0.55, 200),
-      });
-      setPointerMode("point");
-    }, Math.max(280, writeMs * 0.5));
-    return () => clearTimeout(sweep);
-  }, [focusEl, activeCue, writeMsPlan]);
+
+    const schedulePlace = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(place);
+    };
+
+    schedulePlace();
+
+    document.addEventListener("scroll", schedulePlace, true);
+    window.addEventListener("resize", schedulePlace);
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(schedulePlace)
+        : null;
+    observer?.observe(focusEl);
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer?.disconnect();
+      document.removeEventListener("scroll", schedulePlace, true);
+      window.removeEventListener("resize", schedulePlace);
+    };
+  }, [focusEl, activeCue, runId, phase]);
 
   const advance = useCallback(() => {
-    const prev = activeCueRef.current;
+    const prev = activeCue;
     setJustCompleted(prev);
     if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
     celebrateTimer.current = setTimeout(() => setJustCompleted(null), 900);
 
     const next = prev + 1;
     if (next >= totalCues) {
+      setPhase("complete");
       setIsPlaying(false);
       return;
     }
+    setPhase("focus");
     setActiveCue(next);
-  }, [totalCues]);
+  }, [activeCue, totalCues]);
 
-  const startNarration = useCallback(
-    (idx: number) => {
-      if (!isPlayingRef.current) return;
-      const cue = plan[idx];
-      if (!cue) return;
-      const text = cue.text;
-
-      const onEnd = () => {
-        setIsSpeaking(false);
-        setActiveWord(-1);
-        if (!isPlayingRef.current) return;
-        advanceTimer.current = setTimeout(
-          advance,
-          STEP_PAUSE_MS / speedRef.current,
-        );
-      };
-
-      if (isMutedRef.current) {
-        const pause =
-          Math.max(STEP_PAUSE_MS, Math.max(1200, text.length * 55)) /
-          speedRef.current;
-        const start = performance.now();
-        const tick = () => {
-          if (!isPlayingRef.current) return;
-          const elapsed = performance.now() - start;
-          setActiveWord(wordIndexAtProgress(text, elapsed, pause * 0.85));
-          if (elapsed < pause * 0.85) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-        advanceTimer.current = setTimeout(advance, pause);
-      } else {
-        setIsSpeaking(true);
-        speak(text, speedRef.current, onEnd, setActiveWord);
-      }
-    },
-    [plan, speak, advance],
-  );
+  // Start fetching both the current and following teacher lines while the
+  // pupil is looking at the board. The explanation can then begin immediately
+  // after the writing phase instead of waiting on a network round trip.
+  useEffect(() => {
+    [
+      speechParts.explanation,
+      speechParts.check,
+      nextSpeechParts.explanation,
+      nextSpeechParts.check,
+    ].forEach((text) => {
+      if (text) void prepare(text, speed);
+    });
+  }, [nextSpeechParts, prepare, speechParts, speed]);
 
   useEffect(() => {
     clearTimers();
     cancel();
-    setIsSpeaking(false);
-    setActiveWord(-1);
     if (!isPlaying) return;
 
-    const writeMs = (writeMsPlan[activeCue] ?? WRITE_MS) / speedRef.current;
-    writeTimer.current = setTimeout(() => {
-      startNarration(activeCue);
-    }, writeMs + 180);
+    let disposed = false;
+    const moveTo = (next: PlaybackPhase) => {
+      if (!disposed) {
+        setActiveWord(-1);
+        setPhase(next);
+      }
+    };
+    const schedule = (next: PlaybackPhase, durationMs: number) => {
+      phaseTimer.current = setTimeout(() => moveTo(next), durationMs);
+    };
 
-    return clearTimers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCue, isPlaying]);
+    if (phase === "focus") {
+      schedule("point", FOCUS_SETTLE_MS / speed);
+    } else if (phase === "point") {
+      schedule("write", POINTER_SETTLE_MS / speed);
+    } else if (phase === "write") {
+      schedule(
+        "explain",
+        (writeMsPlan[activeCue] ?? WRITE_MS) / speed,
+      );
+    } else if (phase === "explain" || phase === "check") {
+      const text =
+        phase === "check" ? speechParts.check || "" : speechParts.explanation;
+      const next = nextPlaybackPhase(phase, !!speechParts.check);
+
+      if (!text) {
+        schedule(next, 0);
+      } else if (isMuted) {
+        const durationMs = Math.max(1300, countWords(text) * 285) / speed;
+        const startedAt = performance.now();
+
+        const tick = () => {
+          if (disposed) return;
+          const elapsed = performance.now() - startedAt;
+          setActiveWord(wordIndexAtProgress(text, elapsed, durationMs));
+          if (elapsed < durationMs) {
+            mutedFrame.current = requestAnimationFrame(tick);
+          }
+        };
+        mutedFrame.current = requestAnimationFrame(tick);
+        schedule(next, durationMs);
+      } else {
+        speak(
+          text,
+          speed,
+          () => {
+            if (disposed) return;
+            setActiveWord(-1);
+            moveTo(next);
+          },
+          setActiveWord,
+        );
+      }
+    } else if (phase === "pupil_pause") {
+      phaseTimer.current = setTimeout(advance, pupilPauseDurationMs(speed));
+    }
+
+    return () => {
+      disposed = true;
+      cancel();
+      clearTimers();
+    };
+  }, [
+    activeCue,
+    advance,
+    cancel,
+    clearTimers,
+    isMuted,
+    isPlaying,
+    phase,
+    speak,
+    speechParts,
+    speed,
+    writeMsPlan,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -440,36 +391,41 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     };
   }, [onClose]);
 
-  const handlePlay = () => setIsPlaying(true);
+  const handlePlay = () => {
+    if (phase === "complete") {
+      setPhase("focus");
+      setRunId((value) => value + 1);
+    }
+    setIsPlaying(true);
+  };
   const handlePause = () => {
     setIsPlaying(false);
     cancel();
     clearTimers();
-    setIsSpeaking(false);
     setActiveWord(-1);
   };
   const handlePrev = () => {
     cancel();
     clearTimers();
-    setIsSpeaking(false);
     setActiveWord(-1);
     setIsPlaying(false);
+    setPhase("focus");
     setActiveCue((i) => Math.max(0, i - 1));
   };
   const handleNext = () => {
     cancel();
     clearTimers();
-    setIsSpeaking(false);
     setActiveWord(-1);
     setIsPlaying(false);
+    setPhase("focus");
     setActiveCue((i) => Math.min(totalCues - 1, i + 1));
   };
   const handleReplay = () => {
     cancel();
     clearTimers();
-    setIsSpeaking(false);
     setActiveWord(-1);
     setActiveCue(0);
+    setPhase("focus");
     setJustCompleted(null);
     setRunId((n) => n + 1);
     setIsPlaying(true);
@@ -477,9 +433,10 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const handleSelectStep = (index: number) => {
     cancel();
     clearTimers();
-    setIsSpeaking(false);
     setActiveWord(-1);
     setIsPlaying(false);
+    setPhase("focus");
+    setRunId((value) => value + 1);
     setActiveCue(index);
   };
 
@@ -488,8 +445,32 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1) as 1 | 1.5 | 2);
 
   const isLast = activeCue === totalCues - 1;
-  const currentStep = steps[activeCue];
-  const narrationText = currentStep?.narration || "";
+  const isSpeaking =
+    isPlaying && (phase === "explain" || phase === "check");
+  const narrationText =
+    phase === "check"
+      ? speechParts.check || speechParts.explanation
+      : phase === "pupil_pause"
+        ? speechParts.check
+          ? "Pause and answer the quick check before we move on."
+          : "Pause and say this step back in your own words."
+        : speechParts.explanation;
+  const pointerMode =
+    phase === "write"
+      ? "write"
+      : phase === "check" || phase === "pupil_pause"
+        ? "check"
+        : "point";
+  const pointerLabel =
+    phase === "focus"
+      ? "Get ready"
+      : phase === "point"
+        ? "Look here"
+        : phase === "write"
+          ? "Watch this"
+          : phase === "check" || phase === "pupil_pause"
+            ? "Your turn"
+            : "Follow me";
   const badge = getVerificationBadge(data);
   const showBadge =
     currentStep?.kind === "conclusion" || activeCue === totalCues - 1;
@@ -504,6 +485,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label="Whiteboard Tutor"
+      data-playback-phase={phase}
     >
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200/80 bg-white/80 backdrop-blur-md flex-shrink-0">
@@ -538,7 +520,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       </header>
 
       {/* Board */}
-      <WhiteboardCanvas focusEl={focusEl}>
+      <WhiteboardCanvas focusEl={focusEl} focusKey={`${activeCue}-${runId}`}>
         {data.questionImageUrl && activeCue === 0 && (
           <div className="mb-5 mx-auto max-w-2xl rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm max-w-xs sm:max-w-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -556,6 +538,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           justCompletedIndex={justCompleted}
           data={data}
           runId={runId}
+          playbackPhase={phase}
           setActiveStepRef={setActiveStepRef}
           onSelectStep={handleSelectStep}
         />
@@ -587,8 +570,9 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       <TeacherPointer
         x={pointerPos.x}
         y={pointerPos.y}
-        visible={pointerVisible && isPlaying}
-        mode={pointerMode}
+        visible={pointerVisible}
+        mode={isPlaying ? pointerMode : "point"}
+        label={isPlaying ? pointerLabel : "Paused here"}
       />
 
       {/* Controls */}
@@ -616,12 +600,23 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
               <Volume2 size={16} className="text-slate-400" />
             )}
           </div>
-          <SpeechHighlighter
-            text={narrationText}
-            activeWordIndex={activeWord}
-            isSpeaking={isSpeaking || (isMuted && isPlaying)}
-            className="flex-1"
-          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={`mb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${
+                phase === "check" || phase === "pupil_pause"
+                  ? "text-emerald-600"
+                  : "text-blue-600"
+              }`}
+              aria-live="polite"
+            >
+              {isPlaying ? playbackPhaseLabel(phase) : "Paused"}
+            </p>
+            <SpeechHighlighter
+              text={narrationText}
+              activeWordIndex={activeWord}
+              isSpeaking={isSpeaking}
+            />
+          </div>
         </div>
 
         <ProgressRail total={totalCues} current={activeCue} />

@@ -346,6 +346,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                       return (
                         <motion.div
                           key={`carry-${ri}-${ci}`}
+                          data-teacher-target={active ? "primary" : undefined}
                           className="relative z-10 flex items-center justify-center"
                           style={{ width: cellW }}
                           initial={{ opacity: 0, y: -4 }}
@@ -411,6 +412,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                       return (
                         <div
                           key={`cell-${ri}-${ci}`}
+                          data-teacher-target={active ? "primary" : undefined}
                           className="relative flex items-center justify-center text-gray-900"
                           style={{
                             width: cellW,

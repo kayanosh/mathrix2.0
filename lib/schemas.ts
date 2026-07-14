@@ -203,6 +203,79 @@ export const NumberLineBlockSchema = z.object({
   inequalityLabel: z.string().optional(),
 });
 
+// ── KS2 Teaching Visuals ─────────────────────────────────────────────────────
+
+export const FractionBarBlockSchema = z.object({
+  type: z.literal("fraction_bar"),
+  numerator: z.number().int().min(0),
+  denominator: z.number().int().positive(),
+  label: z.string().optional(),
+  shaded: z.number().int().min(0).optional(),
+});
+
+export const FractionGridBlockSchema = z.object({
+  type: z.literal("fraction_grid"),
+  numerator: z.number().int().min(0),
+  denominator: z.number().int().positive(),
+  shaded: z.number().int().min(0).optional(),
+  groupSize: z.number().int().positive().optional(),
+  simplifiedNumerator: z.number().int().min(0).optional(),
+  simplifiedDenominator: z.number().int().positive().optional(),
+  label: z.string().optional(),
+});
+
+export const FractionWallBlockSchema = z.object({
+  type: z.literal("fraction_wall"),
+  rows: z.array(z.object({
+    denominator: z.number().int().positive(),
+    highlightIndex: z.number().int().min(0).optional(),
+    label: z.string().optional(),
+  })).min(1),
+  caption: z.string().optional(),
+});
+
+export const BarModelBlockSchema = z.object({
+  type: z.literal("bar_model"),
+  parts: z.array(z.object({
+    label: z.string(),
+    value: z.number().optional(),
+    weight: z.number().positive().optional(),
+    shaded: z.boolean().optional(),
+  })).min(1),
+  totalLabel: z.string().optional(),
+  caption: z.string().optional(),
+});
+
+export const HundredSquareBlockSchema = z.object({
+  type: z.literal("hundred_square"),
+  shaded: z.number().min(0).max(100),
+  label: z.string().optional(),
+});
+
+export const AreaModelBlockSchema = z.object({
+  type: z.literal("area_model"),
+  rows: z.number().int().min(1).max(20),
+  cols: z.number().int().min(1).max(20),
+  rowSplits: z.array(z.number().int().positive()).optional(),
+  colSplits: z.array(z.number().int().positive()).optional(),
+  labels: z.object({
+    top: z.string().optional(),
+    side: z.string().optional(),
+    product: z.string().optional(),
+  }).optional(),
+  caption: z.string().optional(),
+});
+
+export const KeyInfoBlockSchema = z.object({
+  type: z.literal("key_info"),
+  stem: z.string().min(1),
+  highlights: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(["number", "operation", "unit", "other"]).optional(),
+  })).min(1),
+  caption: z.string().optional(),
+});
+
 // ── Table ─────────────────────────────────────────────────────────────────────
 
 export const TableBlockSchema = z.object({
@@ -329,6 +402,13 @@ export const VisualBlockSchema = z.discriminatedUnion("type", [
   ProbabilityTreeBlockSchema,
   VennDiagramBlockSchema,
   NumberLineBlockSchema,
+  FractionBarBlockSchema,
+  FractionGridBlockSchema,
+  FractionWallBlockSchema,
+  BarModelBlockSchema,
+  HundredSquareBlockSchema,
+  AreaModelBlockSchema,
+  KeyInfoBlockSchema,
   TableBlockSchema,
   ChartBlockSchema,
   ColumnMethodBlockSchema,

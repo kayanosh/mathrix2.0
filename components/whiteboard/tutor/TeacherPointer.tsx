@@ -7,45 +7,60 @@ interface Props {
   y: number;
   visible: boolean;
   /** Writing vs pointing */
-  mode?: "point" | "write";
+  mode?: "point" | "write" | "check";
+  label?: string;
 }
 
-const SIZE = 40;
-
-/** Animated teacher hand that follows the active board region. */
-export default function TeacherPointer({ x, y, visible, mode = "point" }: Props) {
+/**
+ * High-contrast teacher cursor. Its origin is the exact teaching target, so the
+ * halo remains attached to a digit/term while the board scrolls.
+ */
+export default function TeacherPointer({
+  x,
+  y,
+  visible,
+  mode = "point",
+  label,
+}: Props) {
   return (
     <motion.div
       className="pointer-events-none fixed z-[60]"
       initial={false}
       animate={{
-        x: x - SIZE / 2,
-        y: y - SIZE * 0.15,
+        x,
+        y,
         opacity: visible ? 1 : 0,
-        scale: visible ? (mode === "write" ? 0.92 : 1) : 0.65,
-        rotate: mode === "write" ? -8 : 0,
+        scale: visible ? 1 : 0.8,
       }}
-      transition={{ type: "spring", stiffness: 260, damping: 24, mass: 0.7 }}
-      style={{ width: SIZE, height: SIZE }}
+      transition={{ type: "spring", stiffness: 320, damping: 30, mass: 0.55 }}
+      style={{ left: 0, top: 0, width: 112, height: 62 }}
       aria-hidden
     >
-      <svg width={SIZE} height={SIZE} viewBox="0 0 36 36" fill="none">
-        <ellipse cx="18" cy="33" rx="8" ry="2" fill="rgba(0,0,0,0.14)" />
+      <motion.span
+        className="absolute -left-2.5 -top-2.5 h-5 w-5 rounded-full border-2 border-blue-500 bg-blue-400/20"
+        animate={visible ? { scale: [0.8, 1.12, 0.8], opacity: [0.5, 0.9, 0.5] } : {}}
+        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <svg
+        className="absolute left-1 top-1 drop-shadow-md"
+        width="32"
+        height="42"
+        viewBox="0 0 32 42"
+        fill="none"
+      >
         <path
-          d="M12 16V8a2 2 0 0 1 4 0v6l1-1a2 2 0 0 1 3 0l1 1a2 2 0 0 1 3-1l1 2a2 2 0 0 1 3 0v4c0 5-3 9-8 9h-2c-4 0-7-3-7-7v-3a2 2 0 0 1 1-2z"
-          fill="#FFD5A0"
-          stroke="#D4915A"
-          strokeWidth="1.2"
+          d="M1.5 1.5L2.5 31L10.2 23.8L16.8 39L23.2 36.2L16.7 21.5L27.5 21L1.5 1.5Z"
+          fill={
+            mode === "write" ? "#7c3aed" : mode === "check" ? "#059669" : "#2563eb"
+          }
+          stroke="white"
+          strokeWidth="2.5"
           strokeLinejoin="round"
         />
-        <path
-          d="M14 8v8"
-          stroke="#EDBA7A"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          opacity="0.5"
-        />
       </svg>
+      <div className="absolute left-8 top-7 whitespace-nowrap rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg ring-2 ring-white/90">
+        {label || (mode === "write" ? "Watch this" : mode === "check" ? "Your turn" : "Look here")}
+      </div>
     </motion.div>
   );
 }

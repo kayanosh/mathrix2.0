@@ -93,4 +93,42 @@ describe("buildTutorSteps", () => {
     expect(teaching[1].why).toMatch(/nearest multiples/);
     expect(models.some((step) => step.title === "Table")).toBe(false);
   });
+
+  it("renders a KS2 hint visual instead of replacing it with generic text", () => {
+    const fractions: WhiteboardResponse = {
+      intro: "Look at the equal parts.",
+      blocks: [
+        { type: "fraction_bar", numerator: 3, denominator: 4, label: "three quarters" },
+      ],
+      conclusion: "Three out of four parts are shaded.",
+    };
+    const plan = buildNarrationPlan(fractions);
+    const models = buildTutorSteps(fractions, plan);
+    const visual = models.find((step) => step.title === "Fraction bar");
+    expect(visual?.visual.type).toBe("block");
+  });
+
+  it("uses progressive column rendering for KS2 teaching steps", () => {
+    const column: WhiteboardResponse = {
+      intro: "Add using columns.",
+      blocks: [
+        {
+          type: "column_method",
+          method: "column_addition",
+          rows: ["47", "+38", "85"],
+          question: "47 + 38",
+          answer: "85",
+        },
+      ],
+      teachingSteps: [
+        { title: "Add the ones", explanation: "Add 7 and 8.", narration: "Add 7 and 8." },
+        { title: "Add the tens", explanation: "Add the tens and carry.", narration: "Add the tens and carry." },
+      ],
+      conclusion: "The answer is 85.",
+    };
+    const models = buildTutorSteps(column, buildNarrationPlan(column));
+    const teaching = models.filter((step) => step.kind === "teaching_step");
+    expect(teaching[0].visual).toMatchObject({ type: "column", revealStep: 0 });
+    expect(teaching[1].visual).toMatchObject({ type: "column", revealStep: 1 });
+  });
 });

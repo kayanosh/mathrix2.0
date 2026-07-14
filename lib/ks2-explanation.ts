@@ -8,6 +8,8 @@ import type { WhiteboardResponse, VisualBlock } from "@/types/whiteboard";
 
 export interface KS2ExplainStep {
   text: string;
+  why?: string;
+  check?: string;
   emoji?: string;
 }
 
@@ -36,12 +38,22 @@ export function ks2ExplanationToWhiteboard(
   topic: string
 ): WhiteboardResponse {
   const blocks: VisualBlock[] = [];
+  const teachingSteps: NonNullable<WhiteboardResponse["teachingSteps"]> = [];
 
   explanation.steps.forEach((step, i) => {
     const prefix = step.emoji ? `${step.emoji} ` : "";
     blocks.push({
       type: "text",
       content: `${prefix}Step ${i + 1}: ${step.text}`,
+    });
+    teachingSteps.push({
+      title: `Step ${i + 1}`,
+      explanation: step.text,
+      why: step.why,
+      check: step.check,
+      narration: step.text,
+      blockIndex: i,
+      revealStep: i,
     });
   });
 
@@ -52,11 +64,20 @@ export function ks2ExplanationToWhiteboard(
     Array.isArray(explanation.table.rows) &&
     explanation.table.rows.length > 0
   ) {
+    const tableIndex = blocks.length;
     blocks.push({
       type: "table",
       headers: explanation.table.headers,
       rows: explanation.table.rows,
       caption: explanation.table.caption,
+    });
+    teachingSteps.push({
+      title: explanation.table.caption || "Compare the key information",
+      explanation:
+        explanation.table.caption || "Use this table to compare the important details.",
+      narration:
+        explanation.table.caption || "Use this table to compare the important details.",
+      blockIndex: tableIndex,
     });
   }
 
@@ -67,6 +88,7 @@ export function ks2ExplanationToWhiteboard(
   return {
     intro: explanation.intro || "Let's work this out together.",
     blocks,
+    teachingSteps,
     conclusion: conclusion || "Well done!",
     subject,
     topic,

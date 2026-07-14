@@ -6,6 +6,7 @@ const config: Config = {
   roots: ["<rootDir>/__tests__"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "\\.(css|less|scss|sass)$": "<rootDir>/__tests__/styleMock.ts",
   },
   transform: {
     "^.+\\.tsx?$": [

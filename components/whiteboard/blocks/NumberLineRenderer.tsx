@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type { NumberLineBlock } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
 
@@ -146,6 +147,13 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
           return (
             <motion.g
               key={`marker-${i}`}
+              data-teacher-target="primary"
+              style={
+                {
+                  transformOrigin: `${xPos(m.value)}px ${lineY}px`,
+                  "--teacher-sequence": i,
+                } as CSSProperties
+              }
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{
@@ -153,7 +161,6 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
                 type: "spring",
                 stiffness: 300,
               }}
-              style={{ transformOrigin: `${xPos(m.value)}px ${lineY}px` }}
             >
               <circle
                 cx={xPos(m.value)}

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type { TableBlock } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
 
@@ -87,6 +88,12 @@ export default function TableRenderer({ block, baseDelay }: Props) {
                   return (
                     <td
                       key={ci}
+                      data-teacher-target={isHighlighted ? "primary" : undefined}
+                      style={
+                        {
+                          "--teacher-sequence": ri * Math.max(1, row.length) + ci,
+                        } as CSSProperties
+                      }
                       className={`px-4 py-2.5 text-base font-medium border-b border-gray-100 ${
                         isHighlighted
                           ? "bg-amber-100 text-amber-900 ring-1 ring-inset ring-amber-300"

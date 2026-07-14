@@ -13,6 +13,7 @@ export interface TutorStepModel {
   title: string;
   explanation: string;
   why?: string;
+  check?: string;
   rule?: string;
   narration: string;
   /** Visual payload for the active step card */
@@ -55,6 +56,29 @@ export function buildTutorSteps(
       };
     }
 
+    if (cue.kind === "hint" && cue.blockIndex >= 0) {
+      const block = data.blocks[cue.blockIndex];
+      if (block) {
+        const visualTitle: Partial<Record<VisualBlock["type"], string>> = {
+          fraction_bar: "Fraction bar",
+          fraction_grid: "Fraction grid",
+          fraction_wall: "Fraction wall",
+          bar_model: "Bar model",
+          hundred_square: "Hundred square",
+          area_model: "Area model",
+          key_info: "Key information",
+        };
+        return {
+          cueIndex,
+          kind: cue.kind,
+          title: visualTitle[block.type] || "Look carefully",
+          explanation: narration,
+          narration,
+          visual: { type: "block", block, blockIndex: cue.blockIndex },
+        };
+      }
+    }
+
     if (cue.kind === "hint") {
       return {
         cueIndex,
@@ -71,16 +95,43 @@ export function buildTutorSteps(
       if (teachingStep) {
         const visualBlock =
           cue.blockIndex >= 0 ? data.blocks[cue.blockIndex] : undefined;
+        const sub = cue.subIndex ?? 0;
+        let visual: TutorStepModel["visual"] = {
+          type: "text",
+          content: teachingStep.explanation,
+        };
+        if (visualBlock?.type === "column_method") {
+          visual = {
+            type: "column",
+            blockIndex: cue.blockIndex,
+            revealStep: sub,
+          };
+        } else if (visualBlock?.type === "equation_steps" && visualBlock.steps.length > 0) {
+          const equationIndex = Math.min(sub, visualBlock.steps.length - 1);
+          visual = {
+            type: "equation",
+            step: visualBlock.steps[equationIndex],
+            isFirst: equationIndex === 0,
+            isFinal: equationIndex === visualBlock.steps.length - 1,
+          };
+        } else if (visualBlock?.type === "text") {
+          visual = {
+            type: "text",
+            content: visualBlock.content,
+            latex: visualBlock.latex,
+          };
+        } else if (visualBlock) {
+          visual = { type: "block", block: visualBlock, blockIndex: cue.blockIndex };
+        }
         return {
           cueIndex,
           kind: cue.kind,
           title: teachingStep.title || `Step ${(cue.subIndex ?? 0) + 1}`,
           explanation: teachingStep.explanation,
           why: teachingStep.why,
+          check: teachingStep.check,
           narration,
-          visual: visualBlock
-            ? { type: "block", block: visualBlock, blockIndex: cue.blockIndex }
-            : { type: "text", content: teachingStep.explanation },
+          visual,
         };
       }
     }
@@ -97,6 +148,7 @@ export function buildTutorSteps(
             title: step.operationLabel || `Step ${step.stepNumber}`,
             explanation: step.explanation || narration,
             why: step.why,
+            check: step.selfCheck,
             rule: step.rule,
             narration,
             visual: {

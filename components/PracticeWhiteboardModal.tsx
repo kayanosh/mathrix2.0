@@ -52,6 +52,7 @@ export default function PracticeWhiteboardModal({
   subject,
 }: Props) {
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
+  const [playbackData, setPlaybackData] = useState<WhiteboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [watchMode, setWatchMode] = useState(false);
@@ -66,6 +67,7 @@ export default function PracticeWhiteboardModal({
     setLoading(true);
     setError(null);
     setWhiteboardData(null);
+    setPlaybackData(null);
     setWatchMode(false);
 
     try {
@@ -100,6 +102,8 @@ export default function PracticeWhiteboardModal({
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let latestBoard: WhiteboardResponse | null = null;
+      let verifiedBoard: WhiteboardResponse | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -125,19 +129,33 @@ export default function PracticeWhiteboardModal({
           }
 
           if (eventName === "solver_done" && parsed.whiteboard) {
-            setWhiteboardData(parsed.whiteboard as WhiteboardResponse);
-            setLoading(false);
-            // KS2: open the same premium tutor used site-wide
-            if (isKS2) {
-              primeSpeech();
-              setWatchMode(true);
-            }
+            latestBoard = parsed.whiteboard as WhiteboardResponse;
+            setWhiteboardData(latestBoard);
+            // KS2 waits for the critic/verification pass so playback opens once
+            // with a stable, checked snapshot instead of changing mid-lesson.
+            if (!isKS2) setLoading(false);
           }
 
           if (eventName === "verification_done" && parsed.whiteboard) {
-            setWhiteboardData(parsed.whiteboard as WhiteboardResponse);
+            verifiedBoard = parsed.whiteboard as WhiteboardResponse;
+            latestBoard = verifiedBoard;
+            setWhiteboardData(verifiedBoard);
+            if (isKS2) {
+              setPlaybackData(verifiedBoard);
+              primeSpeech();
+              setWatchMode(true);
+              setLoading(false);
+            }
           }
         }
+      }
+
+      // Deterministic rescue responses can finish without a separate verifier.
+      // They are already server-built, so use that final immutable snapshot.
+      if (isKS2 && latestBoard && !verifiedBoard) {
+        setPlaybackData(latestBoard);
+        primeSpeech();
+        setWatchMode(true);
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -153,10 +171,10 @@ export default function PracticeWhiteboardModal({
   }, [fetchSolution]);
 
   // KS2: once ready, teach with WhiteboardTutor (same as main site chat)
-  if (isKS2 && watchMode && whiteboardData) {
+  if (isKS2 && watchMode && playbackData) {
     return (
       <WhiteboardTutor
-        data={whiteboardData}
+        data={playbackData}
         onClose={onClose}
       />
     );
@@ -202,6 +220,7 @@ export default function PracticeWhiteboardModal({
           <button
             onClick={() => {
               primeSpeech();
+              setPlaybackData(whiteboardData);
               setWatchMode(true);
             }}
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200"
@@ -222,8 +241,8 @@ export default function PracticeWhiteboardModal({
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {watchMode && whiteboardData ? (
-        <WhiteboardTutor data={whiteboardData} onClose={() => setWatchMode(false)} />
+      {watchMode && playbackData ? (
+        <WhiteboardTutor data={playbackData} onClose={() => setWatchMode(false)} />
       ) : (
       <motion.div
         initial={{ y: 40, opacity: 0, scale: 0.97 }}
@@ -239,6 +258,7 @@ export default function PracticeWhiteboardModal({
               <button
                 onClick={() => {
                   primeSpeech();
+                  setPlaybackData(whiteboardData);
                   setWatchMode(true);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-medium transition-colors"
