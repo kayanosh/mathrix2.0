@@ -172,6 +172,22 @@ function mixedSkill(
   const skillFam = detectSkillVisualFamily("", "", skill);
   const qFam = detectSkillVisualFamily(question, "", "");
   if (skillFam === "general" || qFam === "general") return false;
+  if (
+    qFam === "word_problems" &&
+    ["statistics", "coordinates", "algebra", "ratio", "measures"].includes(
+      skillFam,
+    )
+  ) {
+    return false;
+  }
+  if (
+    skillFam === "algebra" &&
+    ["multiplication", "division", "decimals"].includes(qFam)
+  ) {
+    return false;
+  }
+  if (skillFam === "multiples" && qFam === "multiplication") return false;
+  if (skillFam === "statistics" && qFam === "percentages") return false;
   if (skillFam === "place_value" && qFam === "rounding") return false;
   if (skillFam === "rounding" && qFam === "place_value") return false;
   if (skillFam === "decimals" && qFam === "rounding") return false;
@@ -497,10 +513,10 @@ export function validateStrictKS2Lesson(
     lesson.workedExamples ||
     (lesson.workedExample ? [lesson.workedExample] : []);
   for (const ex of examples) {
-    if (ex.steps.length < 6) {
+    if (ex.steps.length < 3 || ex.steps.length > 6) {
       issues.push({
         code: "few_steps",
-        message: `Worked example needs ≥6 steps (found ${ex.steps.length}).`,
+        message: `Worked example needs 3-6 steps (found ${ex.steps.length}).`,
       });
     }
   }

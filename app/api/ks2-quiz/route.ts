@@ -2,10 +2,12 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishQuizExtra } from "@/lib/ks2-english";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
-import { withTransientOpenAIRetry } from "@/lib/openai-retry";
+import { withOpenAIModelFallback } from "@/lib/openai-retry";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const QUIZ_MODEL = process.env.OPENAI_KS2_QUIZ_MODEL || "gpt-5.6-luna";
+const QUIZ_FALLBACK_MODEL =
+  process.env.OPENAI_KS2_QUIZ_FALLBACK_MODEL || "gpt-5.4-mini";
 
 interface QuizQuestion {
   question: string;
@@ -62,9 +64,11 @@ For each question provide a concise correct answer or mark scheme (for writing t
 Return ONLY valid JSON: {"questions":[{"question":"...","answer":"..."}]}. No markdown, no extra text.
 ${englishQuizExtra(subject, topic, subtopics)}`;
 
-    const completion = await withTransientOpenAIRetry(() =>
-      openai.chat.completions.create({
-        model: QUIZ_MODEL,
+    const completion = await withOpenAIModelFallback(
+      QUIZ_MODEL,
+      QUIZ_FALLBACK_MODEL,
+      (model) => openai.chat.completions.create({
+        model,
         reasoning_effort: "none",
         response_format: { type: "json_object" },
         messages: [

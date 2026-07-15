@@ -45,11 +45,15 @@ import {
 } from "@/lib/ks2-subject-pedagogy/shared";
 import { getKS2TopicById } from "@/lib/ks2";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
-import { withTransientOpenAIRetry } from "@/lib/openai-retry";
+import { withOpenAIModelFallback } from "@/lib/openai-retry";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
 const FAST_MODEL = process.env.OPENAI_KS2_FAST_MODEL || "gpt-5.6-luna";
+const LESSON_FALLBACK_MODEL =
+  process.env.OPENAI_KS2_LESSON_FALLBACK_MODEL || "gpt-5.5";
+const FAST_FALLBACK_MODEL =
+  process.env.OPENAI_KS2_FAST_FALLBACK_MODEL || "gpt-5.4-mini";
 
 const BLOCKING_LESSON_ISSUES = new Set([
   "answer_before_reasoning",
@@ -184,6 +188,56 @@ function enrichTeachingFields(
       : `Remember the method for ${topic} and check each step carefully.`;
   }
 
+  const originalSteps = lesson.workedExample?.steps || [];
+  let teachingSteps = lesson.workedExample?.teachingSteps;
+  if (originalSteps.length > 0 && !teachingSteps?.length) {
+    teachingSteps = originalSteps.map((explanation, index) => ({
+      title: `Step ${index + 1}`,
+      explanation,
+      why:
+        index === 0
+          ? `This keeps the method focused on ${taxonomy?.skill || topic}.`
+          : undefined,
+      narration: explanation,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+    }));
+  } else if (teachingSteps?.length && !teachingSteps.some((step) => step.why)) {
+    teachingSteps = teachingSteps.map((step, index) =>
+      index === 0
+        ? {
+            ...step,
+            why: `This keeps the method focused on ${taxonomy?.skill || topic}.`,
+          }
+        : step,
+    );
+  }
+  if (teachingSteps?.length && teachingSteps.length < 3) {
+    const setup = {
+      title: "Understand the question",
+      explanation: `Identify what the question is asking about ${taxonomy?.skill || topic}.`,
+      why: "This makes sure we use the right information and method.",
+      narration: "First, identify what the question is asking.",
+      cellKeys: [] as string[],
+      carryKeys: [] as string[],
+      noteKeys: [] as string[],
+    };
+    const check = {
+      title: "Check",
+      explanation: "Check each step against the question and state the answer with the correct unit or label.",
+      why: "A final check catches missing units, labels, or reversed operations.",
+      narration: "Finally, check the method and the answer.",
+      cellKeys: [] as string[],
+      carryKeys: [] as string[],
+      noteKeys: [] as string[],
+    };
+    teachingSteps =
+      teachingSteps.length === 1
+        ? [setup, ...teachingSteps, check]
+        : [setup, ...teachingSteps];
+  }
+
   // UK KS2: never leave GCD wording in child-facing copy
   const scrubGcd = (s: string) =>
     s
@@ -249,6 +303,7 @@ function enrichTeachingFields(
           question: scrubGcd(String(lesson.workedExample.question || "")),
           steps: (lesson.workedExample.steps || []).map((st) => scrubGcd(String(st))),
           answer: scrubGcd(String(lesson.workedExample.answer || "")),
+          teachingSteps,
         }
       : lesson.workedExample,
   };
@@ -376,6 +431,47 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
   return next;
 }
 
+function addNegativeNumberVisual(
+  lesson: KS2Lesson,
+  skill: string,
+): KS2Lesson {
+  if (
+    !/negative number|below zero|temperature/i.test(skill) ||
+    lesson.workedExample?.whiteboard?.blocks?.length
+  ) {
+    return lesson;
+  }
+  const values = String(lesson.workedExample?.answer || "").match(/-?\d+(?:\.\d+)?/g);
+  const value = values?.length ? Number(values[values.length - 1]) : NaN;
+  if (!Number.isFinite(value)) return lesson;
+  const lo = Math.min(-5, Math.floor(value) - 2);
+  const hi = Math.max(5, Math.ceil(value) + 2);
+  const markers = [
+    { value, label: String(value), style: "filled" as const },
+    ...(value === 0
+      ? []
+      : [{ value: 0, label: "0", style: "open" as const }]),
+  ];
+  return {
+    ...lesson,
+    workedExample: {
+      ...lesson.workedExample,
+      whiteboard: {
+        intro: "Use zero as the reference point on the number line.",
+        blocks: [
+          {
+            type: "number_line",
+            range: [lo, hi],
+            tickInterval: 1,
+            markers,
+          },
+        ],
+        conclusion: `The marked value is ${value}.`,
+      },
+    },
+  };
+}
+
 /**
  * POST /api/ks2-lesson
  * Body: { subject, topic, subtopics?, target, tier, kind: "lesson"|"guided"|"explain", question? }
@@ -452,9 +548,11 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
 }
 Use 3-6 meaningful steps. Do not repeat the same idea in different words. Omit "table" entirely if it would not help.
 ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(question) ? "\n\n" + INJECTION_GUARD : ""}`;
-      const completion = await withTransientOpenAIRetry(() =>
-        openai.chat.completions.create({
-          model: FAST_MODEL,
+      const completion = await withOpenAIModelFallback(
+        FAST_MODEL,
+        FAST_FALLBACK_MODEL,
+        (model) => openai.chat.completions.create({
+          model,
           reasoning_effort: "none",
           response_format: { type: "json_object" },
           messages: [
@@ -697,9 +795,11 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
 Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example steps, and 2-4 key points.`;
 
     async function generateOnce(): Promise<KS2Lesson | null> {
-      const completion = await withTransientOpenAIRetry(() =>
-        openai.chat.completions.create({
-          model: LESSON_MODEL,
+      const completion = await withOpenAIModelFallback(
+        LESSON_MODEL,
+        LESSON_FALLBACK_MODEL,
+        (model) => openai.chat.completions.create({
+          model,
           reasoning_effort: "none",
           response_format: { type: "json_object" },
           messages: [
@@ -849,6 +949,9 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
         topicId,
         subjectId,
       );
+      if (isMaths) {
+        lesson = addNegativeNumberVisual(lesson, focusSkill);
+      }
 
       const taxMeta = topicId
         ? resolveKS2Taxonomy(topicId, focusSkill || undefined)

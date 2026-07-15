@@ -87,6 +87,31 @@ describe("KS2 fraction simplify quality gate", () => {
     ).toBe("fraction_ops");
   });
 
+  it("uses the curriculum skill when incidental question wording says how many", () => {
+    expect(
+      detectSkillVisualFamily(
+        "How many books were read on Thursday?",
+        "Statistics",
+        "Read and interpret line graphs",
+      ),
+    ).toBe("statistics");
+    expect(satisfiesSkillVisuals(["chart", "table"], "statistics")).toBe(true);
+    expect(
+      detectSkillVisualFamily(
+        "Plot point A at (4, 3)",
+        "Position & Direction",
+        "Read and plot coordinates (first quadrant)",
+      ),
+    ).toBe("coordinates");
+    expect(satisfiesSkillVisuals(["coordinate_graph"], "coordinates")).toBe(
+      true,
+    );
+    expect(detectSkillVisualFamily("List the first five multiples of 6", "", "Multiples")).toBe(
+      "multiples",
+    );
+    expect(satisfiesSkillVisuals(["number_line"], "multiples")).toBe(true);
+  });
+
   it("keeps fraction multiplication and division in the fraction visual family", () => {
     expect(
       detectSkillVisualFamily("1/2 × 3/4", "Fractions", "Multiply fractions"),
@@ -190,7 +215,8 @@ describe("KS2 fraction simplify quality gate", () => {
       "Fractions",
       ["Simplify fractions"],
     );
-    expect(next.teachingSteps!.length).toBeGreaterThanOrEqual(6);
+    expect(next.teachingSteps!.length).toBeGreaterThanOrEqual(3);
+    expect(next.teachingSteps!.length).toBeLessThanOrEqual(6);
     const blockTypes = (next.whiteboard?.blocks || []).map(
       (b: { type: string }) => b.type,
     );

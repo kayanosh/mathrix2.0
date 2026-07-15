@@ -36,7 +36,12 @@ import {
 } from "@/lib/methods/decimal-column";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
 import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
-import { teachingStepsToCaptions, type MethodBuildResult, type TeachingStep } from "@/lib/methods/types";
+import {
+  compactTeachingSteps,
+  teachingStepsToCaptions,
+  type MethodBuildResult,
+  type TeachingStep,
+} from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import type {
@@ -394,8 +399,9 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   example: T,
   built: MethodBuildResult,
 ): T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string } {
-  // Keep the full digit-level script — do not truncate mid-method.
-  const captions = teachingStepsToCaptions(built.teachingSteps);
+  // Merge adjacent micro-actions rather than truncating the method mid-way.
+  const compacted = compactTeachingSteps(built.teachingSteps);
+  const captions = teachingStepsToCaptions(compacted);
   const answer =
     built.answer ||
     (built.block.type === "column_method"
@@ -403,8 +409,8 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
       : example.answer);
 
   const teachingSteps =
-    built.teachingSteps.length > 0
-      ? built.teachingSteps.filter((s) => s.title !== "Answer")
+    compacted.length > 0
+      ? compacted
       : example.teachingSteps;
 
   const fallbackSteps = Array.isArray(example.steps)

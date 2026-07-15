@@ -69,3 +69,34 @@ export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {
     .filter((s) => s.explanation && s.title !== "Answer")
     .map((s) => `${s.title}: ${s.explanation}`);
 }
+
+/** Preserve the whole method while keeping pupil-facing navigation to 3-6 cards. */
+export function compactTeachingSteps(
+  steps: TeachingStep[],
+  maxSteps = 6,
+): TeachingStep[] {
+  const clean = steps.filter((step) => step.title !== "Answer");
+  if (clean.length <= maxSteps) return clean;
+
+  return Array.from({ length: maxSteps }, (_, index) => {
+    const start = Math.floor((index * clean.length) / maxSteps);
+    const end = Math.floor(((index + 1) * clean.length) / maxSteps);
+    const group = clean.slice(start, Math.max(start + 1, end));
+    const first = group[0];
+    const unique = (values: string[]) => [...new Set(values)];
+    return {
+      title: first.title,
+      explanation: group.map((step) => step.explanation).join(" "),
+      why:
+        group
+          .map((step) => step.why)
+          .filter((value): value is string => Boolean(value))
+          .join(" ") || undefined,
+      narration: group.map((step) => step.narration).join(" "),
+      cellKeys: unique(group.flatMap((step) => step.cellKeys)),
+      carryKeys: unique(group.flatMap((step) => step.carryKeys)),
+      noteKeys: unique(group.flatMap((step) => step.noteKeys)),
+      showAnswer: group.some((step) => step.showAnswer),
+    };
+  });
+}

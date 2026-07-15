@@ -16,6 +16,12 @@ export type KS2SkillVisualFamily =
   | "word_problems"
   | "rounding"
   | "place_value"
+  | "statistics"
+  | "coordinates"
+  | "algebra"
+  | "ratio"
+  | "measures"
+  | "multiples"
   | "general";
 
 export interface KS2SkillVisualRequirement {
@@ -31,6 +37,20 @@ export function detectSkillVisualFamily(
   skill = "",
 ): KS2SkillVisualFamily {
   const q = normalizeMathText(question).toLowerCase();
+  const t = `${topic} ${skill}`.toLowerCase();
+
+  // Curriculum skill names are more authoritative than incidental wording in
+  // a worked question (for example, "How many...?" on a line graph).
+  if (/statistic|line graph|bar chart|chart|pictogram|frequency table/.test(t))
+    return "statistics";
+  if (/coordinate|quadrant|plot points?|position (?:and|&) direction/.test(t))
+    return "coordinates";
+  if (/function machine|algebra|expression|formula|equation|number sequence/.test(t))
+    return "algebra";
+  if (/\bratio\b|proportion|scale factor/.test(t)) return "ratio";
+  if (/convert(?:ing)? units?|unit conversion|metric measures?/.test(t))
+    return "measures";
+  if (/\bmultiples?\b/.test(t)) return "multiples";
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
     return "fraction_simplify";
   }
@@ -64,7 +84,6 @@ export function detectSkillVisualFamily(
   if (/\bword problem|how many|altogether|left over/.test(q)) return "word_problems";
   if (/\bplace value\b/.test(q)) return "place_value";
 
-  const t = `${topic} ${skill}`.toLowerCase();
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b/.test(t)) {
     return "fraction_simplify";
   }
@@ -138,8 +157,9 @@ export const KS2_SKILL_VISUALS: Record<
   },
   word_problems: {
     family: "word_problems",
-    requiredAnyOf: ["key_info", "bar_model"],
-    guidance: "Highlight key information; add a bar model when useful.",
+    requiredAnyOf: ["key_info", "bar_model", "equation_steps", "table"],
+    guidance:
+      "Highlight key information or show the ordered calculation steps in a bar, table, or equation flow.",
   },
   rounding: {
     family: "rounding",
@@ -152,6 +172,36 @@ export const KS2_SKILL_VISUALS: Record<
     family: "place_value",
     requiredAnyOf: ["table", "number_line"],
     guidance: "Use a place-value chart or number line.",
+  },
+  statistics: {
+    family: "statistics",
+    requiredAnyOf: ["chart", "table"],
+    guidance: "Show the graph or chart together with the values being read.",
+  },
+  coordinates: {
+    family: "coordinates",
+    requiredAnyOf: ["coordinate_graph"],
+    guidance: "Use a coordinate grid with labelled points and axes.",
+  },
+  algebra: {
+    family: "algebra",
+    requiredAnyOf: ["table", "equation_steps"],
+    guidance: "Show each function-machine or equation step in order.",
+  },
+  ratio: {
+    family: "ratio",
+    requiredAnyOf: ["table", "bar_model"],
+    guidance: "Use equal ratio parts in a table or bar model.",
+  },
+  measures: {
+    family: "measures",
+    requiredAnyOf: ["table", "equation_steps"],
+    guidance: "Show the source unit, conversion operation, and target unit.",
+  },
+  multiples: {
+    family: "multiples",
+    requiredAnyOf: ["number_line", "table"],
+    guidance: "Show equal jumps or an ordered list of multiples.",
   },
   general: {
     family: "general",
@@ -167,6 +217,8 @@ export const KS2_SKILL_VISUALS: Record<
       "bar_model",
       "area_model",
       "hundred_square",
+      "chart",
+      "coordinate_graph",
     ],
     guidance: "Include at least one clear visual that matches the skill.",
   },

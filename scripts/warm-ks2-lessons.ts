@@ -4,6 +4,7 @@
  * Examples:
  *   npm run warm:ks2-lessons -- --base http://localhost:3000 --subject maths
  *   npm run warm:ks2-lessons -- --topic y6m-fractions --kind lesson,guided
+ *   npm run warm:ks2-lessons -- --all-topics --first-skill --kind lesson
  */
 
 import { getKS2TopicById, listAllKS2Topics } from "../lib/ks2";
@@ -18,6 +19,7 @@ interface WarmItem {
   topic: string;
   skill: string;
   kind: LessonKind;
+  target: string;
 }
 
 function arg(name: string): string | undefined {
@@ -27,6 +29,8 @@ function arg(name: string): string | undefined {
 
 const base = (arg("base") || "http://localhost:3000").replace(/\/$/, "");
 const topicFilter = arg("topic");
+const allTopics = process.argv.includes("--all-topics");
+const firstSkillOnly = process.argv.includes("--first-skill");
 const subjectFilter = (arg("subject") || "maths")
   .split(",")
   .map((value) => value.trim().toLowerCase())
@@ -35,24 +39,26 @@ const kinds = (arg("kind") || "lesson,guided")
   .split(",")
   .map((value) => value.trim())
   .filter((value): value is LessonKind => value === "lesson" || value === "guided");
-const target = arg("target") || "curriculum";
+const targetOverride = arg("target");
 const tier = arg("tier") || "secure";
 const concurrency = Math.min(Math.max(Number(arg("concurrency")) || 2, 1), 5);
 
 const items: WarmItem[] = listAllKS2Topics()
   .filter(
     (topic) =>
-      topic.section === "curriculum" &&
-      usesTeachingEngine(topic.subjectId) &&
-      subjectFilter.includes(topic.subjectId.toLowerCase()) &&
+      (allTopics ||
+        (topic.section === "curriculum" &&
+          usesTeachingEngine(topic.subjectId) &&
+          subjectFilter.includes(topic.subjectId.toLowerCase()))) &&
       (!topicFilter || topic.id === topicFilter),
   )
   .flatMap((topic) => {
     const context = getKS2TopicById(topic.id);
     if (!context) return [];
-    const skills = context.topic.subtopics.length
+    const allSkills = context.topic.subtopics.length
       ? context.topic.subtopics
       : [context.topic.name];
+    const skills = firstSkillOnly ? allSkills.slice(0, 1) : allSkills;
     return skills.flatMap((skill) =>
       kinds.map((kind) => ({
         topicId: topic.id,
@@ -61,6 +67,7 @@ const items: WarmItem[] = listAllKS2Topics()
         topic: context.topic.name,
         skill,
         kind,
+        target: targetOverride || context.section,
       })),
     );
   });
@@ -82,7 +89,7 @@ async function warm(item: WarmItem): Promise<void> {
         topic: item.topic,
         skill: item.skill,
         subtopics: [item.skill],
-        target,
+        target: item.target,
         tier,
         kind: item.kind,
         force: false,
