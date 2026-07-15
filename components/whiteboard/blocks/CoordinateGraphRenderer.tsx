@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { CoordinateGraphBlock } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: CoordinateGraphBlock;
@@ -203,7 +204,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
             fontWeight="500"
             fontFamily="var(--font-caveat), cursive"
           >
-            {xLabel}
+            {inlineMathToPlainText(xLabel)}
           </text>
         )}
         {yLabel && (
@@ -217,7 +218,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
             fontFamily="var(--font-caveat), cursive"
             transform={`rotate(-90, 14, ${height / 2})`}
           >
-            {yLabel}
+            {inlineMathToPlainText(yLabel)}
           </text>
         )}
 
@@ -298,7 +299,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
               fontWeight="600"
               fontFamily="var(--font-caveat), cursive"
             >
-              {p.label}
+              {inlineMathToPlainText(p.label)}
             </text>
           </motion.g>
         ))}

@@ -84,11 +84,11 @@ export default function ActiveStepCard({
                   : "text-lg sm:text-xl text-slate-900"
               }`}
             >
-              {step.title}
+              <InlineMath text={step.title} />
             </h2>
             {step.rule && isActive && (
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 ring-1 ring-indigo-100">
-                <Sparkles size={11} /> {step.rule}
+                <Sparkles size={11} /> <InlineMath text={step.rule} />
               </span>
             )}
           </div>

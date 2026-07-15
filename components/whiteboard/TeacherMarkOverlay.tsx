@@ -9,6 +9,7 @@ import {
 import { motion } from "framer-motion";
 import type { TeacherMark } from "@/types/whiteboard";
 import { buildMarkPath, type MarkRect } from "@/lib/emphasis-paths";
+import InlineMath from "@/components/InlineMath";
 
 interface Props {
   /** Ref to the positioned container holding the KaTeX equation. */
@@ -148,7 +149,7 @@ export default function TeacherMarkOverlay({ containerRef, mark, delay }: Props)
           animate={{ opacity: 0.95, y: 0 }}
           transition={{ delay: delay + 0.5, duration: 0.25 }}
         >
-          {mark.label}
+          <InlineMath text={mark.label} />
         </motion.span>
       )}
     </>

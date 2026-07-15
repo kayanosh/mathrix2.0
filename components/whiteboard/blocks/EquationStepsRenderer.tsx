@@ -58,7 +58,7 @@ export default function EquationStepsRenderer({ block, baseDelay }: Props) {
                     transition={{ delay: stepDelay - 0.05, duration: 0.2 }}
                     className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 font-sans"
                   >
-                    {step.rule}
+                    <InlineMath text={step.rule} />
                   </motion.span>
                 )}
               </motion.div>

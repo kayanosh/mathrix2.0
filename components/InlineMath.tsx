@@ -1,7 +1,7 @@
 "use client";
 
 import MathRenderer from "./MathRenderer";
-import { repairMangledBackslashes } from "@/lib/validate";
+import { splitInlineMath } from "@/lib/inline-math";
 
 /**
  * Renders a string that may contain inline LaTeX delimited by `$...$`.
@@ -19,28 +19,14 @@ export default function InlineMath({
 }) {
   if (!text) return null;
 
-  // Repair JSON-mangled LaTeX (e.g. tab+"imes" from a broken \times)
-  const repaired = repairMangledBackslashes(text);
-
-  // Fast path: no dollar signs → plain text (still show × if mangled without $)
-  if (!repaired.includes("$")) {
-    const plain = repaired.replace(/\\times/g, "×").replace(/\\div/g, "÷");
-    return <>{plain}</>;
-  }
-
-  // Split on $...$ (non-greedy), keeping the delimiters as captured groups
-  const parts = repaired.split(/\$([^$]+?)\$/g);
-
-  // parts alternates: [text, mathContent, text, mathContent, ...]
+  const parts = splitInlineMath(text);
   return (
     <span className={className}>
       {parts.map((part, i) =>
-        i % 2 === 0 ? (
-          // Plain text part
-          <span key={i}>{part}</span>
+        part.isMath ? (
+          <MathRenderer key={i} latex={part.content} />
         ) : (
-          // LaTeX part (was inside $...$)
-          <MathRenderer key={i} latex={part} />
+          <span key={i}>{part.content}</span>
         ),
       )}
     </span>

@@ -42,6 +42,7 @@ import SpeechHighlighter, {
   wordIndexAtProgress,
   countWords,
 } from "@/components/whiteboard/tutor/SpeechHighlighter";
+import InlineMath from "@/components/InlineMath";
 
 interface Props {
   data: WhiteboardResponse;
@@ -559,7 +560,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
               ) : (
                 <AlertTriangle size={13} />
               )}
-              {badge.label}
+              <InlineMath text={badge.label} />
             </div>
           </div>
         )}

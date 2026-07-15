@@ -27,6 +27,8 @@ import {
   withResultRow,
 } from "@/lib/column-reveal";
 import { CELL_WRITE_MS } from "@/lib/handwriting";
+import InlineMath from "@/components/InlineMath";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: ColumnMethodBlock;
@@ -185,7 +187,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
   return (
     <div className="rounded-xl p-5 bg-gray-50/80 border border-gray-200">
       <p className="text-lg text-gray-600 mb-4 text-center font-[family-name:var(--font-caveat)]">
-        {question}
+        <InlineMath text={question} />
       </p>
 
       <div className="flex justify-center">
@@ -204,7 +206,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                     className="flex items-center justify-center text-[10px] font-semibold uppercase tracking-wide text-slate-400"
                     style={{ width: cellW }}
                   >
-                    {header}
+                    <InlineMath text={header} />
                   </div>
                 );
               })}
@@ -316,7 +318,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                           animate={{ opacity: 1 }}
                           transition={{ delay: delay + 0.35, duration: 0.2 }}
                         >
-                          {move.label}
+                          {inlineMathToPlainText(move.label)}
                         </motion.text>
                       )}
                     </g>
@@ -486,7 +488,7 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
                           delay: stepMode ? 0.1 : baseDelay + ri * 0.15 + 0.1,
                         }}
                       >
-                        ← {rowLabels[ri]}
+                        ← <InlineMath text={rowLabels[ri]} />
                       </motion.span>
                     ) : null}
                   </motion.div>

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import HandwrittenText from "./HandwrittenText";
 import MathWriteIn from "./MathWriteIn";
-import { repairMangledBackslashes } from "@/lib/validate";
+import { splitInlineMath } from "@/lib/inline-math";
 import { estimateMathWriteMs, HAND_CHAR_MS } from "@/lib/handwriting";
 
 interface Props {
@@ -33,24 +33,13 @@ export default function HandwrittenInline({
   animate = true,
 }: Props) {
   const segments = useMemo<Segment[]>(() => {
-    const repaired = repairMangledBackslashes(text || "");
-
-    if (!repaired.includes("$")) {
-      const plain = repaired.replace(/\\times/g, "×").replace(/\\div/g, "÷");
-      return plain ? [{ content: plain, isMath: false, delay: startDelay }] : [];
-    }
-
-    // parts alternates: [text, mathContent, text, mathContent, ...]
-    const parts = repaired.split(/\$([^$]+?)\$/g);
     const out: Segment[] = [];
     let delay = startDelay;
-    parts.forEach((part, i) => {
-      if (!part) return;
-      const isMath = i % 2 === 1;
-      out.push({ content: part, isMath, delay });
+    splitInlineMath(text).forEach(({ content, isMath }) => {
+      out.push({ content, isMath, delay });
       delay += isMath
-        ? estimateMathWriteMs(part)
-        : part.length * HAND_CHAR_MS;
+        ? estimateMathWriteMs(content)
+        : content.length * HAND_CHAR_MS;
     });
     return out;
   }, [text, startDelay]);

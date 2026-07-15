@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, type RefObject } from "react";
 import { motion } from "framer-motion";
+import InlineMath from "@/components/InlineMath";
 
 interface ArrowPoints {
   x1: number;
@@ -277,7 +278,7 @@ export default function TermTransferArrow({
         transition={{ delay: delay + 0.25, duration: 0.25 }}
       >
         <span className="wb-transfer-label font-[family-name:var(--font-caveat)]">
-          {signRule || label}
+          <InlineMath text={signRule || label} />
         </span>
       </motion.div>
     </>

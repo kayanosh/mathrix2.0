@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { ProbabilityTreeBlock, TreeBranch } from "@/types/whiteboard";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: ProbabilityTreeBlock;
@@ -32,7 +33,7 @@ function parseFraction(latex: string): { num: string; den: string } | null {
 
 /** Strip common LaTeX commands for plain-text display */
 function cleanLatex(s: string): string {
-  return s
+  return inlineMathToPlainText(s)
     .replace(/\\text\{([^}]*)\}/g, "$1")
     .replace(/\\(?:left|right)[()[\]|.]/g, "")
     .replace(/\\(?:cdot|times)/g, "·")
@@ -175,7 +176,7 @@ export default function ProbabilityTreeRenderer({ block, baseDelay }: Props) {
           animate={{ opacity: 1 }}
           transition={{ delay: baseDelay }}
         >
-          {rootLabel}
+          {inlineMathToPlainText(rootLabel)}
         </motion.text>
 
         {/* Root dot */}
@@ -313,7 +314,7 @@ function BranchGroup({
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: delay + 0.35 }}
             >
-              {branch.event}
+              {inlineMathToPlainText(branch.event)}
             </motion.text>
 
             {/* Outcome probability at leaves */}

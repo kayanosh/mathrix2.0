@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { CSSProperties } from "react";
 import type { TableBlock } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
+import InlineMath from "@/components/InlineMath";
 
 interface Props {
   block: TableBlock;
@@ -52,7 +53,7 @@ export default function TableRenderer({ block, baseDelay }: Props) {
       {caption && (
         <div className="px-4 pt-3 pb-1">
           <span className="text-sm font-semibold text-indigo-700 font-[family-name:var(--font-caveat)]">
-            {caption}
+            <InlineMath text={caption} />
           </span>
         </div>
       )}
@@ -69,7 +70,7 @@ export default function TableRenderer({ block, baseDelay }: Props) {
                   transition={{ delay: baseDelay + ci * 0.05 }}
                   className="px-4 py-2.5 text-left text-xs font-bold text-indigo-800 uppercase tracking-wider border-b border-indigo-200"
                 >
-                  {mathCols.has(ci) ? <MathRenderer latex={h} /> : h}
+                  {mathCols.has(ci) ? <MathRenderer latex={h} /> : <InlineMath text={h} />}
                 </motion.th>
               ))}
             </tr>
@@ -103,7 +104,7 @@ export default function TableRenderer({ block, baseDelay }: Props) {
                       {mathCols.has(ci) ? (
                         <MathRenderer latex={cell} />
                       ) : (
-                        cell
+                        <InlineMath text={cell} />
                       )}
                     </td>
                   );

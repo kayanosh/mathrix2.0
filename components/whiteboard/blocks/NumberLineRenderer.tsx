@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import type { CSSProperties } from "react";
 import type { NumberLineBlock } from "@/types/whiteboard";
 import MathRenderer from "@/components/MathRenderer";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: NumberLineBlock;
@@ -180,7 +181,7 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
                   fontFamily="var(--font-caveat), cursive"
                   fontWeight="bold"
                 >
-                  {m.label}
+                  {inlineMathToPlainText(m.label)}
                 </text>
               )}
             </motion.g>

@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import type { ChartBlock } from "@/types/whiteboard";
+import InlineMath from "@/components/InlineMath";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: ChartBlock;
@@ -61,7 +63,7 @@ function BarChartRenderer({
     >
       {block.title && (
         <p className="text-xs text-gray-400 mb-2 text-center font-[family-name:var(--font-caveat)] text-base">
-          {block.title}
+          <InlineMath text={block.title} />
         </p>
       )}
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-md mx-auto">
@@ -131,7 +133,7 @@ function BarChartRenderer({
                 fontSize="9"
                 fontFamily="var(--font-caveat), cursive"
               >
-                {bar.label}
+                {inlineMathToPlainText(bar.label)}
               </text>
             </motion.g>
           );
@@ -148,7 +150,7 @@ function BarChartRenderer({
             fontFamily="var(--font-caveat), cursive"
             transform={`rotate(-90, 12, ${height / 2})`}
           >
-            {block.yLabel}
+            {inlineMathToPlainText(block.yLabel)}
           </text>
         )}
       </svg>
@@ -182,7 +184,7 @@ function PieChartRenderer({
     >
       {block.title && (
         <p className="text-xs text-gray-400 mb-2 text-center font-[family-name:var(--font-caveat)] text-base">
-          {block.title}
+          <InlineMath text={block.title} />
         </p>
       )}
       <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -256,7 +258,7 @@ function PieChartRenderer({
                 }}
               />
               <span className="text-xs text-gray-300">
-                {slice.label} ({slice.value})
+                <InlineMath text={slice.label} /> ({slice.value})
               </span>
             </div>
           ))}
@@ -302,7 +304,7 @@ function BoxPlotRenderer({
     >
       {block.title && (
         <p className="text-xs text-gray-400 mb-2 text-center font-[family-name:var(--font-caveat)] text-base">
-          {block.title}
+          <InlineMath text={block.title} />
         </p>
       )}
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-md mx-auto">
@@ -438,7 +440,7 @@ function CumulativeFreqRenderer({
     >
       {block.title && (
         <p className="text-xs text-gray-400 mb-2 text-center font-[family-name:var(--font-caveat)] text-base">
-          {block.title}
+          <InlineMath text={block.title} />
         </p>
       )}
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-md mx-auto">
@@ -476,12 +478,12 @@ function CumulativeFreqRenderer({
         {/* Labels */}
         {block.xLabel && (
           <text x={width / 2} y={height - 5} textAnchor="middle" fill="#9ca3af" fontSize="11" fontFamily="var(--font-caveat), cursive">
-            {block.xLabel}
+            {inlineMathToPlainText(block.xLabel)}
           </text>
         )}
         {block.yLabel && (
           <text x={12} y={height / 2} textAnchor="middle" fill="#9ca3af" fontSize="11" fontFamily="var(--font-caveat), cursive" transform={`rotate(-90, 12, ${height / 2})`}>
-            {block.yLabel}
+            {inlineMathToPlainText(block.yLabel)}
           </text>
         )}
       </svg>

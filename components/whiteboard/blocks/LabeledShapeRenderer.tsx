@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
+import InlineMath from "@/components/InlineMath";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: LabeledShapeBlock;
@@ -304,7 +306,7 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.5 + i * 0.08 }}
             >
-              {label}
+              {inlineMathToPlainText(label)}
             </motion.text>
           );
         })}
@@ -349,7 +351,7 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
                     className="text-xs px-1.5 py-0.5 rounded"
                     style={{ backgroundColor: "rgba(7,7,14,0.8)", color: COLORS.side }}
                   >
-                    {side.label}
+                    <InlineMath text={side.label} />
                   </span>
                 </div>
               </foreignObject>
@@ -456,7 +458,7 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
                 fontSize="11"
                 fontFamily="var(--font-caveat), cursive"
               >
-                {angle.label}
+                {inlineMathToPlainText(angle.label)}
               </text>
             </motion.g>
           );
@@ -532,7 +534,7 @@ function CircleRenderer({
             animate={{ opacity: 1 }}
             transition={{ delay: baseDelay + 0.5 }}
           >
-            {circleData.center}
+            {inlineMathToPlainText(circleData.center)}
           </motion.text>
         )}
 
@@ -565,7 +567,7 @@ function CircleRenderer({
             animate={{ opacity: 1 }}
             transition={{ delay: baseDelay + 0.8 }}
           >
-            {circleData.radius}
+            {inlineMathToPlainText(circleData.radius)}
           </motion.text>
         )}
 

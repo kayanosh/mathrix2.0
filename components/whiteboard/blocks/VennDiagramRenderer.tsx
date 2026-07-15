@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { VennDiagramBlock } from "@/types/whiteboard";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 
 interface Props {
   block: VennDiagramBlock;
@@ -117,7 +118,7 @@ export default function VennDiagramRenderer({ block, baseDelay }: Props) {
           animate={{ opacity: 1 }}
           transition={{ delay: baseDelay }}
         >
-          {universalLabel || "ξ"}
+          {inlineMathToPlainText(universalLabel || "ξ")}
           {universalTotal != null && ` = ${universalTotal}`}
         </motion.text>
 
@@ -161,7 +162,7 @@ export default function VennDiagramRenderer({ block, baseDelay }: Props) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: baseDelay + 0.3 + i * 0.1 }}
             >
-              {sets[i]?.label || String.fromCharCode(65 + i)}
+              {inlineMathToPlainText(sets[i]?.label || String.fromCharCode(65 + i))}
             </motion.text>
           </motion.g>
         ))}
@@ -188,7 +189,7 @@ export default function VennDiagramRenderer({ block, baseDelay }: Props) {
               }}
               style={{ transformOrigin: `${pos.x}px ${pos.y}px` }}
             >
-              {reg.value}
+              {inlineMathToPlainText(String(reg.value))}
             </motion.text>
           );
         })}

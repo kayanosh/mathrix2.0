@@ -302,7 +302,8 @@ function IntroCard({
 
       {card.topic && (
         <span className="inline-block mb-3 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
-          {card.subject && `${card.subject} — `}{card.topic}
+          {card.subject && <><InlineMath text={card.subject} /> — </>}
+          <InlineMath text={card.topic} />
         </span>
       )}
 
@@ -556,8 +557,8 @@ function VerificationLine({
     return (
       <div className="mt-4 flex items-center gap-1.5 text-[11px] text-white/80">
         {positive ? <ShieldCheck size={12} /> : <AlertTriangle size={12} />}
-        {badge.label}
-        {badge.detail && ` · ${badge.detail}`}
+        <InlineMath text={badge.label} />
+        {badge.detail && <> · <InlineMath text={badge.detail} /></>}
       </div>
     );
   }
@@ -576,8 +577,8 @@ function VerificationLine({
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${cls}`}
     >
       {positive ? <ShieldCheck size={13} /> : <AlertTriangle size={13} />}
-      {badge.label}
-      {badge.detail && <span className="opacity-70">· {badge.detail}</span>}
+      <InlineMath text={badge.label} />
+      {badge.detail && <span className="opacity-70">· <InlineMath text={badge.detail} /></span>}
     </div>
   );
 }

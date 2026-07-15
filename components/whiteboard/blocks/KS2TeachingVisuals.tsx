@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import type { CSSProperties } from "react";
+import InlineMath from "@/components/InlineMath";
 import type {
   AreaModelBlock,
   BarModelBlock,
@@ -32,7 +33,7 @@ export function FractionBarRenderer({
       className="space-y-2"
     >
       {block.label && (
-        <p className="text-sm font-semibold text-gray-800">{block.label}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.label} /></p>
       )}
       <div className="flex h-10 w-full overflow-hidden rounded-lg border-2 border-indigo-300">
         {Array.from({ length: d }, (_, i) => (
@@ -72,7 +73,7 @@ export function FractionGridRenderer({
       className="space-y-2"
     >
       {block.label && (
-        <p className="text-sm font-semibold text-gray-800">{block.label}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.label} /></p>
       )}
       <div
         className="grid gap-0.5 border-2 border-violet-300 rounded-lg overflow-hidden p-0.5 bg-violet-100"
@@ -119,14 +120,14 @@ export function FractionWallRenderer({
       className="space-y-2"
     >
       {block.caption && (
-        <p className="text-sm font-semibold text-gray-800">{block.caption}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.caption} /></p>
       )}
       {(block.rows || []).map((row, ri) => {
         const d = Math.max(1, row.denominator);
         return (
           <div key={ri} className="space-y-0.5">
             {row.label && (
-              <p className="text-[11px] font-medium text-gray-500">{row.label}</p>
+              <p className="text-[11px] font-medium text-gray-500"><InlineMath text={row.label} /></p>
             )}
             <div className="flex h-7 w-full overflow-hidden rounded border border-violet-300">
               {Array.from({ length: d }, (_, i) => (
@@ -168,7 +169,7 @@ export function BarModelRenderer({
       className="space-y-2"
     >
       {block.caption && (
-        <p className="text-sm font-semibold text-gray-800">{block.caption}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.caption} /></p>
       )}
       <div className="flex h-12 w-full overflow-hidden rounded-lg border-2 border-emerald-400">
         {parts.map((p, i) => (
@@ -180,13 +181,13 @@ export function BarModelRenderer({
               p.shaded !== false ? "bg-emerald-300/80 text-emerald-950" : "bg-white text-gray-700"
             }`}
           >
-            {p.label}
-            {p.value != null ? ` (${p.value})` : ""}
+            <InlineMath text={p.label} />
+            {p.value != null && <> (<InlineMath text={String(p.value)} />)</>}
           </div>
         ))}
       </div>
       {block.totalLabel && (
-        <p className="text-xs text-gray-600">Total: {block.totalLabel} · parts {totalWeight}</p>
+        <p className="text-xs text-gray-600">Total: <InlineMath text={block.totalLabel} /> · parts {totalWeight}</p>
       )}
     </motion.div>
   );
@@ -208,7 +209,7 @@ export function HundredSquareRenderer({
       className="space-y-2"
     >
       {block.label && (
-        <p className="text-sm font-semibold text-gray-800">{block.label}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.label} /></p>
       )}
       <div
         className="grid gap-px bg-amber-200 border border-amber-300 rounded overflow-hidden"
@@ -245,14 +246,14 @@ export function AreaModelRenderer({
       className="space-y-2"
     >
       {block.caption && (
-        <p className="text-sm font-semibold text-gray-800">{block.caption}</p>
+        <p className="text-sm font-semibold text-gray-800"><InlineMath text={block.caption} /></p>
       )}
       {block.labels?.top && (
-        <p className="text-xs text-center text-gray-600">{block.labels.top}</p>
+        <p className="text-xs text-center text-gray-600"><InlineMath text={block.labels.top} /></p>
       )}
       <div className="flex gap-2 items-center">
         {block.labels?.side && (
-          <p className="text-xs text-gray-600 writing-mode-vertical">{block.labels.side}</p>
+          <p className="text-xs text-gray-600 writing-mode-vertical"><InlineMath text={block.labels.side} /></p>
         )}
         <div
           className="grid gap-px bg-sky-300 border-2 border-sky-500 rounded overflow-hidden flex-1"
@@ -269,7 +270,7 @@ export function AreaModelRenderer({
         </div>
       </div>
       {block.labels?.product && (
-        <p className="text-sm font-medium text-sky-800">{block.labels.product}</p>
+        <p className="text-sm font-medium text-sky-800"><InlineMath text={block.labels.product} /></p>
       )}
     </motion.div>
   );
@@ -291,10 +292,10 @@ export function KeyInfoRenderer({
     >
       {block.caption && (
         <p className="text-[11px] font-bold uppercase tracking-wide text-rose-600">
-          {block.caption}
+          <InlineMath text={block.caption} />
         </p>
       )}
-      <p className="text-sm text-gray-800 leading-relaxed">{block.stem}</p>
+      <p className="text-sm text-gray-800 leading-relaxed"><InlineMath text={block.stem} /></p>
       <ul className="flex flex-wrap gap-2">
         {(block.highlights || []).map((h, i) => (
           <li
@@ -303,7 +304,7 @@ export function KeyInfoRenderer({
             style={sequence(i)}
             className="rounded-lg bg-rose-200/80 px-2 py-1 text-xs font-semibold text-rose-900"
           >
-            {h.text}
+            <InlineMath text={h.text} />
           </li>
         ))}
       </ul>

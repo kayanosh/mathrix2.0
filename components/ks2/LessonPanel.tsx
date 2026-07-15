@@ -455,7 +455,7 @@ export default function LessonPanel(props: Props) {
           >
             {b.title && (
               <p className="text-[12px] font-bold uppercase tracking-wide text-gray-500 mb-1">
-                {b.title}
+                <InlineMath text={b.title} />
               </p>
             )}
             <p className="text-gray-800 text-sm">
@@ -725,7 +725,7 @@ export default function LessonPanel(props: Props) {
                       <div className="min-w-0 space-y-0.5">
                         {step.title ? (
                           <p className="font-semibold text-gray-900 text-[15px]">
-                            {step.title}
+                            <InlineMath text={step.title} />
                           </p>
                         ) : null}
                         <p className="text-gray-700">
@@ -734,7 +734,7 @@ export default function LessonPanel(props: Props) {
                         {step.why ? (
                           <p className="text-[13px] text-amber-800/90 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1">
                             <span className="font-semibold text-amber-700">Why: </span>
-                            {step.why}
+                            <InlineMath text={step.why} />
                           </p>
                         ) : null}
                       </div>

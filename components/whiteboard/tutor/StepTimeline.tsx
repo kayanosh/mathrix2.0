@@ -1,6 +1,8 @@
 "use client";
 
 import { Check } from "lucide-react";
+import InlineMath from "@/components/InlineMath";
+import { inlineMathToPlainText } from "@/lib/inline-math";
 import type { TutorStepModel } from "@/lib/tutor-steps";
 import ActiveStepCard from "./ActiveStepCard";
 import type { WhiteboardResponse } from "@/types/whiteboard";
@@ -51,10 +53,10 @@ export default function StepTimeline({
                       ? "border-emerald-300 bg-emerald-100 text-emerald-800"
                       : "border-emerald-100 bg-white/80 text-emerald-700 hover:bg-emerald-50"
                   }`}
-                  aria-label={`Review ${s.title}`}
+                  aria-label={`Review ${inlineMathToPlainText(s.title)}`}
                 >
                   <Check size={13} strokeWidth={3} />
-                  <span className="max-w-40 truncate">{s.title}</span>
+                  <span className="max-w-40 truncate"><InlineMath text={s.title} /></span>
                 </button>
               );
             })}
