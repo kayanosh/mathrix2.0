@@ -5,6 +5,7 @@
 export function normalizeMathText(text: string): string {
   return text
     .replace(/\$+/g, "")
+    .replace(/\\+frac\s*\{\s*(-?\d+)\s*\}\s*\{\s*(\d+)\s*\}/gi, "$1/$2")
     .replace(/\\+times/gi, "×")
     .replace(/\\+cdot/gi, "×")
     .replace(/\\+div/gi, "÷")

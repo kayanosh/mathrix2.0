@@ -18,7 +18,7 @@ export const KS2MicroStepSchema = z.object({
 export const KS2RichWorkedExampleSchema = z.object({
   question: z.string().min(3),
   method: z.string().min(3),
-  steps: z.array(KS2MicroStepSchema).min(6),
+  steps: z.array(KS2MicroStepSchema).min(3).max(6),
   finalAnswer: z.string().min(1),
   check: z.string().min(3),
   visualBlocks: z.array(z.record(z.string(), z.unknown())).optional(),

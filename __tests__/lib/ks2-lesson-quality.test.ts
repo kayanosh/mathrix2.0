@@ -87,6 +87,21 @@ describe("KS2 fraction simplify quality gate", () => {
     ).toBe("fraction_ops");
   });
 
+  it("keeps fraction multiplication and division in the fraction visual family", () => {
+    expect(
+      detectSkillVisualFamily("1/2 × 3/4", "Fractions", "Multiply fractions"),
+    ).toBe("fraction_ops");
+    expect(
+      detectSkillVisualFamily("3/4 ÷ 2", "Fractions", "Divide fractions by integers"),
+    ).toBe("fraction_ops");
+    expect(detectSkillVisualFamily("", "", "Multiply fractions")).toBe(
+      "fraction_ops",
+    );
+    expect(detectSkillVisualFamily("", "", "Divide fractions by integers")).toBe(
+      "fraction_ops",
+    );
+  });
+
   it("accepts the Simplify 12/16 gold-standard lesson", () => {
     const v = validateKS2TeachingLesson(goldLesson(), { maths: true });
     expect(v.ok).toBe(true);
@@ -135,10 +150,10 @@ describe("KS2 fraction simplify quality gate", () => {
     expect(v.issues.some((i) => i.code === "mistake_mismatch")).toBe(true);
   });
 
-  it("rejects fewer than 6 micro-steps", () => {
+  it("rejects fewer than 3 micro-steps", () => {
     const bad = goldLesson();
-    bad.workedExample.teachingSteps = bad.workedExample.teachingSteps!.slice(0, 3);
-    bad.workedExample.steps = ["a", "b", "c"];
+    bad.workedExample.teachingSteps = bad.workedExample.teachingSteps!.slice(0, 2);
+    bad.workedExample.steps = ["a", "b"];
     const v = validateKS2TeachingLesson(bad, { maths: true });
     expect(v.ok).toBe(false);
     expect(v.issues.some((i) => i.code === "few_steps")).toBe(true);
@@ -187,7 +202,7 @@ describe("KS2 fraction simplify quality gate", () => {
 });
 
 describe("KS2 strict Zod schema", () => {
-  it("requires 6+ micro-steps on worked examples", () => {
+  it("requires 3-6 micro-steps on worked examples", () => {
     const raw = {
       keyStage: "KS2",
       yearGroup: "Year 6",

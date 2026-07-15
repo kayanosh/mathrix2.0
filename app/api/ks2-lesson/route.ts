@@ -45,8 +45,11 @@ import {
 } from "@/lib/ks2-subject-pedagogy/shared";
 import { getKS2TopicById } from "@/lib/ks2";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
+import { withTransientOpenAIRetry } from "@/lib/openai-retry";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
+const FAST_MODEL = process.env.OPENAI_KS2_FAST_MODEL || "gpt-5.6-luna";
 
 const BLOCKING_LESSON_ISSUES = new Set([
   "answer_before_reasoning",
@@ -449,16 +452,19 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
 }
 Use 3-6 meaningful steps. Do not repeat the same idea in different words. Omit "table" entirely if it would not help.
 ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(question) ? "\n\n" + INJECTION_GUARD : ""}`;
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: `Topic: ${topic}. Question: ${question}` },
-        ],
-        max_tokens: 1300,
-        temperature: 0.6,
-      });
+      const completion = await withTransientOpenAIRetry(() =>
+        openai.chat.completions.create({
+          model: FAST_MODEL,
+          reasoning_effort: "none",
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: `Topic: ${topic}. Question: ${question}` },
+          ],
+          max_completion_tokens: 1300,
+          temperature: 0.6,
+        }),
+      );
       const raw = completion.choices[0]?.message?.content || "{}";
       let explanation: KS2Explanation | null = null;
       try {
@@ -595,9 +601,7 @@ ${KS2_TEACHING_JSON_SHAPE}
       { "stepNumber": 1, "title": "...", "teacherText": "small teaching step" },
       { "stepNumber": 2, "title": "...", "teacherText": "..." },
       { "stepNumber": 3, "title": "...", "teacherText": "..." },
-      { "stepNumber": 4, "title": "...", "teacherText": "..." },
-      { "stepNumber": 5, "title": "...", "teacherText": "..." },
-      { "stepNumber": 6, "title": "...", "teacherText": "..." }
+      { "stepNumber": 4, "title": "...", "teacherText": "..." }
     ],
     "finalAnswer": "the final answer",
     "check": "how we know it is right",
@@ -669,7 +673,7 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "keyPoints": ["short thing to remember", "another"],
   "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }${teachingFieldsShape}
 }
-Use 3-5 sections, 6-10 worked-example micro-steps, and 2-4 key points.`
+Use 3-5 sections, 3-6 meaningful worked-example micro-steps, and 2-4 key points. Do not pad the method with repeated steps.`
       : `You are a warm, encouraging UK primary school teacher creating a ${targetPhrase(target)} lesson for a Year 5/6 pupil.
 Subject: ${subject}. Topic: "${topic}". ${subtopicLine}
 Difficulty: ${tierPhrase(tier)}.
@@ -690,19 +694,22 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
   "keyPoints": ["short thing to remember", "another"],
   "tryThis": { "question": "a question for the pupil to try", "answer": "the answer" }${teachingFieldsShape}
 }
-Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2-4 key points.`;
+Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example steps, and 2-4 key points.`;
 
     async function generateOnce(): Promise<KS2Lesson | null> {
-      const completion = await openai.chat.completions.create({
-        model: isMaths ? "gpt-4o" : "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: `Create the ${kind} lesson now.` },
-        ],
-        max_tokens: isMaths ? 3200 : teachingSubject ? 2200 : 1400,
-        temperature: 0.7,
-      });
+      const completion = await withTransientOpenAIRetry(() =>
+        openai.chat.completions.create({
+          model: LESSON_MODEL,
+          reasoning_effort: "none",
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: `Create the ${kind} lesson now.` },
+          ],
+          max_completion_tokens: isMaths ? 2600 : teachingSubject ? 2000 : 1400,
+          temperature: 0.7,
+        }),
+      );
 
       const raw = completion.choices[0]?.message?.content || "{}";
       try {
@@ -861,39 +868,55 @@ Use 3-5 sections, ${teachingSubject ? "4-8" : "2-4"} worked-example steps, and 2
         requireVisual: isMaths,
       });
       if (!validation.ok) {
-        const retry = await generateOnce();
-        if (retry) {
-          if (isMaths && retry.workedExample?.question) {
-            retry.workedExample = hardenWorkedExample(
-              retry.workedExample,
+        let blocking = validation.issues.filter((issue) =>
+          BLOCKING_LESSON_ISSUES.has(issue.code),
+        );
+
+        // A second full lesson generation is expensive. Retry only when the
+        // first result has a safety/content mismatch that cannot be served.
+        if (blocking.length > 0) {
+          const retry = await generateOnce();
+          if (retry) {
+            if (isMaths && retry.workedExample?.question) {
+              retry.workedExample = hardenWorkedExample(
+                retry.workedExample,
+                topic,
+                skillSubs,
+              );
+            }
+            lesson = enrichTeachingFields(
+              retry,
               topic,
               skillSubs,
+              topicId,
+              subjectId,
+            );
+            validation = validateKS2TeachingLesson(
+              normalizeToTeachingLesson(
+                lesson as unknown as Record<string, unknown>,
+                { topic, skill: focusSkill },
+              ),
+              { subject: subjectId, requireVisual: isMaths },
+            );
+            blocking = validation.issues.filter((issue) =>
+              BLOCKING_LESSON_ISSUES.has(issue.code),
             );
           }
-          lesson = enrichTeachingFields(
-            retry,
-            topic,
-            skillSubs,
-            topicId,
-            subjectId,
-          );
-          validation = validateKS2TeachingLesson(
-            normalizeToTeachingLesson(
-              lesson as unknown as Record<string, unknown>,
-              { topic, skill: focusSkill },
-            ),
-            { subject: subjectId, requireVisual: isMaths },
-          );
         }
         if (!validation.ok) {
-          const blocking = validation.issues.filter((issue) =>
-            BLOCKING_LESSON_ISSUES.has(issue.code),
-          );
           qualityWarnings = validation.issues.map((issue) => issue.code);
           if (blocking.length > 0) {
             console.error(
               "[ks2-lesson] rejected unsafe lesson after quality retry:",
-              qualityWarnings.join(", "),
+              {
+                issues: qualityWarnings,
+                skill: focusSkill,
+                question: lesson.workedExample?.question,
+                visualTypes:
+                  lesson.workedExample?.whiteboard?.blocks?.map(
+                    (block) => block.type,
+                  ) || [],
+              },
             );
             return NextResponse.json(
               {

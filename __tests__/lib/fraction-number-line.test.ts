@@ -23,6 +23,13 @@ describe("fraction number line builder", () => {
     ]);
   });
 
+  it("parses LaTeX fractions from generated lesson questions", () => {
+    expect(parseFractionCompare("Order $\\frac{1}{2}$ and $\\frac{3}{4}$")).toEqual([
+      { n: 1, d: 2 },
+      { n: 3, d: 4 },
+    ]);
+  });
+
   it("emits LCD twelfths line with markers at 1/2, 2/3, 3/4", () => {
     const built = buildFractionNumberLine([
       { n: 1, d: 2 },

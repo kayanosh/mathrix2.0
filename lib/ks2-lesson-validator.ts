@@ -203,7 +203,7 @@ export function validateKS2TeachingLesson(
   const isMaths = subject === "maths" || opts.maths === true;
   const requireVisual =
     opts.requireVisual !== undefined ? opts.requireVisual : isMaths;
-  const minSteps = opts.minSteps ?? (isMaths ? 6 : 4);
+  const minSteps = opts.minSteps ?? 3;
 
   if (!lesson.learningObjective || lesson.learningObjective.trim().length < 8) {
     issues.push({

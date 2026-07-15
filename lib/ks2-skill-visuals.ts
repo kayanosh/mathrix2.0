@@ -2,6 +2,8 @@
  * Skill → required visual contract for KS2 maths lessons.
  */
 
+import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+
 export type KS2SkillVisualFamily =
   | "fraction_simplify"
   | "fraction_compare"
@@ -28,7 +30,7 @@ export function detectSkillVisualFamily(
   topic = "",
   skill = "",
 ): KS2SkillVisualFamily {
-  const q = question.toLowerCase();
+  const q = normalizeMathText(question).toLowerCase();
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
     return "fraction_simplify";
   }
@@ -46,6 +48,12 @@ export function detectSkillVisualFamily(
     return "rounding";
   }
   if (/\bpercent|%|hundred square/.test(q)) return "percentages";
+  if (
+    (/\d+\s*\/\s*\d+|\\+frac\s*\{/i.test(q) || /\bfraction/.test(q)) &&
+    /[+\-−×÷]|\b(?:add\w*|subtract\w*|multipl\w*|divid\w*|of)\b/.test(q)
+  ) {
+    return "fraction_ops";
+  }
   if (/\bdivid|÷|bus stop|short division|long division/.test(q) && /\d/.test(q))
     return "division";
   if (/\bmultipl|×|times|area model/.test(q) && /\d/.test(q))
@@ -66,6 +74,12 @@ export function detectSkillVisualFamily(
   if (/\bround|to the nearest|decimal places/.test(t) && /\bround|nearest/.test(t))
     return "rounding";
   if (/\bpercent/.test(t)) return "percentages";
+  if (
+    /\bfraction/.test(t) &&
+    /\b(?:add\w*|subtract\w*|multipl\w*|divid\w*|of|amount)\b/.test(t)
+  ) {
+    return "fraction_ops";
+  }
   if (/\bdivid/.test(t)) return "division";
   if (/\bmultipl/.test(t)) return "multiplication";
   if (/\bfraction\b/.test(t)) return "fraction_ops";

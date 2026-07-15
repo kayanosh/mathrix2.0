@@ -57,7 +57,7 @@ ${rule}
 
 Teach ONE skill only. Every block must match that skill.
 Include: learningObjective, priorKnowledge (or prerequisiteKnowledge), coreExplanation (or conceptExplanation),
-workedExample with ≥4 micro-steps, commonMistake, guidedPractice, independentPractice, quickCheck, recap.
+workedExample with 3-6 meaningful micro-steps, commonMistake, guidedPractice, independentPractice, quickCheck, recap.
 Never write a generic recap. Never use a common mistake from another skill.
 ${kind === "guided" ? "GUIDED practice: lean on hints and tryThis." : "LEARN: teach the idea first, then steps."}
 `;
@@ -84,7 +84,7 @@ Every block must match the same skill:
 
 Never give a common mistake from another skill.
 Never write a generic recap.
-Every worked example must have at least 6 small teaching steps.
+Every worked example must have 3 to 6 meaningful teaching steps. Use only as many steps as the method needs.
 
 ${tax}
 ${rule}
@@ -154,6 +154,6 @@ Return JSON matching this canonical shape (aliases in parentheses also accepted)
   "keyPoints": ["...", "..."],
   "tryThis": { "question": "...", "answer": "..." }
 }
-workedExample.steps MUST be 6 to 10 rich micro-steps (objects), not a short textbook list.
+workedExample.steps MUST be 3 to 6 rich micro-steps (objects), not a short textbook list.
 (Aliases: prerequisiteKnowledge, conceptExplanation, commonMistakes[], answer instead of finalAnswer.)
 `;

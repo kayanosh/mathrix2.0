@@ -2,8 +2,10 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishQuizExtra } from "@/lib/ks2-english";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
+import { withTransientOpenAIRetry } from "@/lib/openai-retry";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const QUIZ_MODEL = process.env.OPENAI_KS2_QUIZ_MODEL || "gpt-5.6-luna";
 
 interface QuizQuestion {
   question: string;
@@ -60,16 +62,19 @@ For each question provide a concise correct answer or mark scheme (for writing t
 Return ONLY valid JSON: {"questions":[{"question":"...","answer":"..."}]}. No markdown, no extra text.
 ${englishQuizExtra(subject, topic, subtopics)}`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Create the ${count}-question quiz now.` },
-      ],
-      max_tokens: 900,
-      temperature: 0.8,
-    });
+    const completion = await withTransientOpenAIRetry(() =>
+      openai.chat.completions.create({
+        model: QUIZ_MODEL,
+        reasoning_effort: "none",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Create the ${count}-question quiz now.` },
+        ],
+        max_completion_tokens: 900,
+        temperature: 0.8,
+      }),
+    );
 
     const raw = completion.choices[0]?.message?.content || "{}";
     let questions: QuizQuestion[] = [];
