@@ -473,6 +473,12 @@ describe("WhiteboardResponseSchema", () => {
           stem: "Find two thirds of 12.",
           highlights: [{ text: "two thirds", kind: "operation" }],
         },
+        {
+          type: "force_diagram",
+          objectLabel: "apple",
+          objectEmoji: "🍎",
+          forces: [{ label: "gravity", direction: "down" }],
+        },
       ],
       conclusion: "The fractions are equivalent.",
     };

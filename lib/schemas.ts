@@ -276,6 +276,19 @@ export const KeyInfoBlockSchema = z.object({
   caption: z.string().optional(),
 });
 
+export const ForceDiagramBlockSchema = z.object({
+  type: z.literal("force_diagram"),
+  objectLabel: z.string().min(1).max(80),
+  objectEmoji: z.string().max(16).optional(),
+  forces: z.array(z.object({
+    label: z.string().min(1).max(80),
+    direction: z.enum(["up", "down", "left", "right"]),
+    detail: z.string().max(120).optional(),
+  })).min(1).max(6),
+  caption: z.string().max(200).optional(),
+  groundLabel: z.string().max(80).optional(),
+});
+
 // ── Table ─────────────────────────────────────────────────────────────────────
 
 export const TableBlockSchema = z.object({
@@ -409,6 +422,7 @@ export const VisualBlockSchema = z.discriminatedUnion("type", [
   HundredSquareBlockSchema,
   AreaModelBlockSchema,
   KeyInfoBlockSchema,
+  ForceDiagramBlockSchema,
   TableBlockSchema,
   ChartBlockSchema,
   ColumnMethodBlockSchema,

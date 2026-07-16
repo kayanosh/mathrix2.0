@@ -21,6 +21,7 @@ import {
   type KS2MicroStep,
   type KS2StrictLesson,
 } from "@/lib/ks2-lesson-zod";
+import { subjectVisualMismatch } from "@/lib/ks2-subject-visuals";
 
 const VAGUE =
   /\b(it is easy|simply|obviously|clearly just|as you can see)\b|\bjust\s+(do|add|subtract|multiply|divide|write|put|move)\b/i;
@@ -392,6 +393,16 @@ export function validateKS2TeachingLesson(
   }
 
   for (const b of we?.whiteboard?.blocks || []) {
+    const mismatch = subjectVisualMismatch(b, {
+      subject,
+      topic: lesson.topic,
+      skill: lesson.skill,
+      question: we?.question,
+      answer: we?.answer,
+    });
+    if (mismatch) {
+      issues.push({ code: "subject_visual_mismatch", message: mismatch });
+    }
     issues.push(...validateVisualBlock(b, we?.question || ""));
   }
 
@@ -477,6 +488,23 @@ export function validateVisualBlock(
       issues.push({
         code: "key_info_empty",
         message: "Key-info blocks need a stem and highlights.",
+      });
+    }
+  }
+  if (block.type === "force_diagram") {
+    if (
+      !block.objectLabel ||
+      !Array.isArray(block.forces) ||
+      block.forces.length === 0 ||
+      block.forces.some(
+        (force) =>
+          !force.label ||
+          !["up", "down", "left", "right"].includes(force.direction),
+      )
+    ) {
+      issues.push({
+        code: "force_diagram_invalid",
+        message: "Force diagrams need a named object and labelled directional arrows.",
       });
     }
   }

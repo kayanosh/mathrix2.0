@@ -186,6 +186,23 @@ function keyInfoFit(block: VisualBlock): boolean {
   );
 }
 
+function forceDiagramFit(block: VisualBlock): boolean {
+  if (block.type !== "force_diagram") return false;
+  const directions = new Set(["up", "down", "left", "right"]);
+  return (
+    typeof block.objectLabel === "string" &&
+    block.objectLabel.trim().length > 0 &&
+    Array.isArray(block.forces) &&
+    block.forces.length > 0 &&
+    block.forces.every(
+      (force) =>
+        typeof force.label === "string" &&
+        force.label.trim().length > 0 &&
+        directions.has(force.direction),
+    )
+  );
+}
+
 /** True when the block is safe to show for this question. */
 export function isBlockFit(block: VisualBlock, question: string): boolean {
   switch (block.type) {
@@ -211,6 +228,8 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return areaModelFit(block);
     case "key_info":
       return keyInfoFit(block);
+    case "force_diagram":
+      return forceDiagramFit(block);
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
     default:

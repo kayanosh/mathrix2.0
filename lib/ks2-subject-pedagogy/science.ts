@@ -35,8 +35,9 @@ export function sciencePedagogy(
       strand: "Forces",
       method: "Name the force → show direction → explain effect",
       prerequisites: ["Forces can push or pull"],
-      preferredBlocks: ["labeled_shape", "key_info", "table"],
-      guidance: "Use arrows on a simple diagram and everyday examples.",
+      preferredBlocks: ["force_diagram", "key_info", "table"],
+      guidance:
+        "Use force_diagram with the real object named and every arrow labelled with a force and direction.",
       commonMistakes: [
         {
           mistake: "Thinking heavier objects always fall faster.",
@@ -51,8 +52,9 @@ export function sciencePedagogy(
       strand: "Electricity",
       method: "Complete circuit → component job → predict",
       prerequisites: ["A circuit needs a complete loop"],
-      preferredBlocks: ["labeled_shape", "table", "key_info"],
-      guidance: "Draw a simple circuit and explain each component's job.",
+      preferredBlocks: ["table", "key_info"],
+      guidance:
+        "Compare circuit states and component jobs in a table. Do not substitute a geometry shape for a circuit.",
       commonMistakes: [
         {
           mistake: "Thinking a gap in the wire still lets the bulb light.",
@@ -67,8 +69,9 @@ export function sciencePedagogy(
       strand: "Earth & Space",
       method: "Model → observe → explain",
       prerequisites: ["Day and night happen because Earth turns"],
-      preferredBlocks: ["key_info", "labeled_shape", "table"],
-      guidance: "Use a clear Earth–Sun–Moon model and everyday evidence.",
+      preferredBlocks: ["key_info", "table"],
+      guidance:
+        "Use key facts or a comparison table unless a purpose-built Earth–Sun–Moon diagram is available.",
       commonMistakes: [
         {
           mistake: "Thinking the Sun moves around the Earth each day.",
@@ -83,8 +86,9 @@ export function sciencePedagogy(
       strand: "Living things",
       method: "Observe → classify → explain",
       prerequisites: ["Living things grow, reproduce and respond"],
-      preferredBlocks: ["table", "key_info", "labeled_shape"],
-      guidance: "Use classification keys and life-cycle diagrams where helpful.",
+      preferredBlocks: ["table", "key_info"],
+      guidance:
+        "Use classification and life-cycle tables with labels from the exact topic.",
       commonMistakes: [
         {
           mistake: "Mixing up habitat needs with animal features.",
@@ -114,7 +118,7 @@ export function sciencePedagogy(
     strand: "Science",
     method: "Explain with evidence",
     prerequisites: ["Careful observation", "Using scientific vocabulary"],
-    preferredBlocks: ["key_info", "table", "labeled_shape"],
+    preferredBlocks: ["key_info", "table", "chart"],
     guidance:
       "Teach one clear scientific idea with an everyday example, then check understanding.",
     commonMistakes: [

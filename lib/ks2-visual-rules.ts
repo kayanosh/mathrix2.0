@@ -136,9 +136,9 @@ export const KS2_VISUAL_RULES: Record<KS2VisualRuleId, KS2VisualRule> = {
   science_enquiry: {
     id: "science_enquiry",
     label: "Science enquiry",
-    preferredBlocks: ["table", "key_info", "labeled_shape", "chart"],
+    preferredBlocks: ["table", "key_info", "force_diagram", "chart"],
     guidance:
-      "Use fair-test tables, labelled diagrams, and key-fact highlights.",
+      "Use fair-test tables, topic-specific force diagrams, charts, and key-fact highlights. Never use geometry shapes as generic science pictures.",
   },
   computing: {
     id: "computing",

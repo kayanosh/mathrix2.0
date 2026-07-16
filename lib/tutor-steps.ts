@@ -67,6 +67,7 @@ export function buildTutorSteps(
           hundred_square: "Hundred square",
           area_model: "Area model",
           key_info: "Key information",
+          force_diagram: "Force diagram",
         };
         return {
           cueIndex,

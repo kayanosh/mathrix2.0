@@ -330,6 +330,29 @@ export interface KeyInfoBlock {
   caption?: string;
 }
 
+// ── Block: Force Diagram (KS2 science) ──────────────────────────────────────
+
+export interface ForceDiagramForce {
+  /** Scientific name shown beside the arrow. */
+  label: string;
+  /** Direction in which the force acts on the object. */
+  direction: "up" | "down" | "left" | "right";
+  /** Optional child-friendly clarification, e.g. "towards Earth's centre". */
+  detail?: string;
+}
+
+export interface ForceDiagramBlock {
+  type: "force_diagram";
+  /** The object the arrows act on, e.g. "apple" or "falling ball". */
+  objectLabel: string;
+  /** A representative emoji; the renderer falls back to a neutral object. */
+  objectEmoji?: string;
+  forces: ForceDiagramForce[];
+  caption?: string;
+  /** Optional destination/reference label below the object. */
+  groundLabel?: string;
+}
+
 // ── Block: Table ──────────────────────────────────────────────────────────────
 
 export interface TableBlock {
@@ -488,6 +511,7 @@ export type VisualBlock =
   | HundredSquareBlock
   | AreaModelBlock
   | KeyInfoBlock
+  | ForceDiagramBlock
   | TableBlock
   | ChartBlock
   | ColumnMethodBlock

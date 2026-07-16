@@ -221,6 +221,15 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
           kind: "hint",
         });
         break;
+      case "force_diagram":
+        cues.push({
+          blockIndex: bi,
+          text:
+            block.caption ||
+            `Follow each arrow to see the forces acting on the ${block.objectLabel}.`,
+          kind: "hint",
+        });
+        break;
       default: {
         const _: never = block;
         void _;

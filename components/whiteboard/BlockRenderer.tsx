@@ -11,6 +11,7 @@ import NumberLineRenderer from "./blocks/NumberLineRenderer";
 import TableRenderer from "./blocks/TableRenderer";
 import ChartRenderer from "./blocks/ChartRenderer";
 import ColumnMethodRenderer from "./blocks/ColumnMethodRenderer";
+import ForceDiagramRenderer from "./blocks/ForceDiagramRenderer";
 import {
   AreaModelRenderer,
   BarModelRenderer,
@@ -55,6 +56,8 @@ export default function BlockRenderer({ block, baseDelay }: Props) {
       return <AreaModelRenderer block={block} baseDelay={baseDelay} />;
     case "key_info":
       return <KeyInfoRenderer block={block} baseDelay={baseDelay} />;
+    case "force_diagram":
+      return <ForceDiagramRenderer block={block} baseDelay={baseDelay} />;
     case "table":
       return <TableRenderer block={block} baseDelay={baseDelay} />;
     case "chart":

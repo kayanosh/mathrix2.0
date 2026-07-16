@@ -101,6 +101,23 @@ describe("multi-subject teaching engine", () => {
     expect(v.issues.some((i) => i.code === "missing_visual")).toBe(true);
   });
 
+  it("rejects geometry placeholders used as science illustrations", () => {
+    const science = sampleNonMathsLesson(
+      "Forces",
+      "Gravity",
+      "Name the force → show direction → explain effect",
+    );
+    science.workedExample.whiteboard = {
+      intro: "Use this force-arrow diagram.",
+      blocks: [{ type: "labeled_shape", shape: "polygon" }],
+      conclusion: "Gravity pulls down.",
+    };
+
+    const result = validateKS2TeachingLesson(science, { subject: "science" });
+    expect(result.ok).toBe(false);
+    expect(result.issues.some((issue) => issue.code === "subject_visual_mismatch")).toBe(true);
+  });
+
   it("covers GPS English topics in prompt extras", () => {
     expect(isEnglishGpsTopic("Grammar, Punctuation & Spelling")).toBe(true);
     expect(
@@ -112,6 +129,8 @@ describe("multi-subject teaching engine", () => {
 
   it("emits subject lesson extras", () => {
     expect(scienceLessonExtra("Science", "Forces", ["Friction"])).toMatch(/SCIENCE/i);
+    expect(scienceLessonExtra("Science", "Forces", ["Gravity"])).toMatch(/force_diagram/);
+    expect(scienceLessonExtra("Science", "Forces", ["Gravity"])).toMatch(/Never use labeled_shape/);
     expect(computingLessonExtra("Computing", "Programming", ["Scratch"])).toMatch(
       /COMPUTING/i,
     );

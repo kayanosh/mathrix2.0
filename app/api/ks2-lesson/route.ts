@@ -46,6 +46,7 @@ import {
 import { getKS2TopicById } from "@/lib/ks2";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 import { withOpenAIModelFallback } from "@/lib/openai-retry";
+import { ensureRelevantSubjectVisuals } from "@/lib/ks2-subject-visuals";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
@@ -73,6 +74,8 @@ const BLOCKING_LESSON_ISSUES = new Set([
   "hundred_square_invalid",
   "area_model_invalid",
   "key_info_empty",
+  "force_diagram_invalid",
+  "subject_visual_mismatch",
 ]);
 
 interface LessonSection {
@@ -431,6 +434,41 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
   return next;
 }
 
+function hardenSubjectWorkedExample(
+  example: WorkedExample,
+  subjectId: string,
+  topic: string,
+  skill: string,
+): WorkedExample {
+  const parsed = example.whiteboard
+    ? parseWorkedExampleWhiteboard(example.whiteboard, example.question)
+    : undefined;
+  const context = {
+    subject: subjectId,
+    topic,
+    skill,
+    question: example.question,
+    answer: example.answer,
+  };
+  const blocks = ensureRelevantSubjectVisuals(parsed?.blocks || [], context);
+  return {
+    ...example,
+    whiteboard:
+      blocks.length > 0
+        ? {
+            intro:
+              parsed?.intro ||
+              (blocks[0]?.type === "force_diagram"
+                ? "Follow the force arrows acting on the object."
+                : "Use this visual to examine the example."),
+            blocks,
+            conclusion:
+              parsed?.conclusion || example.answer || "Use the visual evidence to explain the answer.",
+          }
+        : undefined,
+  };
+}
+
 function addNegativeNumberVisual(
   lesson: KS2Lesson,
   skill: string,
@@ -620,12 +658,13 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             topic,
             subtopics,
           );
-        } else if (cached.workedExample?.whiteboard) {
-          cached.workedExample.whiteboard =
-            parseWorkedExampleWhiteboard(
-              cached.workedExample.whiteboard,
-              cached.workedExample.question || "",
-            ) || undefined;
+        } else if (cached.workedExample) {
+          cached.workedExample = hardenSubjectWorkedExample(
+            cached.workedExample,
+            subjectId,
+            topic,
+            requestedSkill,
+          );
         }
         if (teachingSubject) {
           const enriched = enrichTeachingFields(
@@ -930,12 +969,13 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
         topic,
         skillSubs,
       );
-    } else if (lesson.workedExample?.whiteboard) {
-      lesson.workedExample.whiteboard =
-        parseWorkedExampleWhiteboard(
-          lesson.workedExample.whiteboard,
-          lesson.workedExample.question || "",
-        ) || undefined;
+    } else if (lesson.workedExample) {
+      lesson.workedExample = hardenSubjectWorkedExample(
+        lesson.workedExample,
+        subjectId,
+        topic,
+        focusSkill,
+      );
     }
 
     let cacheable = true;
@@ -985,6 +1025,13 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
                 retry.workedExample,
                 topic,
                 skillSubs,
+              );
+            } else if (retry.workedExample) {
+              retry.workedExample = hardenSubjectWorkedExample(
+                retry.workedExample,
+                subjectId,
+                topic,
+                focusSkill,
               );
             }
             lesson = enrichTeachingFields(

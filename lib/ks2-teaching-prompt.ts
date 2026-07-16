@@ -50,6 +50,9 @@ export function ks2TeachingEnginePrompt(
   const pedagogy = isMaths ? skillPedagogyExtras(family) : "";
 
   if (!isMaths) {
+    const visualSafety = /science/i.test(subjectLabel)
+      ? `Science visuals may use: force_diagram, table, key_info, chart, text. Never use labeled_shape as a generic science illustration. Omit a diagram rather than show an unrelated one.`
+      : `Use only tables, key_info, charts, or text that directly match the named skill. Never use labeled_shape as a generic illustration.`;
     return `
 KS2 ${subjectLabel.toUpperCase()} TEACHING ENGINE — return ONLY valid JSON (no markdown fences).
 ${tax}
@@ -59,6 +62,7 @@ Teach ONE skill only. Every block must match that skill.
 Include: learningObjective, priorKnowledge (or prerequisiteKnowledge), coreExplanation (or conceptExplanation),
 workedExample with 3-6 meaningful micro-steps, commonMistake, guidedPractice, independentPractice, quickCheck, recap.
 Never write a generic recap. Never use a common mistake from another skill.
+${visualSafety}
 ${kind === "guided" ? "GUIDED practice: lean on hints and tryThis." : "LEARN: teach the idea first, then steps."}
 `;
   }

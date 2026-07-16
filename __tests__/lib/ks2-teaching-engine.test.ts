@@ -209,6 +209,12 @@ describe("VisualRenderer / BlockRenderer coverage for new types", () => {
       stem: "Sam has 24 sweets and gives away 1/3.",
       highlights: [{ text: "24", kind: "number" }, { text: "1/3", kind: "other" }],
     },
+    {
+      type: "force_diagram",
+      objectLabel: "apple",
+      objectEmoji: "🍎",
+      forces: [{ label: "gravity", direction: "down" }],
+    },
   ];
 
   it("marks every new visual type as fit when well-formed", () => {
