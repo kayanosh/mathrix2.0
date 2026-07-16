@@ -90,7 +90,10 @@ function validateProbabilityBranches(branches: TreeBranch[], path: string): stri
 /**
  * Run semantic checks beyond what Zod can validate.
  */
-function semanticChecks(data: WhiteboardResponse): string[] {
+function semanticChecks(
+  data: WhiteboardResponse,
+  requireAlgebraArrows: boolean,
+): string[] {
   const errors: string[] = [];
 
   for (const block of data.blocks) {
@@ -114,7 +117,9 @@ function semanticChecks(data: WhiteboardResponse): string[] {
         if (block.steps.length === 0) {
           errors.push("equation_steps block has no steps");
         }
-        errors.push(...validateAlgebraArrows(block as EquationStepBlock));
+        if (requireAlgebraArrows) {
+          errors.push(...validateAlgebraArrows(block as EquationStepBlock));
+        }
         break;
       }
     }
@@ -417,7 +422,8 @@ function validateRequiredVisuals(
  */
 export function validateResponse(
   rawText: string,
-  requiredBlockTypes?: string[]
+  requiredBlockTypes?: string[],
+  options: { requireAlgebraArrows?: boolean } = {},
 ): ValidationResult {
   // 1. Extract JSON
   let jsonStr: string;
@@ -448,7 +454,10 @@ export function validateResponse(
   const data = sanitizeWhiteboardResponse(result.data as WhiteboardResponse);
 
   // 5. Semantic validation
-  const semanticErrors = semanticChecks(data);
+  const semanticErrors = semanticChecks(
+    data,
+    options.requireAlgebraArrows !== false,
+  );
 
   // 6. Required visuals validation
   const visualErrors = validateRequiredVisuals(

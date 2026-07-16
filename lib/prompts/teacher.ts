@@ -24,12 +24,12 @@ const TEACHER_VISUAL_MAP: Record<string, TeacherVisual> = {
   "trigonometry (soh cah toa)": { blocks: ["labeled_shape"], hint: "Draw the right-angled triangle with θ, opposite, adjacent, and hypotenuse labeled" },
   "trigonometry":              { blocks: ["labeled_shape"], hint: "Draw the right-angled triangle with θ, opposite, adjacent, and hypotenuse labeled" },
   "area and perimeter":        { blocks: ["labeled_shape"], hint: "Draw the shape with all dimensions clearly labeled" },
-  "volume":                    { blocks: ["labeled_shape"], hint: "Draw the 3D shape with length, width, and height labeled" },
+  "volume":                    { blocks: ["equation_steps"], hint: "Show the correct 3D volume formula and substitute each dimension explicitly; do not fake a 3D diagram with a 2D shape" },
   "transformations":           { blocks: ["coordinate_graph"], hint: "Plot the original shape and its image on a coordinate grid, labeling vertices" },
-  "bearings":                  { blocks: ["labeled_shape"], hint: "Draw the bearing diagram with a North line and the angle measured clockwise" },
+  "bearings":                  { blocks: ["equation_steps"], hint: "Show how the three-figure bearing is measured clockwise from North; only include a diagram when its North line and bearing arc can be represented accurately" },
   "loci and constructions":    { blocks: ["labeled_shape"], hint: "Draw the construction showing arcs, perpendicular bisectors, or angle bisectors as needed" },
-  "vectors":                   { blocks: ["labeled_shape"], hint: "Draw the vector diagram with labeled vectors showing direction and magnitude" },
-  "similarity and congruence": { blocks: ["labeled_shape"], hint: "Draw both shapes side by side with corresponding sides and angles labeled" },
+  "vectors":                   { blocks: ["coordinate_graph"], hint: "Use directed coordinate-grid segments whose endpoints and component changes match the calculation" },
+  "similarity and congruence": { blocks: ["table"], hint: "Use a correspondence table for matching sides and angles; add labeled shapes only when every correspondence can be represented accurately" },
 
   // ── Algebra (graph topics) ──
   "straight line graphs":      { blocks: ["coordinate_graph"], hint: "Plot the line on a coordinate grid, labeling gradient, y-intercept, and at least two points" },
@@ -43,7 +43,7 @@ const TEACHER_VISUAL_MAP: Record<string, TeacherVisual> = {
   // ── Ratio, Proportion & Rates of Change ──
   "direct proportion":         { blocks: ["coordinate_graph"], hint: "Plot the proportional relationship y = kx as a straight line through the origin" },
   "inverse proportion":        { blocks: ["coordinate_graph"], hint: "Plot the curve y = k/x showing how y decreases as x increases" },
-  "scale factors":             { blocks: ["labeled_shape"], hint: "Draw the original and enlarged/reduced shape with corresponding sides labeled" },
+  "scale factors":             { blocks: ["table"], hint: "Show original and image lengths side by side with the scale-factor calculation; add a diagram only when both shapes can be represented accurately" },
 
   // ── Probability ──
   "tree diagrams":             { blocks: ["probability_tree"], hint: "Draw the full probability tree with all branches labeled with events and probabilities" },
@@ -189,6 +189,7 @@ TOPIC-SPECIFIC VISUALS — include where they help:
 Block type(s) that suit this topic: ${visuals.blocks.map((b) => `"${b}"`).join(", ")}
 Guidance: ${visuals.hint}
 Use them inside the "rule" or "example" sections.
+Every diagram must represent the exact question being taught. Its vertices, sides, angles, units and numerical values must agree with the worked calculation. Never use a generic placeholder shape.
 `
       : "";
 
@@ -197,7 +198,15 @@ Use them inside the "rule" or "example" sections.
 You are in TEACH-ME-A-TOPIC mode. The student wants a full lesson on: "${topic}".
 Teach it like a real teacher building the topic from the ground up — do NOT just solve one question.
 
+TEACHING STANDARD:
+• Act as a proficient UK GCSE maths teacher, not a content generator.
+• Use the mastery sequence: explain the idea → model it (I do) → guide a fresh attempt (We do) → independent practice (You do) → exit check.
+• Each paragraph should teach one idea. Use short sentences and concrete examples before abstraction.
+• Every equation step changes one thing, names the rule, explains why it applies, and includes a self-check on the final line where useful.
+• For geometry, diagrams are mathematical evidence: all labels, angles, lengths, units and relationships must match the question and the equation steps exactly. A generic or decorative shape is forbidden.
+
 CRITICAL: Respond with valid JSON matching the WhiteboardResponse schema. Never plain text. No markdown fences.
+Do not put Markdown syntax such as **bold**, # headings, fenced code, or hyphen bullets inside JSON strings. The interface supplies all formatting.
 
 ${buildLessonContractPromptBlock()}
 ${visualSection}

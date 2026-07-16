@@ -475,6 +475,9 @@ export type LessonSection =
   | "vocabulary"
   | "rule"
   | "example"
+  | "guided"
+  | "practice"
+  | "check"
   | "mistakes"
   | "recap";
 

@@ -37,6 +37,13 @@ export interface ClaudeSolverResult {
   model?: string;
 }
 
+export interface ClaudeSolverOptions {
+  /** Override the reasoning budget for flows that need lower latency. */
+  thinkingBudget?: number;
+  /** Override the combined reasoning + response token ceiling. */
+  maxTokens?: number;
+}
+
 /**
  * Message format that matches Anthropic SDK's MessageParam.
  * We keep it loose here to avoid needing to import the full SDK type.
@@ -61,13 +68,16 @@ export type AnthropicMessage = {
 export async function claudeSolve(
   systemPrompt: string,
   messages: AnthropicMessage[],
+  options: ClaudeSolverOptions = {},
 ): Promise<ClaudeSolverResult> {
+  const thinkingBudget = options.thinkingBudget ?? THINKING_BUDGET;
+  const maxTokens = options.maxTokens ?? MAX_TOKENS;
   const response = await anthropic.messages.create({
     model: CLAUDE_SOLVER_MODEL,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     thinking: {
       type: "enabled",
-      budget_tokens: THINKING_BUDGET,
+      budget_tokens: thinkingBudget,
     },
     system: systemPrompt,
     // Cast needed because SDK types are strict about the union
@@ -88,7 +98,7 @@ export async function claudeSolve(
   // Log thinking for debugging — never exposed to client
   if (thinkingContent) {
     const preview = thinkingContent.slice(0, 200).replace(/\n/g, " ");
-    console.log(`[Claude] Extended thinking (${thinkingContent.length} chars): ${preview}...`);
+    console.log(`[Claude] Extended thinking (${thinkingContent.length} chars, budget ${thinkingBudget}): ${preview}...`);
   }
 
   return {

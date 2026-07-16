@@ -11,6 +11,10 @@ import {
   buildLessonRetryMessage,
 } from "@/lib/lesson-contract";
 import {
+  normalizeLessonForDisplay,
+  validateGcseLessonQuality,
+} from "@/lib/gcse-lesson-quality";
+import {
   hashLessonKey,
   lookupLessonCache,
   writeLessonCache,
@@ -527,37 +531,57 @@ export async function POST(req: NextRequest) {
 
       const lessonHash = hashLessonKey(lessonTopic, level || "GCSE", tier);
 
+      // Topic-aware visual requirements are part of validation, including cache hits.
+      const visuals = getTeacherRequiredVisuals(lessonTopic);
+
       // ── Cache lookup: replay a previously generated lesson ──────────────
       const cachedLesson = await lookupLessonCache(lessonHash);
       if (cachedLesson) {
-        console.log(`[LessonMode] Cache HIT for "${lessonTopic}"`);
-        send("solver_done", {
-          whiteboard: cachedLesson.response_json,
-          response: {
-            type: "explanation",
-            intro: cachedLesson.response_json.intro,
-            steps: [],
-            conclusion: cachedLesson.response_json.conclusion,
-          },
-          category,
-          validationWarnings: [],
-        });
-        send("verification_done", {
-          verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
-          whiteboard: cachedLesson.response_json,
-        });
-        if (user) {
-          const today = new Date().toISOString().split("T")[0];
-          try {
-            await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
-          } catch { /* ignore */ }
+        const cachedValidation = validateResponse(
+          JSON.stringify(cachedLesson.response_json),
+          visuals.blocks,
+          { requireAlgebraArrows: false },
+        );
+        const cachedData = cachedValidation.data
+          ? normalizeLessonForDisplay(cachedValidation.data)
+          : null;
+        const cachedContract = cachedData ? validateLessonContract(cachedData) : null;
+        const cachedQuality = cachedData
+          ? validateGcseLessonQuality(cachedData, lessonTopic)
+          : null;
+        if (
+          cachedValidation.ok &&
+          cachedData &&
+          cachedContract?.ok &&
+          cachedQuality?.ok
+        ) {
+          console.log(`[LessonMode] Valid cache HIT for "${lessonTopic}"`);
+          send("solver_done", {
+            whiteboard: cachedData,
+            response: {
+              type: "explanation",
+              intro: cachedData.intro,
+              steps: [],
+              conclusion: cachedData.conclusion,
+            },
+            category,
+            validationWarnings: cachedValidation.errors || [],
+          });
+          send("verification_done", {
+            verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+            whiteboard: cachedData,
+          });
+          if (user) {
+            const today = new Date().toISOString().split("T")[0];
+            try {
+              await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+            } catch { /* ignore */ }
+          }
+          controller.close();
+          return;
         }
-        controller.close();
-        return;
+        console.warn(`[LessonMode] Ignoring stale or invalid cache entry for "${lessonTopic}"`);
       }
-
-      // Look up any topic-specific visual guidance (reuses the teacher map)
-      const visuals = getTeacherRequiredVisuals(lessonTopic);
 
       const lessonSystemPrompt = buildLessonPrompt(
         lessonTopic,
@@ -571,7 +595,12 @@ export async function POST(req: NextRequest) {
       async function runLesson(sys: string, convo: { role: "user" | "assistant"; content: string }[]) {
         const anthropic = convertToAnthropicMessages(convo);
         try {
-          const r = await claudeSolve(sys, anthropic);
+          // Full lessons need careful reasoning, but not the solver's 4k-token
+          // derivation budget. A smaller budget materially reduces first-load time.
+          const r = await claudeSolve(sys, anthropic, {
+            thinkingBudget: 2048,
+            maxTokens: 10000,
+          });
           return r.content;
         } catch {
           const fb = await openai.chat.completions.create({
@@ -590,41 +619,71 @@ export async function POST(req: NextRequest) {
       let lessonRaw = await runLesson(lessonSystemPrompt, [
         { role: "user", content: lessonUserMsg },
       ]);
-      let lessonResult = validateResponse(lessonRaw);
+      let lessonResult = validateResponse(lessonRaw, visuals.blocks, {
+        requireAlgebraArrows: false,
+      });
+      let lessonData = lessonResult.data
+        ? normalizeLessonForDisplay(lessonResult.data)
+        : null;
       let contract = validateLessonContract(
-        lessonResult.data ?? { intro: "", blocks: [], conclusion: "" },
+        lessonData ?? { intro: "", blocks: [], conclusion: "" },
+      );
+      let quality = validateGcseLessonQuality(
+        lessonData ?? { intro: "", blocks: [], conclusion: "" },
+        lessonTopic,
       );
 
-      // Retry once if the lesson is structurally valid but missing sections
-      if (lessonResult.data && !contract.ok && contract.missing.length > 0) {
-        console.log(`[LessonMode] Retrying — missing sections: ${contract.missing.join(", ")}`);
+      const initialIssues = [
+        ...(lessonResult.errors || []),
+        ...contract.errors,
+        ...quality.errors,
+      ];
+      const needsRetry = !lessonResult.ok || !lessonData || !contract.ok || !quality.ok;
+
+      // Retry malformed JSON, schema failures, missing stages and inaccurate diagrams.
+      if (needsRetry) {
+        console.log(`[LessonMode] Retrying lesson — ${initialIssues.join(" | ")}`);
         try {
+          const contractRetry = buildLessonRetryMessage(contract.missing);
+          const qualityRetry = initialIssues.length
+            ? `\n\nFix every validation problem below:\n${initialIssues.map((issue) => `• ${issue}`).join("\n")}`
+            : "";
           const retryRaw = await runLesson(lessonSystemPrompt, [
             { role: "user", content: lessonUserMsg },
             { role: "assistant", content: lessonRaw },
-            { role: "user", content: buildLessonRetryMessage(contract.missing) },
+            { role: "user", content: `${contractRetry}${qualityRetry}\n\nReturn the full corrected lesson as JSON only.` },
           ]);
-          const retryResult = validateResponse(retryRaw);
+          const retryResult = validateResponse(retryRaw, visuals.blocks, {
+            requireAlgebraArrows: false,
+          });
           if (retryResult.data) {
-            const retryContract = validateLessonContract(retryResult.data);
-            // Accept the retry if it covers at least as many sections as before
-            if (retryContract.missing.length <= contract.missing.length) {
+            const retryData = normalizeLessonForDisplay(retryResult.data);
+            const retryContract = validateLessonContract(retryData);
+            const retryQuality = validateGcseLessonQuality(retryData, lessonTopic);
+            if (retryResult.ok && retryContract.ok && retryQuality.ok) {
               lessonRaw = retryRaw;
               lessonResult = retryResult;
+              lessonData = retryData;
               contract = retryContract;
+              quality = retryQuality;
             }
           }
         } catch {
-          // Keep the first attempt if the retry fails
+          // The safe failure card below handles an unavailable retry.
         }
       }
 
-      const lessonData: WhiteboardResponse = lessonResult.data
-        ? lessonResult.data
+      const lessonIsSafe = !!lessonData && lessonResult.ok && contract.ok && quality.ok;
+      const pupilLesson: WhiteboardResponse = lessonIsSafe && lessonData
+        ? lessonData
         : {
-            intro: "Let's learn this topic together.",
-            blocks: [{ type: "text", content: lessonRaw.replace(/```json|```/g, "").trim() }],
-            conclusion: "That's the lesson — well done for sticking with it!",
+            intro: "I need to rebuild this lesson before teaching it.",
+            blocks: [{
+              type: "text",
+              heading: "Please try this topic again",
+              content: "I could not produce a lesson that passed the structure and accuracy checks. Your draft has been hidden so it cannot confuse you.",
+            }],
+            conclusion: "Try again and I will generate a fresh, checked lesson.",
           };
 
       const lessonWarnings = [
@@ -632,22 +691,24 @@ export async function POST(req: NextRequest) {
         ...(contract.missing.length > 0
           ? [`Lesson missing sections: ${contract.missing.join(", ")}`]
           : []),
+        ...contract.errors,
         ...contract.warnings,
+        ...quality.errors,
       ];
 
       send("solver_done", {
-        whiteboard: lessonData,
-        response: { type: "explanation", intro: lessonData.intro, steps: [], conclusion: lessonData.conclusion },
+        whiteboard: pupilLesson,
+        response: { type: "explanation", intro: pupilLesson.intro, steps: [], conclusion: pupilLesson.conclusion },
         category,
         validationWarnings: lessonWarnings,
       });
       send("verification_done", {
         verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
-        whiteboard: lessonData,
+        whiteboard: pupilLesson,
       });
 
       // ── Persist the lesson — only cache complete, structurally-valid lessons ──
-      if (lessonResult.ok && lessonResult.data && contract.ok) {
+      if (lessonIsSafe && lessonData) {
         writeLessonCache({
           lessonHash,
           topic: lessonTopic,

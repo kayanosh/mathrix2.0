@@ -8,9 +8,12 @@
  *   2. Prerequisites   — what they should already know before starting
  *   3. Vocabulary      — the key words/terms, each defined in plain English
  *   4. Rule            — the core idea / rule / formula, explained
- *   5. Worked examples — at least two, graded easy → harder, fully worked
- *   6. Mistakes        — common mistakes to avoid
- *   7. Recap           — a short recap of the key points
+ *   5. I do            — two graded, fully worked examples
+ *   6. We do           — a scaffolded question for guided practice
+ *   7. You do          — short independent practice
+ *   8. Check           — an exit question with a checkable answer
+ *   9. Mistakes        — common mistakes to avoid
+ *  10. Recap           — a short recap of the key points
  *
  * The AI signals which section a text block belongs to via `TextBlock.section`.
  * `validateLessonContract` checks that every required section is present so the
@@ -60,10 +63,31 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "example",
-    label: "✏️ Worked example",
+    label: "✏️ I do — worked example",
     instruction:
-      "Give at least THREE fully worked examples, graded from easy to harder (label each heading e.g. 'Worked example 1 — easy', '2 — medium', '3 — harder'). Each example MUST have a section-tagged text block header followed by a structured block (equation_steps, labeled_shape, column_method, etc.) showing every step. Never jump to the answer.",
+      "Give TWO fully worked examples, graded from a clear foundation example to a GCSE exam-style example. Each example MUST have a section-tagged text block header followed by a structured block (equation_steps, labeled_shape, column_method, etc.) with 3–6 meaningful steps. Never jump to the answer.",
     min: 2,
+  },
+  {
+    section: "guided",
+    label: "🤝 We do — guided practice",
+    instruction:
+      "Give one fresh question. Ask the student to identify the first move, then show a short hint and the remaining method in a structured block. Do not simply repeat a worked example.",
+    min: 1,
+  },
+  {
+    section: "practice",
+    label: "🧩 You do — independent practice",
+    instruction:
+      "Give two or three concise practice questions, ordered easier to harder. Put questions and final answers in a table so students can try them before checking; do not reveal full working here.",
+    min: 1,
+  },
+  {
+    section: "check",
+    label: "✅ Check your understanding",
+    instruction:
+      "Give one short exit question that tests the main idea in a slightly different form, followed by a concise answer or self-check method.",
+    min: 1,
   },
   {
     section: "mistakes",
@@ -76,7 +100,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
     section: "recap",
     label: "🔁 Quick recap",
     instruction:
-      "Summarise the key points in a few short bullet-style sentences the student can remember.",
+      "Summarise the key points in three short, plain-English sentences the student can remember.",
     min: 1,
   },
 ];
@@ -102,6 +126,8 @@ export interface LessonContractResult {
   missing: LessonSection[];
   /** Non-blocking notes (e.g. sections out of the expected order). */
   warnings: string[];
+  /** Blocking structure problems inside otherwise present sections. */
+  errors: string[];
   /** How many tagged blocks were found per section. */
   counts: Record<LessonSection, number>;
 }
@@ -151,7 +177,31 @@ export function validateLessonContract(
     );
   }
 
-  return { ok: missing.length === 0, missing, warnings, counts };
+  const errors: string[] = [];
+  data.blocks.forEach((block, index) => {
+    if (block.type !== "text" || block.section !== "example") return;
+    const nextSectionIndex = data.blocks.findIndex(
+      (candidate, candidateIndex) =>
+        candidateIndex > index && candidate.type === "text" && !!candidate.section,
+    );
+    const end = nextSectionIndex === -1 ? data.blocks.length : nextSectionIndex;
+    const hasStructuredWorking = data.blocks
+      .slice(index + 1, end)
+      .some((candidate) => candidate.type !== "text");
+    if (!hasStructuredWorking) {
+      errors.push(
+        `${block.heading || "Worked example"} must be followed by a structured diagram or step-by-step working block.`,
+      );
+    }
+  });
+
+  return {
+    ok: missing.length === 0 && errors.length === 0,
+    missing,
+    warnings,
+    errors,
+    counts,
+  };
 }
 
 /**
@@ -169,7 +219,7 @@ export function buildLessonRetryMessage(missing: LessonSection[]): string {
     })
     .join("\n");
 
-  return `Your lesson is incomplete. It is missing these required sections:\n${details}\n\nRegenerate the FULL lesson as valid WhiteboardResponse JSON. Every section must be introduced by a "text" block whose "section" field is set to the section name and whose "heading" field is the section title. Keep all the sections you already had and add the missing ones, in this order: ${LESSON_SECTION_ORDER.join(
+  return `Your lesson does not yet meet the teaching contract. It is missing these required sections:\n${details}\n\nRegenerate the FULL lesson as valid WhiteboardResponse JSON. Every section must be introduced by a "text" block whose "section" field is set to the section name and whose "heading" field is the section title. Keep all the sections you already had and add the missing ones, in this order: ${LESSON_SECTION_ORDER.join(
     " → ",
   )}.`;
 }
@@ -191,16 +241,18 @@ block that sets BOTH:
   • "section": the exact section key below (e.g. "objective")
   • "heading": a short friendly title (e.g. "🎯 What you'll learn")
 The "content" of that text block holds the section's explanation. For "rule" and each
-"example" you SHOULD follow the section's text block with a structured visual block
+"example" you MUST follow the section's text block with a structured visual block
 (equation_steps / labeled_shape / column_method / table / etc.) that shows the working.
 
 ${sections}
 
 RULES:
 • EVERY section above must appear. A lesson missing any section will be REJECTED and retried.
-• Provide at least THREE graded worked examples (easy → medium → harder), each as its own
-  "example" text header followed by a structured block showing every step.
+• Provide TWO graded worked examples (foundation → GCSE exam-style), each as its own
+  "example" text header followed by a structured block containing 3–6 meaningful steps.
 • Never answer with prose only — the rule and examples must use structured blocks.
+• Teach through I do → We do → You do → Check. Do not turn the lesson into a long article.
+• Do not use Markdown headings, asterisks, fenced code, or hyphen-list syntax inside strings.
 • Keep language appropriate to the student's level. Short, clear sentences.
 • The top-level "intro" welcomes the student to the lesson; "conclusion" is an encouraging closing line.`;
 }

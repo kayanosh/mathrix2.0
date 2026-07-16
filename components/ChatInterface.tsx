@@ -115,10 +115,9 @@ function IntroOverlay({ onDone }: { onDone: () => void }) {
 /*  Main ChatInterface                                     */
 /* ─────────────────────────────────────────────────────── */
 export default function ChatInterface() {
-  const [showIntro, setShowIntro] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem("mathrix_intro_seen");
-  });
+  // Keep the server and first client render identical. Browser storage is read
+  // only after hydration so the optional intro cannot cause a hydration crash.
+  const [showIntro, setShowIntro] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -153,6 +152,10 @@ export default function ChatInterface() {
   const [promptsUsed, setPromptsUsed] = useState(0);
   const [pendingSendText, setPendingSendText] = useState<string | undefined>();
   const [showPricing, setShowPricing] = useState(false);
+
+  useEffect(() => {
+    setShowIntro(!localStorage.getItem("mathrix_intro_seen"));
+  }, []);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [fromPractice, setFromPractice] = useState(false);
   const autoSendFired = useRef(false);

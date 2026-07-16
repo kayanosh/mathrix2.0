@@ -394,6 +394,9 @@ export const LessonSectionSchema = z.enum([
   "vocabulary",
   "rule",
   "example",
+  "guided",
+  "practice",
+  "check",
   "mistakes",
   "recap",
 ]);

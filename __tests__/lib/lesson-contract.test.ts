@@ -36,7 +36,7 @@ function makeLesson(sections: LessonSection[]): WhiteboardResponse {
 }
 
 describe("validateLessonContract", () => {
-  it("passes for a complete, ordered lesson with 3 examples", () => {
+  it("passes for a complete, ordered lesson with 2 examples", () => {
     const lesson = makeLesson([
       "objective",
       "prerequisites",
@@ -44,14 +44,16 @@ describe("validateLessonContract", () => {
       "rule",
       "example",
       "example",
-      "example",
+      "guided",
+      "practice",
+      "check",
       "mistakes",
       "recap",
     ]);
     const result = validateLessonContract(lesson);
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);
-    expect(result.counts.example).toBe(3);
+    expect(result.counts.example).toBe(2);
   });
 
   it("reports missing sections", () => {
@@ -68,13 +70,16 @@ describe("validateLessonContract", () => {
     );
   });
 
-  it("requires at least two worked examples", () => {
+  it("requires two worked examples", () => {
     const lesson = makeLesson([
       "objective",
       "prerequisites",
       "vocabulary",
       "rule",
       "example",
+      "guided",
+      "practice",
+      "check",
       "mistakes",
       "recap",
     ]);
@@ -92,10 +97,36 @@ describe("validateLessonContract", () => {
       "rule",
       "example",
       "example",
+      "guided",
+      "practice",
+      "check",
       "mistakes",
     ]);
     const result = validateLessonContract(lesson);
     expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a worked example with no structured working", () => {
+    const lesson = makeLesson([
+      "objective",
+      "prerequisites",
+      "vocabulary",
+      "rule",
+      "example",
+      "example",
+      "guided",
+      "practice",
+      "check",
+      "mistakes",
+      "recap",
+    ]);
+    const firstExample = lesson.blocks.findIndex(
+      (block) => block.type === "text" && block.section === "example",
+    );
+    lesson.blocks.splice(firstExample + 1, 1);
+    const result = validateLessonContract(lesson);
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("structured diagram or step-by-step working");
   });
 
   it("ignores untagged text blocks", () => {
