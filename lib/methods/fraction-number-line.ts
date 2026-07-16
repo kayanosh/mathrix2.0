@@ -19,6 +19,26 @@ export interface Fraction {
   d: number;
 }
 
+export type FractionCompareGoal =
+  | "order_ascending"
+  | "order_descending"
+  | "greatest"
+  | "least";
+
+export function parseFractionCompareGoal(text: string): FractionCompareGoal {
+  const t = normalizeMathText(text);
+  if (/\b(which\s+is\s+(?:greater|bigger)|greatest|largest)\b/i.test(t) && !/\border\b/i.test(t)) {
+    return "greatest";
+  }
+  if (/\b(which\s+is\s+(?:smaller|least)|smallest)\b/i.test(t) && !/\border\b/i.test(t)) {
+    return "least";
+  }
+  if (/\b(?:largest|greatest)\s+to\s+(?:smallest|least)\b|\bdescending\b/i.test(t)) {
+    return "order_descending";
+  }
+  return "order_ascending";
+}
+
 function gcd(a: number, b: number): number {
   let x = Math.abs(a);
   let y = Math.abs(b);
@@ -91,7 +111,10 @@ function decimalApprox(f: Fraction, places = 3): string {
   return s;
 }
 
-export function buildFractionNumberLine(fractions: Fraction[]): MethodBuildResult {
+export function buildFractionNumberLine(
+  fractions: Fraction[],
+  goal: FractionCompareGoal = "order_ascending",
+): MethodBuildResult {
   if (fractions.length < 2) throw new Error("need at least two fractions");
   if (fractions.some((f) => f.d <= 0 || f.n < 0)) {
     throw new Error("fractions must be non-negative with positive denominators");
@@ -182,12 +205,26 @@ export function buildFractionNumberLine(fractions: Fraction[]): MethodBuildResul
       arrowDirection: "simplify",
     });
   }
-  const orderedPlain = sorted.map((s) => plain(s.original)).join(", ");
-  const orderedLatex = sorted.map((s) => latex(s.original)).join(",\\ ");
+  const answerItems = goal === "order_descending"
+    ? [...sorted].reverse()
+    : goal === "greatest"
+      ? [sorted[sorted.length - 1]]
+      : goal === "least"
+        ? [sorted[0]]
+        : sorted;
+  const orderedPlain = answerItems.map((s) => plain(s.original)).join(", ");
+  const orderedLatex = answerItems.map((s) => latex(s.original)).join(",\\ ");
+  const finalLabel = goal === "greatest"
+    ? "Choose the greatest fraction"
+    : goal === "least"
+      ? "Choose the least fraction"
+      : goal === "order_descending"
+        ? "Order largest → smallest"
+        : "Order smallest → largest";
   steps.push({
     stepNumber: stepNumber++,
-    operationLabel: "Order smallest → largest",
-    explanation: `On the number line (and by common denominator), the order is ${orderedPlain}.`,
+    operationLabel: finalLabel,
+    explanation: `On the number line (and by common denominator), the answer is ${orderedPlain}.`,
     latexBefore: listLatex,
     latexAfter: orderedLatex,
     arrowDirection: "simplify",
@@ -239,10 +276,10 @@ export function buildFractionNumberLine(fractions: Fraction[]): MethodBuildResul
       noteKeys: [],
     },
     {
-      title: "Order smallest to largest",
+      title: finalLabel,
       explanation: orderedPlain,
       why: "Compare the rewritten numerators (or the positions on the line).",
-      narration: `From smallest to largest: ${orderedPlain}.`,
+      narration: `The answer is ${orderedPlain}.`,
       cellKeys: [],
       carryKeys: [],
       noteKeys: [],

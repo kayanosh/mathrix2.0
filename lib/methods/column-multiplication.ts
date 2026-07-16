@@ -25,7 +25,6 @@ interface PartialDigitArgs {
   digit: number;
   place: number;
   aDigitsRtl: number[];
-  a: number;
   partialRow: number;
   gridCols: number;
   carries: { row: number; col: number; digit: string }[];
@@ -47,7 +46,6 @@ function appendPartialDigitSteps(args: PartialDigitArgs): void {
   const {
     digit,
     aDigitsRtl,
-    a,
     partialRow,
     gridCols,
     carries,
@@ -374,7 +372,6 @@ export function buildColumnMultiplication(
       digit,
       place,
       aDigitsRtl,
-      a,
       partialRow,
       gridCols,
       carries: lineCarries,

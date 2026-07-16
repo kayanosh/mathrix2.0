@@ -16,7 +16,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
   const {
     xRange,
     yRange,
-    plots,
+    plots = [],
     points,
     grid = true,
     xLabel,
@@ -24,14 +24,42 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
     segments,
   } = block;
 
+  // Lessons generated before the coordinate schema was tightened may contain
+  // flat points ({ x, y, label }) or omit optional graph arrays altogether.
+  // Normalise that data here as a final rendering boundary so one malformed
+  // visual can never take down the whole lesson page.
+  const safePlots = Array.isArray(plots) ? plots : [];
+  const safePoints = (Array.isArray(points) ? points : []).flatMap((rawPoint) => {
+    const candidate = rawPoint as unknown as {
+      point?: { x?: unknown; y?: unknown };
+      x?: unknown;
+      y?: unknown;
+      label?: unknown;
+    };
+    const x = Number(candidate.point?.x ?? candidate.x);
+    const y = Number(candidate.point?.y ?? candidate.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+    return [{
+      point: { x, y },
+      label: String(candidate.label || `(${x},${y})`),
+    }];
+  });
+  const safeSegments = (Array.isArray(segments) ? segments : []).filter(
+    (segment) =>
+      Number.isFinite(Number(segment?.from?.x)) &&
+      Number.isFinite(Number(segment?.from?.y)) &&
+      Number.isFinite(Number(segment?.to?.x)) &&
+      Number.isFinite(Number(segment?.to?.y)),
+  );
+
   const width = 480;
   const height = 380;
   const padding = { top: 35, right: 35, bottom: 50, left: 55 };
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  const [xMin, xMax] = xRange;
-  const [yMin, yMax] = yRange;
+  const [xMin, xMax] = validRange(xRange) ? xRange : [-5, 5];
+  const [yMin, yMax] = validRange(yRange) ? yRange : [-5, 5];
 
   function xPos(v: number): number {
     return padding.left + ((v - xMin) / (xMax - xMin)) * innerW;
@@ -54,7 +82,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
   }
 
   // Generate plot paths using sampled points
-  const plotPaths = plots.map((plot) => {
+  const plotPaths = safePlots.map((plot) => {
     const samples = 200;
     const pts: string[] = [];
     for (let i = 0; i <= samples; i++) {
@@ -81,9 +109,9 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
       }}
     >
       {/* Legend */}
-      {plots.length > 1 && (
+      {safePlots.length > 1 && (
         <div className="flex flex-wrap gap-4 mb-3 px-2">
-          {plots.map((plot, i) => (
+          {safePlots.map((plot, i) => (
             <div key={i} className="flex items-center gap-2">
               <div
                 className="w-5 h-[3px] rounded"
@@ -229,14 +257,14 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
               key={`plot-${i}`}
               d={d}
               fill="none"
-              stroke={plots[i].color || LINE_COLORS[i % LINE_COLORS.length]}
+              stroke={safePlots[i].color || LINE_COLORS[i % LINE_COLORS.length]}
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray={
-                plots[i].style === "dashed"
+                safePlots[i].style === "dashed"
                   ? "8 4"
-                  : plots[i].style === "dotted"
+                  : safePlots[i].style === "dotted"
                     ? "2 3"
                     : undefined
               }
@@ -252,7 +280,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
         )}
 
         {/* Segments */}
-        {segments?.map((seg, i) => (
+        {safeSegments.map((seg, i) => (
           <motion.line
             key={`seg-${i}`}
             x1={xPos(seg.from.x)}
@@ -269,7 +297,7 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
         ))}
 
         {/* Points */}
-        {points?.map((p, i) => (
+        {safePoints.map((p, i) => (
           <motion.g
             key={`pt-${i}`}
             initial={{ opacity: 0, scale: 0 }}
@@ -341,4 +369,14 @@ function niceStep(range: number, targetTicks: number): number {
   else if (frac <= 7) nice = 5;
   else nice = 10;
   return nice * pow;
+}
+
+function validRange(range: unknown): range is [number, number] {
+  return (
+    Array.isArray(range) &&
+    range.length >= 2 &&
+    Number.isFinite(Number(range[0])) &&
+    Number.isFinite(Number(range[1])) &&
+    Number(range[1]) > Number(range[0])
+  );
 }

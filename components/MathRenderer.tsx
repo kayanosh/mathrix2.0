@@ -31,7 +31,7 @@ export default function MathRenderer({
           strict: false,
           output: "htmlAndMathml",
         });
-      } catch (e) {
+      } catch {
         if (ref.current) {
           ref.current.textContent = latex;
         }

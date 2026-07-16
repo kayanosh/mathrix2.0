@@ -194,13 +194,34 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     ],
   },
   {
+    id: "order_of_operations",
+    label: "Order of Operations (BIDMAS)",
+    years: "5-6",
+    builderId: "order_of_operations",
+    requiredBlocks: ["equation_steps"],
+    keywords: /\b(order of operations|bidmas|bodmas)\b/i,
+    vocabulary: [
+      "brackets",
+      "indices",
+      "multiplication",
+      "division",
+      "left to right",
+    ],
+    commonMistakes: [
+      "Stopping after the first operation",
+      "Adding before multiplying or dividing",
+      "Not working left to right when operations have equal priority",
+    ],
+    notes: "Keep the full expression visible and rewrite it after every operation.",
+  },
+  {
     id: "column_multiplication",
     label: "Column Multiplication",
     years: "5-6",
     builderId: "column_multiplication",
     requiredBlocks: ["column_method", "equation_steps"],
     keywords:
-      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit|multiplication\s*(?:and|&)\s*division(?:\s*[AB])?|written multiplication|order of operations|bidmas|bodmas)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
+      /\b(long multiplication|column multiplication|multiply.*digit|2.?digit.*2.?digit|3.?digit.*2.?digit|4.?digit.*\d.?digit|multiplication\s*(?:and|&)\s*division(?:\s*[AB])?|written multiplication)\b|(?<!\d)\d{1,4}\s*[×x*]\s*\d{1,2}(?!\d*0{2,})\b/i,
     vocabulary: [
       "multiplicand",
       "multiplier",

@@ -46,6 +46,7 @@ import {
 import {
   buildFractionNumberLine,
   parseFractionCompare,
+  parseFractionCompareGoal,
 } from "@/lib/methods/fraction-number-line";
 import {
   buildFractionSimplify,
@@ -84,16 +85,22 @@ import {
   buildAngleDiagram,
   buildBarChart,
   buildCoordinatePlot,
+  buildCoordinateProblem,
   buildFunctionMachine,
   buildRatioTable,
   buildUnitConversion,
   parseAngleProblem,
   parseBarChart,
   parseCoordinatePlot,
+  parseCoordinateProblem,
   parseFunctionMachine,
   parseRatio,
   parseUnitConversion,
 } from "@/lib/methods/ks2-topic-builders";
+import {
+  buildOrderOperations,
+  parseOrderOperationsQuestion,
+} from "@/lib/methods/order-of-operations";
 
 function tryQuadraticSolve(text: string): MethodBuildResult | null {
   const parsed = parseQuadraticEquation(text);
@@ -106,6 +113,9 @@ function tryQuadraticSolve(text: string): MethodBuildResult | null {
 }
 
 function tryLinearEquation(text: string): MethodBuildResult | null {
+  if (/\b(coordinate|point|quadrant|translate|translated|translation|reflect|reflection|mirror line)\b/i.test(text)) {
+    return null;
+  }
   const parsed = parseLinearEquation(text);
   if (!parsed) return null;
   try {
@@ -221,7 +231,7 @@ function tryFractionNumberLine(text: string): MethodBuildResult | null {
   const parsed = parseFractionCompare(text);
   if (!parsed) return null;
   try {
-    return buildFractionNumberLine(parsed);
+    return buildFractionNumberLine(parsed, parseFractionCompareGoal(text));
   } catch {
     return null;
   }
@@ -301,13 +311,21 @@ function tryAngleDiagram(text: string): MethodBuildResult | null {
   const parsed = parseAngleProblem(text);
   if (!parsed) return null;
   try {
-    return buildAngleDiagram(parsed.known, parsed.total);
+    return buildAngleDiagram(parsed.known, parsed.total, parsed.kind);
   } catch {
     return null;
   }
 }
 
 function tryCoordinatePlot(text: string): MethodBuildResult | null {
+  const problem = parseCoordinateProblem(text);
+  if (problem) {
+    try {
+      return buildCoordinateProblem(problem);
+    } catch {
+      return null;
+    }
+  }
   const parsed = parseCoordinatePlot(text);
   if (!parsed) return null;
   try {
@@ -357,7 +375,18 @@ function tryFunctionMachine(text: string): MethodBuildResult | null {
   }
 }
 
+function tryOrderOperations(text: string): MethodBuildResult | null {
+  const parsed = parseOrderOperationsQuestion(text);
+  if (!parsed) return null;
+  try {
+    return buildOrderOperations(parsed);
+  } catch {
+    return null;
+  }
+}
+
 const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | null> = {
+  order_of_operations: tryOrderOperations,
   quadratic_solve: tryQuadraticSolve,
   linear_equation: tryLinearEquation,
   rounding_number_line: tryRoundingNumberLine,
@@ -387,6 +416,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
 
 /** Default try order — algebra, then fraction compare before ops, then KS2 arithmetic. */
 const DEFAULT_ORDER: MethodBuilderId[] = [
+  "order_of_operations",
   "quadratic_solve",
   "linear_equation",
   "rounding_number_line",
@@ -454,8 +484,10 @@ export {
   buildCuboidVolume,
   buildAngleDiagram,
   buildCoordinatePlot,
+  buildCoordinateProblem,
   buildBarChart,
   buildUnitConversion,
   buildRatioTable,
   buildFunctionMachine,
+  buildOrderOperations,
 };

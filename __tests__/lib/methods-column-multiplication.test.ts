@@ -197,6 +197,37 @@ describe("place-value shift builder", () => {
     if (r.block.type !== "table") return;
     expect(r.block.rows[r.block.rows.length - 1].join("")).toMatch(/2500/);
   });
+
+  it("keeps the decimal point when multiplying a decimal by 100", () => {
+    const r = buildMethodForQuestion("4.56 × 100", "place_value_shift");
+    expect(r?.builderId).toBe("place_value_shift");
+    expect(r?.answer).toBe("456");
+    expect(r?.extraBlocks?.map((block) => block.type)).toContain(
+      "equation_steps",
+    );
+    const equations = r?.extraBlocks?.find(
+      (block) => block.type === "equation_steps",
+    );
+    expect(equations?.type).toBe("equation_steps");
+    if (equations?.type === "equation_steps") {
+      expect(equations.steps.map((step) => step.latexAfter)).toEqual([
+        "4.56",
+        "4.56 \\times 10 = 45.6",
+        "45.6 \\times 10 = 456",
+      ]);
+    }
+    expect(r?.block.type).toBe("table");
+    if (r?.block.type !== "table") return;
+    expect(r.block.rows[0].join("")).toBe("4.56".replace(".", ""));
+    expect(r.block.rows.at(-1)?.join("")).toContain("456");
+  });
+
+  it("supports decimal results when dividing by powers of ten", () => {
+    const r = buildMethodForQuestion("4.56 ÷ 100", "place_value_shift");
+    expect(r?.builderId).toBe("place_value_shift");
+    expect(r?.answer).toBe("0.0456");
+    expect(r?.teachingSteps.at(-1)?.explanation).toContain("0.0456");
+  });
 });
 
 describe("buildMethodForQuestion", () => {

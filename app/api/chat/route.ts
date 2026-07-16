@@ -108,7 +108,6 @@ export async function POST(req: NextRequest) {
       level,
       examBoard,
       tier,
-      useWhiteboard = true,
       hintMode = false,
       teacherMode = false,
       lessonMode = false,

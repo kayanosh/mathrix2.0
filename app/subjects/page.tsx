@@ -91,21 +91,7 @@ export default function PracticeHub() {
     setAiQuestion(null);
   }, [expandedTopic, difficulty]);
 
-  const loadNext = useCallback(() => {
-    setShowAnswer(false);
-    setReported(false);
-    setAiQuestion(null);
-    const nextIdx = queueIndex + 1;
-    if (nextIdx < queue.length) {
-      setQueueIndex(nextIdx);
-      setCurrentQ(queue[nextIdx]);
-    } else {
-      // Exhausted bank — fetch AI question
-      fetchAiQuestion();
-    }
-  }, [queueIndex, queue]);
-
-  const fetchAiQuestion = async () => {
+  const fetchAiQuestion = useCallback(async () => {
     if (!expandedTopic) return;
     setAiLoading(true);
     setCurrentQ(null);
@@ -129,7 +115,21 @@ export default function PracticeHub() {
     } finally {
       setAiLoading(false);
     }
-  };
+  }, [difficulty, expandedTopic]);
+
+  const loadNext = useCallback(() => {
+    setShowAnswer(false);
+    setReported(false);
+    setAiQuestion(null);
+    const nextIdx = queueIndex + 1;
+    if (nextIdx < queue.length) {
+      setQueueIndex(nextIdx);
+      setCurrentQ(queue[nextIdx]);
+    } else {
+      // Exhausted bank — fetch AI question
+      void fetchAiQuestion();
+    }
+  }, [fetchAiQuestion, queueIndex, queue]);
 
   const handleSelfReport = (correct: boolean) => {
     if (!expandedTopic) return;

@@ -206,7 +206,6 @@ export function buildDecimalColumn(problem: DecimalProblem): MethodBuildResult {
       } else {
         explanation = `${d1} − ${d2} = ${d1 - d2}.`;
       }
-      const write = d1 - d2;
       teachingSteps.push({
         title: "Subtract this column",
         explanation,

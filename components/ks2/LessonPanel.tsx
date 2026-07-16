@@ -73,7 +73,7 @@ interface Props {
   accentHex: string;
 }
 
-const CACHE_PREFIX = "mathrix_ks2_lesson_v21_";
+const CACHE_PREFIX = "mathrix_ks2_lesson_v27_";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const lessonRequests = new Map<
   string,

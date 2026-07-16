@@ -10,6 +10,7 @@
     "test": "jest --verbose",
     "test:watch": "jest --watch",
     "validate:ks2-lessons": "npx tsx scripts/validate-ks2-lessons.ts",
+    "audit:ks2-maths-runtime": "npx tsx scripts/audit-ks2-maths-runtime.ts",
     "regenerate:ks2-lessons": "npx tsx scripts/regenerate-ks2-lessons.ts",
     "warm:ks2-lessons": "npx tsx scripts/warm-ks2-lessons.ts"
   },

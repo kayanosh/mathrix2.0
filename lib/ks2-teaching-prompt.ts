@@ -41,6 +41,16 @@ MULTIPLES, FACTORS AND NUMBER LISTS (mandatory for this skill):
 - The explanation must name the visual actually used: say “ordered lists/table” for a table and “equal jumps/number line” only for a number line.
 `;
   }
+  if (family === "order_operations") {
+    return `
+ORDER OF OPERATIONS / BIDMAS (mandatory for this skill):
+- Solve the COMPLETE visible expression. Never stop after the first multiplication or division.
+- Show the full expression on every line and replace only the operation just completed.
+- Multiplication and division have equal priority: work from left to right. Addition and subtraction also work left to right.
+- The final worked answer, diagram conclusion, guided-practice answers and quick-check answers must equal the complete expression.
+- Use equation_steps for the full calculation. Do not use a lone column_method as the complete solution.
+`;
+  }
   return "";
 }
 

@@ -140,7 +140,7 @@ export default function TeacherWorksheet({
               {/* Questions */}
               <div className={`rounded-lg border p-4 ${config.color} print:border-gray-300 print:bg-white`}>
                 <ol className="space-y-3">
-                  {section.questions.map((q, idx) => (
+                  {section.questions.map((q) => (
                     <li key={q.id} className="print:break-inside-avoid">
                       <div className="flex items-start gap-2">
                         <span className="font-mono text-sm font-semibold text-gray-500 mt-0.5 min-w-[2rem]">

@@ -83,7 +83,7 @@ let parsed;
 try {
   parsed = JSON.parse(cleaned);
   console.log(`✓ Got ${parsed.steps?.length ?? 0} steps`);
-} catch (e) {
+} catch {
   console.error("Parse error — writing raw output for inspection");
   writeFileSync("scripts/raw-output.txt", raw);
   process.exit(1);

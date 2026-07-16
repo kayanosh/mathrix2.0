@@ -130,13 +130,11 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
     `Let's solve ${plainLinear(a, b, v, c)}. We need to get ${v} on its own.`,
   );
 
-  let afterConstant = `${a === 1 ? v : a === -1 ? `-${v}` : `${a}${v}`} = ${c}`;
   if (b !== 0) {
     const inv = -b;
     const opWord = b > 0 ? "Subtract" : "Add";
     const opAbs = Math.abs(b);
     const balance = b > 0 ? `-${opAbs}` : `+${opAbs}`;
-    const fromLatex = b > 0 ? String(b) : String(b); // -3 shown as -3
     const toLatex = inv > 0 ? `+ ${inv}` : `- ${Math.abs(inv)}`;
 
     const beforeTagged =
@@ -194,13 +192,11 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
       `The right side becomes ${right}.`,
       `${c} ${signedTerm(-b)} equals ${right}.`,
     );
-    afterConstant = `${a === 1 ? v : a === -1 ? `-${v}` : `${a}${v}`} = ${right}`;
   }
 
   const rightNow = c - b;
 
   if (a !== 1) {
-    const absA = Math.abs(a);
     if (a === -1) {
       // Multiply both sides by -1
       steps.push({

@@ -239,6 +239,26 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
       />
     );
   }
+  if (shape === "straight_line") {
+    return (
+      <StraightLineAngleRenderer
+        block={block}
+        baseDelay={baseDelay}
+        width={width}
+        height={height}
+      />
+    );
+  }
+  if (shape === "around_point") {
+    return (
+      <AroundPointAngleRenderer
+        block={block}
+        baseDelay={baseDelay}
+        width={width}
+        height={height}
+      />
+    );
+  }
 
   const points = vertexDefs
     ? vertexDefs.map((v, i) =>
@@ -465,6 +485,147 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
         })}
       </svg>
     </div>
+  );
+}
+
+function DiagramFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function StraightLineAngleRenderer({
+  block,
+  baseDelay,
+  width,
+  height,
+}: {
+  block: LabeledShapeBlock;
+  baseDelay: number;
+  width: number;
+  height: number;
+}) {
+  const labels = block.angles?.map((angle) => angle.label) ?? [];
+  const cx = width / 2;
+  const cy = height * 0.64;
+
+  return (
+    <DiagramFrame>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full max-w-sm mx-auto"
+        role="img"
+        aria-label={`Straight-line angle diagram: ${labels.join(" and ")}`}
+      >
+        <motion.path
+          d={`M 45 ${cy} L ${width - 45} ${cy} M ${cx} ${cy} L ${cx + 58} 55`}
+          fill="none"
+          stroke={COLORS.stroke}
+          strokeWidth="3"
+          strokeLinecap="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ delay: baseDelay, duration: 0.8 }}
+        />
+        <circle cx={cx} cy={cy} r="4" fill={COLORS.stroke} />
+        <path
+          d={`M ${cx - 42} ${cy} A 42 42 0 0 1 ${cx + 24} ${cy - 34}`}
+          fill="none"
+          stroke={COLORS.angle}
+          strokeWidth="2"
+        />
+        <path
+          d={`M ${cx + 24} ${cy - 34} A 42 42 0 0 1 ${cx + 42} ${cy}`}
+          fill="none"
+          stroke={COLORS.angle}
+          strokeWidth="2"
+        />
+        <text x="45" y={cy + 24} fill={COLORS.label} fontSize="14">A</text>
+        <text x={width - 55} y={cy + 24} fill={COLORS.label} fontSize="14">B</text>
+        <text x={cx - 7} y={cy + 24} fill={COLORS.label} fontSize="14">O</text>
+        <text x={cx + 66} y="54" fill={COLORS.label} fontSize="14">C</text>
+        <text x={cx - 58} y={cy - 42} fill={COLORS.angle} fontSize="16" textAnchor="middle">
+          {labels[0] ?? ""}
+        </text>
+        <text x={cx + 60} y={cy - 38} fill={COLORS.angle} fontSize="16" textAnchor="middle">
+          {labels[1] ?? ""}
+        </text>
+      </svg>
+    </DiagramFrame>
+  );
+}
+
+function AroundPointAngleRenderer({
+  block,
+  baseDelay,
+  width,
+  height,
+}: {
+  block: LabeledShapeBlock;
+  baseDelay: number;
+  width: number;
+  height: number;
+}) {
+  const labels = block.angles?.map((angle) => angle.label) ?? [];
+  const count = Math.max(labels.length, 2);
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = 105;
+
+  return (
+    <DiagramFrame>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full max-w-sm mx-auto"
+        role="img"
+        aria-label={`Angles around a point: ${labels.join(", ")}`}
+      >
+        {Array.from({ length: count }, (_, i) => {
+          const angle = -Math.PI / 2 + (i * 2 * Math.PI) / count;
+          return (
+            <motion.line
+              key={`ray-${i}`}
+              x1={cx}
+              y1={cy}
+              x2={cx + radius * Math.cos(angle)}
+              y2={cy + radius * Math.sin(angle)}
+              stroke={COLORS.stroke}
+              strokeWidth="3"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ delay: baseDelay + i * 0.08, duration: 0.45 }}
+            />
+          );
+        })}
+        <circle cx={cx} cy={cy} r="5" fill={COLORS.stroke} />
+        <text x={cx + 10} y={cy + 20} fill={COLORS.label} fontSize="14">O</text>
+        {labels.map((label, i) => {
+          const mid = -Math.PI / 2 + ((i + 0.5) * 2 * Math.PI) / count;
+          return (
+            <text
+              key={`angle-label-${i}`}
+              x={cx + 58 * Math.cos(mid)}
+              y={cy + 58 * Math.sin(mid)}
+              fill={COLORS.angle}
+              fontSize="15"
+              textAnchor="middle"
+              dominantBaseline="middle"
+            >
+              {label}
+            </text>
+          );
+        })}
+      </svg>
+    </DiagramFrame>
   );
 }
 

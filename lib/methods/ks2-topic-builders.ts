@@ -12,65 +12,94 @@ import type {
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
-/** Straight line / around a point missing angle. */
+export type AngleProblemKind = "triangle" | "straight_line" | "around_point";
+
+/** Triangle / straight line / around a point missing angle. */
 export function parseAngleProblem(
   text: string,
-): { known: number[]; total: 180 | 360 } | null {
+): { known: number[]; total: 180 | 360; kind: AngleProblemKind } | null {
   const t = normalizeMathText(text);
-  const total: 180 | 360 = /\b(around a point|full turn|360)\b/i.test(t)
-    ? 360
-    : /\b(straight line|180)\b/i.test(t)
-      ? 180
-      : /\bangle\b/i.test(t)
-        ? 180
-        : 180;
   if (!/\bangle\b/i.test(t) && !/\b(straight line|around a point)\b/i.test(t)) {
     return null;
   }
+  const explicitAroundPoint = /\b(around a point|full turn|360)\b/i.test(t);
+  const explicitTriangle = /\btriangle\b/i.test(t);
+  const explicitStraightLine = /\b(straight line|linear pair)\b/i.test(t);
+  const total: 180 | 360 = explicitAroundPoint ? 360 : 180;
   const known = [...t.matchAll(/(\d+)\s*°/g)].map((m) => parseInt(m[1], 10));
   if (known.length === 0) {
     const plain = [...t.matchAll(/\b(\d{2,3})\b/g)].map((m) => parseInt(m[1], 10));
     const filtered = plain.filter((n) => n > 0 && n < total);
     if (filtered.length === 0) return null;
-    return { known: filtered.slice(0, 2), total };
+    known.push(...filtered.slice(0, 2));
   }
-  return { known, total };
+  const kind: AngleProblemKind = explicitAroundPoint
+    ? "around_point"
+    : explicitTriangle
+      ? "triangle"
+      : explicitStraightLine
+        ? "straight_line"
+        : known.length >= 2
+          ? "triangle"
+          : "straight_line";
+  return { known, total, kind };
 }
 
 export function buildAngleDiagram(
   known: number[],
   total: 180 | 360,
+  kind: AngleProblemKind,
 ): MethodBuildResult {
   const sumKnown = known.reduce((a, b) => a + b, 0);
   const missing = total - sumKnown;
+  const labels = [...known.map((d) => `${d}°`), `${missing}°`];
   const shape: LabeledShapeBlock = {
     type: "labeled_shape",
-    shape: "triangle",
-    vertices: [{ label: "A" }, { label: "B" }, { label: "C" }],
-    angles: [
-      ...known.map((d, i) => ({
-        vertex: ["A", "B", "C"][i] || "A",
-        degrees: d,
-        label: `${d}°`,
-      })),
-      {
-        vertex: ["A", "B", "C"][known.length] || "C",
-        degrees: missing,
-        label: `${missing}°`,
-      },
-    ],
+    shape: kind,
+    vertices:
+      kind === "triangle"
+        ? [{ label: "A" }, { label: "B" }, { label: "C" }]
+        : kind === "straight_line"
+          ? [{ label: "A" }, { label: "O" }, { label: "B" }, { label: "C" }]
+          : [{ label: "O" }],
+    angles: labels.map((label, i) => ({
+      vertex: kind === "triangle" ? (["A", "B", "C"][i] || "C") : "O",
+      degrees: i < known.length ? known[i] : missing,
+      label,
+    })),
   };
+  const rule =
+    kind === "triangle"
+      ? {
+          operationLabel: "Angles in a triangle",
+          explanation: "Interior angles in a triangle add to 180°.",
+          short: "Triangle total",
+          why: "Angles in a triangle sum to 180°.",
+          intro: "triangle",
+        }
+      : kind === "around_point"
+        ? {
+            operationLabel: "Angles around a point",
+            explanation: "Angles around a point add to 360°.",
+            short: "Around a point",
+            why: "Angles around a point sum to 360°.",
+            intro: "around a point",
+          }
+        : {
+            operationLabel: "Angles on a straight line",
+            explanation: "Angles on a straight line add to 180°.",
+            short: "Straight line",
+            why: "Angles on a straight line sum to 180°.",
+            intro: "straight line",
+          };
   const steps: EquationStepBlock = {
     type: "equation_steps",
     steps: [
       {
         stepNumber: 1,
-        operationLabel: total === 180 ? "Angles on a straight line" : "Angles around a point",
-        explanation:
-          total === 180
-            ? "Angles on a straight line add to 180°."
-            : "Angles around a point add to 360°.",
-        rule: total === 180 ? "Straight line" : "Around a point",
+        operationLabel: rule.operationLabel,
+        explanation: rule.explanation,
+        rule: rule.short,
         latexBefore: known.map((k) => `${k}^{\\circ}`).join(" + ") + ` + x = ${total}^{\\circ}`,
         latexAfter: `x = ${total}^{\\circ} - ${sumKnown}^{\\circ}`,
         arrowDirection: "simplify",
@@ -93,10 +122,7 @@ export function buildAngleDiagram(
       {
         title: "Missing angle",
         explanation: `${missing}°`,
-        why:
-          total === 180
-            ? "Straight-line angles sum to 180°."
-            : "Angles around a point sum to 360°.",
+        why: rule.why,
         narration: `The missing angle is ${missing} degrees.`,
         cellKeys: [],
         carryKeys: [],
@@ -106,7 +132,7 @@ export function buildAngleDiagram(
     ],
     captions: [`Missing angle = ${missing}°`],
     answer: `${missing}°`,
-    intro: `Find the missing angle (${total === 180 ? "straight line" : "around a point"}).`,
+    intro: `Find the missing angle (${rule.intro}).`,
   };
 }
 
@@ -132,35 +158,523 @@ export function parseCoordinatePlot(
   return { points: pts };
 }
 
-export function buildCoordinatePlot(
+export type CoordinateProblem =
+  | { kind: "quadrant"; point: { x: number; y: number; label: string } }
+  | {
+      kind: "select_quadrant";
+      quadrant: "I" | "II" | "III" | "IV";
+      points: { x: number; y: number; label: string }[];
+    }
+  | { kind: "position"; point: { x: number; y: number; label: string } }
+  | {
+      kind: "translate";
+      starts: { x: number; y: number; label: string }[];
+      dx: number;
+      dy: number;
+    }
+  | {
+      kind: "translation_vector";
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    }
+  | {
+      kind: "reflect";
+      starts: { x: number; y: number; label: string }[];
+      axis: "x" | "y";
+      axisValue: number;
+    };
+
+function coordinatePairs(text: string): { x: number; y: number }[] {
+  return [...text.matchAll(/\(?\s*(-?\d+)\s*,\s*(-?\d+)\s*\)?/g)].map(
+    (match) => ({ x: Number(match[1]), y: Number(match[2]) }),
+  );
+}
+
+function labelledCoordinatePairs(
+  text: string,
+): { x: number; y: number; label: string }[] {
+  return [
+    ...text.matchAll(/(?:\b([A-Z])\s*)?\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/gi),
+  ].map((match, index) => ({
+    x: Number(match[2]),
+    y: Number(match[3]),
+    label: match[1]?.toUpperCase() || String.fromCharCode(65 + index),
+  }));
+}
+
+function parseTranslationVector(text: string): { x: number; y: number } | null {
+  const matrix = text.match(
+    /\\begin\{(?:p|b)?matrix\}\s*(-?\d+)\s*\\\\+\s*(-?\d+)\s*\\end\{(?:p|b)?matrix\}/i,
+  );
+  if (matrix) return { x: Number(matrix[1]), y: Number(matrix[2]) };
+  const binomial = text.match(
+    /\\binom\s*\{\s*(-?\d+)\s*\}\s*\{\s*(-?\d+)\s*\}/i,
+  );
+  if (binomial) return { x: Number(binomial[1]), y: Number(binomial[2]) };
+  const inline = text.match(
+    /\b(?:by|vector)\s*(?:the\s+vector\s*)?\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/i,
+  );
+  return inline ? { x: Number(inline[1]), y: Number(inline[2]) } : null;
+}
+
+function signedMovement(
+  text: string,
+  positiveWord: "right" | "up",
+  negativeWord: "left" | "down",
+): number | null {
+  const words = `${positiveWord}|${negativeWord}`;
+  const numberFirst = text.match(
+    new RegExp(`(\\d+)\\s*(?:squares?|places?|units?)?\\s*(${words})`, "i"),
+  );
+  const wordFirst = text.match(
+    new RegExp(`(${words})\\s*(?:by\\s*)?(\\d+)`, "i"),
+  );
+  const amount = Number(numberFirst?.[1] ?? wordFirst?.[2]);
+  const direction = (numberFirst?.[2] ?? wordFirst?.[1] ?? "").toLowerCase();
+  if (!Number.isFinite(amount) || !direction) return null;
+  return direction === negativeWord ? -amount : amount;
+}
+
+/** Parse coordinate tasks before generic signed-number logic sees negative values. */
+export function parseCoordinateProblem(text: string): CoordinateProblem | null {
+  const t = normalizeMathText(text);
+  if (!/\b(coordinate|point|quadrant|translate|translation|reflect|reflection)\b/i.test(t)) {
+    return null;
+  }
+  const pairs = coordinatePairs(t);
+  const labelledPairs = labelledCoordinatePairs(t);
+  const label = t.match(/\bpoint\s+([A-Z])\b/i)?.[1]?.toUpperCase() || "P";
+
+  const selectQuadrant = t.match(
+    /\bwhich coordinate\b[\s\S]*?\bquadrant\s*(IV|III|II|I|[1-4])\b/i,
+  );
+  if (selectQuadrant && pairs.length > 0) {
+    const quadrant = ({
+      "1": "I",
+      "2": "II",
+      "3": "III",
+      "4": "IV",
+      I: "I",
+      II: "II",
+      III: "III",
+      IV: "IV",
+    } as const)[selectQuadrant[1].toUpperCase() as "1" | "2" | "3" | "4" | "I" | "II" | "III" | "IV"];
+    return {
+      kind: "select_quadrant",
+      quadrant,
+      points: pairs.map((point, index) => ({
+        ...point,
+        label: String.fromCharCode(65 + index),
+      })),
+    };
+  }
+
+  if (/\bwhich quadrant|\bwhat quadrant|\bquadrant contains\b/i.test(t) && pairs[0]) {
+    return { kind: "quadrant", point: { ...pairs[0], label } };
+  }
+
+  if (
+    /\b(?:write|find)\s+(?:the\s+)?translation vector\b|\bmoves?\s+from\b/i.test(t) &&
+    pairs.length >= 2
+  ) {
+    return { kind: "translation_vector", start: pairs[0], end: pairs[1] };
+  }
+
+  if (/\btranslat(?:e|ed|ion)\b/i.test(t) && pairs[0]) {
+    const horizontal = signedMovement(t, "right", "left");
+    const vertical = signedMovement(t, "up", "down");
+    const vector = parseTranslationVector(t);
+    if (vector) {
+      const starts = labelledPairs.filter(
+        (point, index) =>
+          !(
+            index === labelledPairs.length - 1 &&
+            labelledPairs.length > 1 &&
+            point.x === vector.x &&
+            point.y === vector.y &&
+            /\b(?:by|vector)\s*(?:the\s+vector\s*)?\(\s*-?\d+\s*,/i.test(t)
+          ),
+      );
+      return {
+        kind: "translate",
+        starts,
+        dx: vector.x,
+        dy: vector.y,
+      };
+    }
+    if (horizontal !== null || vertical !== null) {
+      return {
+        kind: "translate",
+        starts: labelledPairs,
+        dx: horizontal || 0,
+        dy: vertical || 0,
+      };
+    }
+  }
+
+  if (/\breflect(?:ed|ion)?\b/i.test(t) && pairs[0]) {
+    const line = t.match(/\b(?:line\s+)?([xy])\s*=\s*(-?\d+)\b/i);
+    const axisMatch = t.match(/\b([xy])[- ]?axis\b/i);
+    if (line || axisMatch) {
+      return {
+        kind: "reflect",
+        starts: labelledPairs,
+        // Store the coordinate held constant by the mirror-line equation.
+        // x-axis means y=0; y-axis means x=0.
+        axis: (line?.[1]
+          ? line[1].toLowerCase()
+          : axisMatch?.[1]?.toLowerCase() === "x"
+            ? "y"
+            : "x") as "x" | "y",
+        axisValue: line ? Number(line[2]) : 0,
+      };
+    }
+  }
+
+  const horizontal = signedMovement(t, "right", "left");
+  const vertical = signedMovement(t, "up", "down");
+  if (horizontal !== null && vertical !== null) {
+    return {
+      kind: "position",
+      point: { x: horizontal, y: vertical, label },
+    };
+  }
+
+  return null;
+}
+
+export function coordinateQuadrant(x: number, y: number): string {
+  if (x === 0 && y === 0) return "the origin";
+  if (x === 0) return "the y-axis";
+  if (y === 0) return "the x-axis";
+  if (x > 0 && y > 0) return "Quadrant I";
+  if (x < 0 && y > 0) return "Quadrant II";
+  if (x < 0 && y < 0) return "Quadrant III";
+  return "Quadrant IV";
+}
+
+function coordinateGraph(
   points: { x: number; y: number; label: string }[],
-): MethodBuildResult {
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  const pad = 1;
-  const block: CoordinateGraphBlock = {
+  segments: CoordinateGraphBlock["segments"] = [],
+): CoordinateGraphBlock {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const padding = 1;
+  return {
     type: "coordinate_graph",
-    xRange: [Math.min(0, ...xs) - pad, Math.max(0, ...xs) + pad],
-    yRange: [Math.min(0, ...ys) - pad, Math.max(0, ...ys) + pad],
+    xRange: [Math.min(0, ...xs) - padding, Math.max(0, ...xs) + padding],
+    yRange: [Math.min(0, ...ys) - padding, Math.max(0, ...ys) + padding],
     plots: [],
-    points: points.map((p) => ({
-      point: { x: p.x, y: p.y },
-      label: `${p.label}(${p.x},${p.y})`,
+    points: points.map((point) => ({
+      point: { x: point.x, y: point.y },
+      label: point.label,
     })),
+    segments,
     grid: true,
     xLabel: "x",
     yLabel: "y",
   };
+}
+
+export function buildCoordinateProblem(problem: CoordinateProblem): MethodBuildResult {
+  if (problem.kind === "select_quadrant") {
+    const target = `Quadrant ${problem.quadrant}`;
+    const selected = problem.points.find(
+      (point) => coordinateQuadrant(point.x, point.y) === target,
+    );
+    if (!selected) throw new Error(`No coordinate lies in ${target}`);
+    const answer = `(${selected.x},${selected.y})`;
+    const teachingSteps: TeachingStep[] = [
+      {
+        title: "Recall the quadrant signs",
+        explanation: `${target} has ${problem.quadrant === "I" || problem.quadrant === "IV" ? "positive" : "negative"} x and ${problem.quadrant === "I" || problem.quadrant === "II" ? "positive" : "negative"} y.`,
+        why: "The signs identify the quadrant before you plot anything.",
+        narration: `Recall the signs for ${target}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Check each ordered pair",
+        explanation: problem.points
+          .map((point) => `(${point.x}, ${point.y}) is in ${coordinateQuadrant(point.x, point.y)}`)
+          .join("; "),
+        why: "Read x first and y second.",
+        narration: `Check the signs in each ordered pair.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Choose the matching coordinate",
+        explanation: `${answer} is in ${target}.`,
+        why: "Its x and y signs match the target quadrant.",
+        narration: `${answer} is the matching coordinate.`,
+        cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+      },
+    ];
+    return {
+      builderId: "coordinate_plot",
+      block: coordinateGraph(
+        problem.points.map((point) => ({
+          ...point,
+          label: `${point.label}(${point.x},${point.y})`,
+        })),
+      ),
+      teachingSteps,
+      captions: teachingSteps.map((step) => `${step.title}: ${step.explanation}`),
+      answer,
+      intro: `Match each coordinate's signs to ${target}.`,
+    };
+  }
+
+  if (problem.kind === "quadrant") {
+    const { x, y, label } = problem.point;
+    const answer = coordinateQuadrant(x, y);
+    const block = coordinateGraph([{ x, y, label: `${label}(${x},${y})` }]);
+    const teachingSteps: TeachingStep[] = [
+      {
+        title: "Read the x-coordinate",
+        explanation: `${x} is ${x < 0 ? "negative, so the point is left of the y-axis" : x > 0 ? "positive, so the point is right of the y-axis" : "zero, so the point is on the y-axis"}.`,
+        why: "The first coordinate controls the horizontal position.",
+        narration: `The x-coordinate is ${x}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Read the y-coordinate",
+        explanation: `${y} is ${y < 0 ? "negative, so the point is below the x-axis" : y > 0 ? "positive, so the point is above the x-axis" : "zero, so the point is on the x-axis"}.`,
+        why: "The second coordinate controls the vertical position.",
+        narration: `The y-coordinate is ${y}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Name the region",
+        explanation: `(${x}, ${y}) lies in ${answer}.`,
+        why: "Match the signs of x and y to the four quadrants.",
+        narration: `The point lies in ${answer}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+      },
+    ];
+    return {
+      builderId: "coordinate_plot",
+      block,
+      teachingSteps,
+      captions: teachingSteps.map((step) => `${step.title}: ${step.explanation}`),
+      answer,
+      intro: `Use the signs of (${x}, ${y}) to identify its quadrant.`,
+    };
+  }
+
+  if (problem.kind === "position") {
+    return buildCoordinatePlot([problem.point]);
+  }
+
+  if (problem.kind === "translation_vector") {
+    const dx = problem.end.x - problem.start.x;
+    const dy = problem.end.y - problem.start.y;
+    const answer = `(${dx},${dy})`;
+    const teachingSteps: TeachingStep[] = [
+      {
+        title: "Compare the x-coordinates",
+        explanation: `${problem.end.x} − (${problem.start.x}) = ${dx}.`,
+        why: "The horizontal change is the top number of the vector.",
+        narration: `The horizontal change is ${dx}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Compare the y-coordinates",
+        explanation: `${problem.end.y} − (${problem.start.y}) = ${dy}.`,
+        why: "The vertical change is the bottom number of the vector.",
+        narration: `The vertical change is ${dy}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Write the vector",
+        explanation: `The translation vector is ${answer}.`,
+        why: "Write horizontal change first, then vertical change.",
+        narration: `The translation vector is ${dx}, ${dy}.`,
+        cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+      },
+    ];
+    return {
+      builderId: "coordinate_plot",
+      block: coordinateGraph(
+        [
+          { ...problem.start, label: `Start (${problem.start.x},${problem.start.y})` },
+          { ...problem.end, label: `End (${problem.end.x},${problem.end.y})` },
+        ],
+        [{ from: problem.start, to: problem.end, color: "#f59e0b", style: "dashed", label: "translation" }],
+      ),
+      teachingSteps,
+      captions: teachingSteps.map((step) => `${step.title}: ${step.explanation}`),
+      answer,
+      intro: "Subtract the start coordinates from the end coordinates.",
+    };
+  }
+
+  if (problem.kind === "translate") {
+    const images = problem.starts.map((start) => ({
+      x: start.x + problem.dx,
+      y: start.y + problem.dy,
+      label: `${start.label}′`,
+      source: start,
+    }));
+    const answer = images.length === 1
+      ? `(${images[0].x},${images[0].y})`
+      : images.map((point) => `${point.label}=(${point.x},${point.y})`).join(", ");
+    const block = coordinateGraph(
+      [
+        ...problem.starts.map((point) => ({
+          ...point,
+          label: `${point.label}(${point.x},${point.y})`,
+        })),
+        ...images.map((point) => ({
+          x: point.x,
+          y: point.y,
+          label: `${point.label}(${point.x},${point.y})`,
+        })),
+      ],
+      images.map((point) => ({
+        from: point.source,
+        to: { x: point.x, y: point.y },
+        color: "#f59e0b",
+        style: "dashed" as const,
+        label: "translation",
+      })),
+    );
+    const teachingSteps: TeachingStep[] = [
+      {
+        title: "Identify every starting vertex",
+        explanation: problem.starts.map((point) => `${point.label}(${point.x}, ${point.y})`).join("; "),
+        why: "A translation moves a point without turning or reflecting it.",
+        narration: `Identify every starting vertex.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Apply the horizontal move",
+        explanation: images.map((point) => `${point.source.label}: ${point.source.x} ${problem.dx < 0 ? "−" : "+"} ${Math.abs(problem.dx)} = ${point.x}`).join("; "),
+        why: "The first vector number changes x.",
+        narration: `Apply the horizontal move to every vertex.`,
+        cellKeys: [], carryKeys: [], noteKeys: [],
+      },
+      {
+        title: "Apply the vertical move",
+        explanation: `${images.map((point) => `${point.source.label}: ${point.source.y} ${problem.dy < 0 ? "−" : "+"} ${Math.abs(problem.dy)} = ${point.y}`).join("; ")}. Final image: ${answer}.`,
+        why: "The second vector number changes y.",
+        narration: `Apply the vertical move and write every image coordinate.`,
+        cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+      },
+    ];
+    return {
+      builderId: "coordinate_plot", block, teachingSteps,
+      captions: teachingSteps.map((step) => `${step.title}: ${step.explanation}`),
+      answer,
+      intro: `Add the translation vector to the point, x first and then y.`,
+    };
+  }
+
+  const { starts, axis, axisValue } = problem;
+  const images = starts.map((start) => ({
+    x: axis === "x" ? 2 * axisValue - start.x : start.x,
+    y: axis === "y" ? 2 * axisValue - start.y : start.y,
+    label: `${start.label}′`,
+    source: start,
+  }));
+  const answer = images.length === 1
+    ? `(${images[0].x},${images[0].y})`
+    : images.map((point) => `${point.label}=(${point.x},${point.y})`).join(", ");
+  const unchanged = axis === "x" ? "y" : "x";
+  const changed = axis;
   const teachingSteps: TeachingStep[] = [
     {
-      title: "Plot the points",
-      explanation: points.map((p) => `${p.label}(${p.x}, ${p.y})`).join("; "),
-      why: "x is across, y is up/down — from the origin (0,0).",
-      narration: `Plot ${points.map((p) => p.label).join(", ")} on the grid.`,
+      title: "Find the mirror line",
+      explanation: `Reflect in ${axis} = ${axisValue}.`,
+      why: "The image must be the same perpendicular distance from the mirror line.",
+      narration: `The mirror line is ${axis} equals ${axisValue}.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: `Keep ${unchanged} unchanged`,
+      explanation: starts.map((point) => `${point.label}: ${unchanged} stays ${point[unchanged]}`).join("; "),
+      why: `Moving perpendicular to this mirror line does not change ${unchanged}.`,
+      narration: `Keep the ${unchanged}-coordinate the same.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: `Reflect the ${changed}-coordinate`,
+      explanation: `The image coordinates are ${answer}.`,
+      why: "The original point and image are equally far from the mirror line.",
+      narration: `Write every reflected image coordinate.`,
+      cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+    },
+  ];
+  const reflectionBlock = coordinateGraph(
+    [
+      ...starts.map((point) => ({ ...point, label: `${point.label}(${point.x},${point.y})` })),
+      ...images.map((point) => ({ x: point.x, y: point.y, label: `${point.label}(${point.x},${point.y})` })),
+    ],
+    images.map((point) => ({
+      from: point.source,
+      to: { x: point.x, y: point.y },
+      color: "#f59e0b",
+      style: "dashed" as const,
+      label: "reflection",
+    })),
+  );
+  const mirrorSegment = axis === "x"
+    ? {
+        from: { x: axisValue, y: reflectionBlock.yRange[0] },
+        to: { x: axisValue, y: reflectionBlock.yRange[1] },
+        color: "#ef4444",
+        style: "solid" as const,
+        label: `x = ${axisValue}`,
+      }
+    : {
+        from: { x: reflectionBlock.xRange[0], y: axisValue },
+        to: { x: reflectionBlock.xRange[1], y: axisValue },
+        color: "#ef4444",
+        style: "solid" as const,
+        label: `y = ${axisValue}`,
+      };
+  reflectionBlock.segments = [mirrorSegment, ...(reflectionBlock.segments || [])];
+  return {
+    builderId: "coordinate_plot",
+    block: reflectionBlock,
+    teachingSteps,
+    captions: teachingSteps.map((step) => `${step.title}: ${step.explanation}`),
+    answer,
+    intro: `Reflect the point the same distance across ${axis} = ${axisValue}.`,
+  };
+}
+
+export function buildCoordinatePlot(
+  points: { x: number; y: number; label: string }[],
+): MethodBuildResult {
+  const block = coordinateGraph(
+    points.map((point) => ({
+      ...point,
+      label: `${point.label}(${point.x},${point.y})`,
+    })),
+  );
+  const teachingSteps: TeachingStep[] = [
+    {
+      title: "Read the x-coordinate",
+      explanation: points.map((p) => `${p.label}: move ${Math.abs(p.x)} ${p.x < 0 ? "left" : "right"}`).join("; "),
+      why: "The first coordinate is the horizontal movement from the origin.",
+      narration: `Read the x-coordinate first.`,
       cellKeys: [],
       carryKeys: [],
       noteKeys: [],
-      showAnswer: true,
+    },
+    {
+      title: "Read the y-coordinate",
+      explanation: points.map((p) => `${p.label}: move ${Math.abs(p.y)} ${p.y < 0 ? "down" : "up"}`).join("; "),
+      why: "The second coordinate is the vertical movement.",
+      narration: `Now read the y-coordinate.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: "Write the ordered pair",
+      explanation: points.map((p) => `${p.label} = (${p.x}, ${p.y})`).join("; "),
+      why: "Coordinates are always written in the order (x, y).",
+      narration: `Write x first, then y.`,
+      cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
     },
   ];
   return {

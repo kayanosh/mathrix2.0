@@ -22,6 +22,7 @@ export interface TeachingStep {
 }
 
 export type MethodBuilderId =
+  | "order_of_operations"
   | "column_multiplication"
   | "column_addition"
   | "column_subtraction"

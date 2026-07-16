@@ -62,6 +62,14 @@ describe("fraction number line builder", () => {
     expect(built?.builderId).toBe("fraction_number_line");
   });
 
+  it.each([
+    ["Which is greater, 2/3 or 3/4?", "3/4"],
+    ["Which is smaller, 2/3 or 3/4?", "2/3"],
+    ["Order 1/2, 3/4, 2/3 from largest to smallest", "3/4, 2/3, 1/2"],
+  ])("matches the requested comparison direction for %s", (question, answer) => {
+    expect(buildMethodForQuestion(question)?.answer).toBe(answer);
+  });
+
   it("overlays onto a blank LLM number line", () => {
     const blank: NumberLineBlock = {
       type: "number_line",
@@ -210,6 +218,41 @@ describe("wave 2/3 builders smoke", () => {
       "Angles on a straight line: 110° and x. Find x.",
     );
     expect(built?.builderId).toBe("angle_diagram");
+    expect(built?.answer).toBe("70°");
+    expect(built?.block).toMatchObject({
+      type: "labeled_shape",
+      shape: "straight_line",
+    });
+    expect(built?.teachingSteps[0]?.why).toContain("straight line");
+  });
+
+  it("uses the triangle rule and triangle diagram for triangle angles", () => {
+    const built = buildMethodForQuestion(
+      "Find the missing angle x in a triangle with angles 58°, 67° and x.",
+    );
+    expect(built?.builderId).toBe("angle_diagram");
+    expect(built?.answer).toBe("55°");
+    expect(built?.block).toMatchObject({
+      type: "labeled_shape",
+      shape: "triangle",
+    });
+    expect(built?.intro).toContain("triangle");
+    expect(built?.teachingSteps[0]?.why).toBe(
+      "Angles in a triangle sum to 180°.",
+    );
+  });
+
+  it("uses a point diagram and 360-degree rule around a point", () => {
+    const built = buildMethodForQuestion(
+      "Angles around a point are 120°, 90° and x. Find x.",
+    );
+    expect(built?.builderId).toBe("angle_diagram");
+    expect(built?.answer).toBe("150°");
+    expect(built?.block).toMatchObject({
+      type: "labeled_shape",
+      shape: "around_point",
+    });
+    expect(built?.teachingSteps[0]?.why).toContain("360°");
   });
 
   it("coordinates", () => {

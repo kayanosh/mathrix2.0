@@ -9,16 +9,14 @@ import {
   ChevronUp,
   ArrowLeft,
   BookOpen,
-  Sparkles,
   Loader2,
   FileText,
 } from "lucide-react";
 import { SUBJECTS } from "@/lib/subjects";
-import InlineMath from "@/components/InlineMath";
 import WhiteboardRenderer from "@/components/whiteboard/WhiteboardRenderer";
 import TeacherWorksheet from "@/components/TeacherWorksheet";
 import type { WhiteboardResponse } from "@/types/whiteboard";
-import type { TeacherQuestion, TeacherWorksheetData } from "@/types";
+import type { TeacherWorksheetData } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

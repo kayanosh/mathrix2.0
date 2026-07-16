@@ -48,6 +48,7 @@ import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 import { withOpenAIModelFallback } from "@/lib/openai-retry";
 import { ensureRelevantSubjectVisuals } from "@/lib/ks2-subject-visuals";
 import { parseMultiplesQuestion } from "@/lib/methods/multiples-factors";
+import { hardenKS2MathsPracticeAnswers } from "@/lib/ks2-maths-accuracy";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
@@ -78,6 +79,8 @@ const BLOCKING_LESSON_ISSUES = new Set([
   "force_diagram_invalid",
   "subject_visual_mismatch",
   "multiples_sequence_invalid",
+  "math_answer_mismatch",
+  "equation_steps_incomplete",
 ]);
 
 interface LessonSection {
@@ -404,10 +407,85 @@ function parseWorkedExampleWhiteboard(
       });
       continue;
     }
-    if (block.type === "equation_steps") {
+    if (block.type === "coordinate_graph") {
+      const xRange = Array.isArray(block.xRange)
+        ? [Number(block.xRange[0]), Number(block.xRange[1])]
+        : [];
+      const yRange = Array.isArray(block.yRange)
+        ? [Number(block.yRange[0]), Number(block.yRange[1])]
+        : [];
+      if (
+        xRange.length < 2 ||
+        yRange.length < 2 ||
+        !xRange.every(Number.isFinite) ||
+        !yRange.every(Number.isFinite) ||
+        xRange[1] <= xRange[0] ||
+        yRange[1] <= yRange[0]
+      ) {
+        continue;
+      }
+      const plots = Array.isArray(block.plots)
+        ? block.plots.filter(
+            (plot) =>
+              plot &&
+              typeof plot === "object" &&
+              typeof plot.fn === "string" &&
+              plot.fn.trim() &&
+              typeof plot.equation === "string" &&
+              plot.equation.trim(),
+          )
+        : [];
+      const points = (Array.isArray(block.points) ? block.points : []).flatMap(
+        (rawPoint) => {
+          const candidate = rawPoint as unknown as {
+            point?: { x?: unknown; y?: unknown };
+            x?: unknown;
+            y?: unknown;
+            label?: unknown;
+          };
+          const x = Number(candidate.point?.x ?? candidate.x);
+          const y = Number(candidate.point?.y ?? candidate.y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+          return [{
+            point: { x, y },
+            label: String(candidate.label || `(${x},${y})`),
+          }];
+        },
+      );
+      const segments = (Array.isArray(block.segments) ? block.segments : []).filter(
+        (segment) =>
+          Number.isFinite(Number(segment?.from?.x)) &&
+          Number.isFinite(Number(segment?.from?.y)) &&
+          Number.isFinite(Number(segment?.to?.x)) &&
+          Number.isFinite(Number(segment?.to?.y)),
+      );
+      if (plots.length === 0 && points.length === 0 && segments.length === 0) continue;
       normalised.push({
         ...block,
-        steps: Array.isArray(block.steps) ? block.steps : [],
+        xRange: xRange as [number, number],
+        yRange: yRange as [number, number],
+        plots,
+        points,
+        segments,
+      });
+      continue;
+    }
+    if (block.type === "equation_steps") {
+      const steps = Array.isArray(block.steps)
+        ? block.steps.filter(
+            (step) =>
+              step &&
+              typeof step === "object" &&
+              (String(step.latexBefore || "").trim() ||
+                String(step.latexAfter || "").trim()),
+          )
+        : [];
+      // LLMs sometimes append empty equation rows below a correct deterministic
+      // board. They render as stray brackets/blank lines and carry no teaching.
+      if (steps.length === 0) continue;
+      normalised.push({
+        ...block,
+        steps,
       });
       continue;
     }
@@ -686,6 +764,7 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             topic,
             subtopics,
           );
+          Object.assign(cached, hardenKS2MathsPracticeAnswers(cached));
         } else if (cached.workedExample) {
           cached.workedExample = hardenSubjectWorkedExample(
             cached.workedExample,
@@ -997,6 +1076,7 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
         topic,
         skillSubs,
       );
+      lesson = hardenKS2MathsPracticeAnswers(lesson);
     } else if (lesson.workedExample) {
       lesson.workedExample = hardenSubjectWorkedExample(
         lesson.workedExample,
@@ -1054,6 +1134,7 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
                 topic,
                 skillSubs,
               );
+              Object.assign(retry, hardenKS2MathsPracticeAnswers(retry));
             } else if (retry.workedExample) {
               retry.workedExample = hardenSubjectWorkedExample(
                 retry.workedExample,

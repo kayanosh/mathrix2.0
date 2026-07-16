@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, BookOpen, GraduationCap, Menu, Sigma } from "lucide-react";
+import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, GraduationCap, Menu, Sigma } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { ChatMessage, TutorResponse, ExamLevel, ExamBoard } from "@/types";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import EquationChain from "./EquationChain";
@@ -902,7 +903,7 @@ export default function ChatInterface() {
                                 window.speechSynthesis.speak(_u);
                                 window.speechSynthesis.cancel();
                               }
-                            } catch (e) {
+                            } catch {
                               /* ignore */
                             }
                             setWhiteboardData(wbr);
@@ -1095,10 +1096,13 @@ function HeroLanding(props: InputProps) {
         {/* ── Input bar ──────────────────────────────────── */}
         {pendingImage && (
           <div className="mb-3 relative inline-block">
-            <img
+            <Image
               src={pendingImage}
               alt="Upload preview"
-              className="h-20 rounded-xl border border-gray-200 object-cover"
+              width={160}
+              height={80}
+              unoptimized
+              className="h-20 w-auto rounded-xl border border-gray-200 object-cover"
             />
             {pendingExtraCount > 0 && (
               <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
@@ -1309,10 +1313,13 @@ function ChatInputBar(props: InputProps) {
       {pendingImage && (
         <div className="max-w-3xl mx-auto mb-2">
           <div className="relative inline-block">
-            <img
+            <Image
               src={pendingImage}
               alt="Upload preview"
-              className="h-20 rounded-xl border border-gray-200 object-cover"
+              width={160}
+              height={80}
+              unoptimized
+              className="h-20 w-auto rounded-xl border border-gray-200 object-cover"
             />
             {pendingExtraCount > 0 && (
               <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[10px] font-semibold">
@@ -1464,10 +1471,13 @@ function MessageBubble({
               ? [message.imageUrl]
               : []
           ).map((src, i) => (
-            <img
+            <Image
               key={i}
               src={src}
               alt={`Uploaded question${message.imageUrls && message.imageUrls.length > 1 ? ` page ${i + 1}` : ""}`}
+              width={768}
+              height={384}
+              unoptimized
               className="rounded-xl mb-2.5 max-h-48 object-contain w-full"
               style={{ border: "1px solid rgba(255,255,255,0.2)" }}
             />

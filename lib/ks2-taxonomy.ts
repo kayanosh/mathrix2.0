@@ -107,7 +107,11 @@ function visualRuleForMathsPedagogy(
   if (id.startsWith("fraction") || id === "fractions_compare") return "fractions";
   if (id === "decimals_fdp") return "percentages";
   if (id === "decimal_column") return "decimals";
-  if (id.includes("multiplication") || id === "multiples_factors")
+  if (
+    id.includes("multiplication") ||
+    id === "multiples_factors" ||
+    id === "order_of_operations"
+  )
     return "multiplication";
   if (id.includes("division")) return "division";
   if (id === "ratio") return "ratio";
@@ -152,6 +156,8 @@ function methodForMathsPedagogy(
       return "Digit shift for ×÷ powers of ten";
     case "column_multiplication":
       return "Column multiplication";
+    case "order_of_operations":
+      return "BIDMAS with the full expression rewritten after each operation";
     case "long_division":
       return "Bus-stop / long division";
     case "fdp_equivalence":

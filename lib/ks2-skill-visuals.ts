@@ -3,6 +3,7 @@
  */
 
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+import { parseOrderOperationsQuestion } from "@/lib/methods/order-of-operations";
 
 export type KS2SkillVisualFamily =
   | "fraction_simplify"
@@ -22,6 +23,8 @@ export type KS2SkillVisualFamily =
   | "ratio"
   | "measures"
   | "multiples"
+  | "order_operations"
+  | "place_value_shift"
   | "general";
 
 export interface KS2SkillVisualRequirement {
@@ -50,7 +53,23 @@ export function detectSkillVisualFamily(
   if (/\bratio\b|proportion|scale factor/.test(t)) return "ratio";
   if (/convert(?:ing)? units?|unit conversion|metric measures?/.test(t))
     return "measures";
+  if (/order of operations|bidmas|bodmas/.test(t)) return "order_operations";
+  if (
+    /(?:multiply|divide)(?:ing)?\s+(?:and\s+)?(?:divide\s+)?by\s+(?:10|100|1000)|[×÷]\s*(?:10|100|1000)\b/.test(
+      t,
+    )
+  ) {
+    return "place_value_shift";
+  }
   if (/\bmultiples?\b/.test(t)) return "multiples";
+  if (
+    /(?:multiply|divide)(?:ing)?\s+(?:by\s+)?(?:10|100|1000)|[×÷]\s*(?:10|100|1000)\b/.test(
+      q,
+    )
+  ) {
+    return "place_value_shift";
+  }
+  if (parseOrderOperationsQuestion(q)) return "order_operations";
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
     return "fraction_simplify";
   }
@@ -202,6 +221,19 @@ export const KS2_SKILL_VISUALS: Record<
     family: "multiples",
     requiredAnyOf: ["number_line", "table"],
     guidance: "Show equal jumps or an ordered list of multiples.",
+  },
+  order_operations: {
+    family: "order_operations",
+    requiredAnyOf: ["equation_steps"],
+    guidance:
+      "Keep the complete expression visible and rewrite it after each BIDMAS operation.",
+  },
+  place_value_shift: {
+    family: "place_value_shift",
+    requiredAnyOf: ["table"],
+    requiredAllOf: ["table", "equation_steps"],
+    guidance:
+      "Use a place-value table and equation steps showing each digit shift.",
   },
   general: {
     family: "general",

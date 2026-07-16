@@ -81,9 +81,8 @@ interface TextChunk {
   tier: "foundation" | "higher" | "both";
 }
 
-function chunkText(fullText: string, pages: string[]): TextChunk[] {
+function chunkText(pages: string[]): TextChunk[] {
   const chunks: TextChunk[] = [];
-  const TARGET_CHUNK_SIZE = 600; // ~600 tokens
   const MAX_CHUNK_SIZE = 900;
 
   for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
@@ -167,7 +166,7 @@ async function main() {
   const resolvedPages = pages.length > 1 ? pages : [pdfData.text];
 
   console.log(`📦 Chunking ${resolvedPages.length} page(s)...`);
-  const chunks = chunkText(pdfData.text, resolvedPages);
+  const chunks = chunkText(resolvedPages);
   console.log(`📦 Created ${chunks.length} chunks`);
 
   // Show topic distribution

@@ -203,6 +203,30 @@ function forceDiagramFit(block: VisualBlock): boolean {
   );
 }
 
+function coordinateGraphFit(block: VisualBlock): boolean {
+  if (block.type !== "coordinate_graph") return false;
+  const validRange = (range: unknown) =>
+    Array.isArray(range) &&
+    range.length >= 2 &&
+    Number.isFinite(Number(range[0])) &&
+    Number.isFinite(Number(range[1])) &&
+    Number(range[1]) > Number(range[0]);
+  const plots = Array.isArray(block.plots) ? block.plots : [];
+  const points = Array.isArray(block.points) ? block.points : [];
+  const segments = Array.isArray(block.segments) ? block.segments : [];
+  const validPoints = points.every(
+    (point) =>
+      Number.isFinite(Number(point?.point?.x)) &&
+      Number.isFinite(Number(point?.point?.y)),
+  );
+  return (
+    validRange(block.xRange) &&
+    validRange(block.yRange) &&
+    validPoints &&
+    plots.length + points.length + segments.length > 0
+  );
+}
+
 /** True when the block is safe to show for this question. */
 export function isBlockFit(block: VisualBlock, question: string): boolean {
   switch (block.type) {
@@ -230,6 +254,8 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return keyInfoFit(block);
     case "force_diagram":
       return forceDiagramFit(block);
+    case "coordinate_graph":
+      return coordinateGraphFit(block);
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
     default:

@@ -23,6 +23,11 @@ import {
 } from "@/lib/ks2-lesson-zod";
 import { subjectVisualMismatch } from "@/lib/ks2-subject-visuals";
 import { validateMultiplesVisual } from "@/lib/methods/multiples-factors";
+import {
+  auditKS2MathsPracticeAnswers,
+  deterministicMathsAnswer,
+  mathsAnswersEquivalent,
+} from "@/lib/ks2-maths-accuracy";
 
 const VAGUE =
   /\b(it is easy|simply|obviously|clearly just|as you can see)\b|\bjust\s+(do|add|subtract|multiply|divide|write|put|move)\b/i;
@@ -313,6 +318,24 @@ export function validateKS2TeachingLesson(
     lesson.skill || "",
   );
 
+  if (isMaths && we?.question && we.answer) {
+    const solved = deterministicMathsAnswer(we.question);
+    if (solved && !mathsAnswersEquivalent(we.answer, solved.answer)) {
+      issues.push({
+        code: "math_answer_mismatch",
+        message: `Worked answer ${we.answer} does not solve the complete question; expected ${solved.answer}.`,
+      });
+    }
+  }
+  if (isMaths) {
+    for (const mismatch of auditKS2MathsPracticeAnswers(lesson)) {
+      issues.push({
+        code: "math_answer_mismatch",
+        message: `${mismatch.location} answer ${mismatch.supplied} should be ${mismatch.expected}.`,
+      });
+    }
+  }
+
   if (
     isMaths &&
     !mistakeMatchesSkill(lesson.commonMistakes, family, prose)
@@ -440,6 +463,18 @@ export function validateVisualBlock(
       });
     }
   }
+  if (block.type === "equation_steps") {
+    const steps = Array.isArray(block.steps) ? block.steps : [];
+    if (
+      steps.length === 0 ||
+      steps.some((step) => !step.latexBefore && !step.latexAfter)
+    ) {
+      issues.push({
+        code: "equation_steps_incomplete",
+        message: "Equation steps must contain a visible expression on every line.",
+      });
+    }
+  }
   if (block.type === "fraction_bar") {
     if (
       !Number.isFinite(block.numerator) ||
@@ -522,6 +557,32 @@ export function validateVisualBlock(
       issues.push({
         code: "force_diagram_invalid",
         message: "Force diagrams need a named object and labelled directional arrows.",
+      });
+    }
+  }
+  if (block.type === "coordinate_graph") {
+    const points = Array.isArray(block.points) ? block.points : [];
+    const plots = Array.isArray(block.plots) ? block.plots : [];
+    const segments = Array.isArray(block.segments) ? block.segments : [];
+    const validRange = (range: unknown) =>
+      Array.isArray(range) &&
+      range.length >= 2 &&
+      Number.isFinite(Number(range[0])) &&
+      Number.isFinite(Number(range[1])) &&
+      Number(range[1]) > Number(range[0]);
+    if (
+      !validRange(block.xRange) ||
+      !validRange(block.yRange) ||
+      plots.length + points.length + segments.length === 0 ||
+      points.some(
+        (point) =>
+          !Number.isFinite(Number(point?.point?.x)) ||
+          !Number.isFinite(Number(point?.point?.y)),
+      )
+    ) {
+      issues.push({
+        code: "coordinate_graph_invalid",
+        message: "Coordinate graphs need valid axes and renderable plots, points, or segments.",
       });
     }
   }

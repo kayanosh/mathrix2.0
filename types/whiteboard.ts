@@ -149,7 +149,15 @@ export interface SideLabel {
 
 export interface LabeledShapeBlock {
   type: "labeled_shape";
-  shape: "triangle" | "circle" | "rectangle" | "parallelogram" | "trapezium" | "polygon";
+  shape:
+    | "triangle"
+    | "circle"
+    | "rectangle"
+    | "parallelogram"
+    | "trapezium"
+    | "polygon"
+    | "straight_line"
+    | "around_point";
   /** Vertex labels and optional explicit coordinates (usually omitted — renderer computes layout) */
   vertices?: { label: string; position?: Point2D }[];
   sides?: SideLabel[];

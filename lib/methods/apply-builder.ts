@@ -44,8 +44,10 @@ import {
 } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+import { buildCoordinatePlot } from "@/lib/methods/ks2-topic-builders";
 import type {
   ColumnMethodBlock,
+  CoordinateGraphBlock,
   EquationStepBlock,
   NumberLineBlock,
   TableBlock,
@@ -220,6 +222,32 @@ function buildFromEquationBlock(block: EquationStepBlock): MethodBuildResult | n
   }
 }
 
+function buildFromCoordinateBlock(
+  block: CoordinateGraphBlock,
+  question = "",
+): MethodBuildResult | null {
+  const questionLabel = question.match(/\bpoint\s+([A-Z])\b/i)?.[1]?.toUpperCase();
+  const points = (Array.isArray(block.points) ? block.points : []).flatMap(
+    (rawPoint, index) => {
+      const candidate = rawPoint as unknown as {
+        point?: { x?: unknown; y?: unknown };
+        x?: unknown;
+        y?: unknown;
+        label?: unknown;
+      };
+      const x = Number(candidate.point?.x ?? candidate.x);
+      const y = Number(candidate.point?.y ?? candidate.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
+      const rawLabel = String(candidate.label || "");
+      const label = rawLabel.match(/^([A-Z])\b/i)?.[1]?.toUpperCase() ||
+        questionLabel ||
+        String.fromCharCode(65 + index);
+      return [{ x, y, label }];
+    },
+  );
+  return points.length > 0 ? buildCoordinatePlot(points) : null;
+}
+
 function expectedNumericAnswer(answer: string): string | null {
   const matches = answer.replace(/,/g, "").match(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?/g);
   return matches?.length ? matches[matches.length - 1]!.replace(/\s/g, "") : null;
@@ -293,6 +321,10 @@ function resolveBuild(
     if (block.type === "equation_steps") {
       const fromEq = buildFromEquationBlock(block);
       if (fromEq && matchesWorkedAnswer(fromEq, example)) return fromEq;
+    }
+    if (block.type === "coordinate_graph") {
+      const fromGraph = buildFromCoordinateBlock(block, example.question);
+      if (fromGraph) return fromGraph;
     }
   }
 
@@ -440,7 +472,11 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
 
   // Multiples/common-multiples builders own the complete comparison visual.
   // Do not retain unrelated AI column calculations beneath the ordered lists.
-  if (built.builderId === "multiples_number_line") {
+  if (
+    built.builderId === "multiples_number_line" ||
+    built.builderId === "order_of_operations" ||
+    built.builderId === "coordinate_plot"
+  ) {
     return {
       ...next,
       whiteboard: {
