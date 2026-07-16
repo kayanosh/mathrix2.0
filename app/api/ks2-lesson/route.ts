@@ -47,6 +47,7 @@ import { getKS2TopicById } from "@/lib/ks2";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 import { withOpenAIModelFallback } from "@/lib/openai-retry";
 import { ensureRelevantSubjectVisuals } from "@/lib/ks2-subject-visuals";
+import { parseMultiplesQuestion } from "@/lib/methods/multiples-factors";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
@@ -76,6 +77,7 @@ const BLOCKING_LESSON_ISSUES = new Set([
   "key_info_empty",
   "force_diagram_invalid",
   "subject_visual_mismatch",
+  "multiples_sequence_invalid",
 ]);
 
 interface LessonSection {
@@ -276,6 +278,32 @@ function enrichTeachingFields(
     }
   }
 
+  const multiplesProblem =
+    sid === "maths" && lesson.workedExample?.question
+      ? parseMultiplesQuestion(lesson.workedExample.question)
+      : null;
+  const commonMultiples =
+    multiplesProblem?.kind === "common_multiples" ? multiplesProblem : null;
+  const usesOrderedMultiplesTable =
+    !!commonMultiples &&
+    lesson.workedExample?.whiteboard?.blocks?.some(
+      (block) => block.type === "table",
+    );
+  const alignedSections = Array.isArray(lesson.sections)
+    ? lesson.sections.map((section) => {
+        if (!usesOrderedMultiplesTable || !commonMultiples) return section;
+        const mentionsWrongVisual = /number line|equal jumps?|landing point/i.test(
+          `${section.heading} ${section.body}`,
+        );
+        if (!mentionsWrongVisual) return section;
+        return {
+          ...section,
+          heading: "Use ordered multiple lists",
+          body: `Start the ${commonMultiples.a} list at ${commonMultiples.a} and the ${commonMultiples.b} list at ${commonMultiples.b}. Add the same group size each time, then compare the lists.`,
+        };
+      })
+    : lesson.sections;
+
   return {
     ...lesson,
     schemaVersion: 2,
@@ -293,8 +321,8 @@ function enrichTeachingFields(
     method: normalized.method,
     tryThis: lesson.tryThis || normalized.tryThis,
     intro: lesson.intro ? scrubGcd(String(lesson.intro)) : lesson.intro,
-    sections: Array.isArray(lesson.sections)
-      ? lesson.sections.map((s) => ({
+    sections: Array.isArray(alignedSections)
+      ? alignedSections.map((s) => ({
           ...s,
           heading: scrubGcd(String(s.heading || "")),
           body: scrubGcd(String(s.body || "")),

@@ -438,6 +438,19 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     ...(Array.isArray(built.extraBlocks) ? built.extraBlocks : []),
   ];
 
+  // Multiples/common-multiples builders own the complete comparison visual.
+  // Do not retain unrelated AI column calculations beneath the ordered lists.
+  if (built.builderId === "multiples_number_line") {
+    return {
+      ...next,
+      whiteboard: {
+        intro: boardIntro,
+        blocks: builderBlocks,
+        conclusion: boardConclusion,
+      },
+    };
+  }
+
   if (!wb || !Array.isArray(wb.blocks) || wb.blocks.length === 0) {
     return {
       ...next,

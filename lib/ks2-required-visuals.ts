@@ -73,7 +73,8 @@ Allowed block types for KS2: column_method, equation_steps, number_line, labeled
 • Long / column multiply or divide → column_method WITH "moves" carry arrows + equation_steps explaining each partial product
 • × or ÷ by 10, 100, 1000 → place-value TABLE (Th H T O columns) + equation_steps showing each digit shift (NEVER column_method for this)
 • Round N to the nearest 10/100/1000/10,000 → number_line whose range is the two multiples either side of N (e.g. 50,000–60,000 for nearest 10,000). NEVER a generic 0–10 line.
-• Multiples / skip-counting → number_line with markers at each multiple (preferred) or a clear table with highlightCells
+• Multiples / skip-counting → number_line with markers at each multiple (preferred) or a clear table with highlightCells. Start the positive sequence at the base number (multiples of 6 start 6, 12, 18…); never start at the first value above a threshold.
+• Common multiples → show two ordered lists starting at each base number, then apply any greater-than/between condition. The condition filters answers; it never changes where the lists start.
 • Fractions on a line → number_line
 • Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape

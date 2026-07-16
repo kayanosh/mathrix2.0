@@ -22,6 +22,7 @@ import {
   type KS2StrictLesson,
 } from "@/lib/ks2-lesson-zod";
 import { subjectVisualMismatch } from "@/lib/ks2-subject-visuals";
+import { validateMultiplesVisual } from "@/lib/methods/multiples-factors";
 
 const VAGUE =
   /\b(it is easy|simply|obviously|clearly just|as you can see)\b|\bjust\s+(do|add|subtract|multiply|divide|write|put|move)\b/i;
@@ -404,6 +405,22 @@ export function validateKS2TeachingLesson(
       issues.push({ code: "subject_visual_mismatch", message: mismatch });
     }
     issues.push(...validateVisualBlock(b, we?.question || ""));
+  }
+
+  if (family === "multiples") {
+    const candidates = (we?.whiteboard?.blocks || []).filter(
+      (block) => block.type === "table" || block.type === "number_line",
+    );
+    const checks = candidates.map((block) =>
+      validateMultiplesVisual(block, we?.question || ""),
+    );
+    if (checks.length > 0 && !checks.some((messages) => messages.length === 0)) {
+      for (const message of checks.reduce((shortest, messages) =>
+        messages.length < shortest.length ? messages : shortest,
+      )) {
+        issues.push({ code: "multiples_sequence_invalid", message });
+      }
+    }
   }
 
   return { ok: issues.length === 0, issues };

@@ -31,6 +31,16 @@ SIMPLIFYING FRACTIONS (mandatory for this skill):
 - Common mistake: dividing only the numerator (not both parts by the same HCF).
 `;
   }
+  if (family === "multiples") {
+    return `
+MULTIPLES, FACTORS AND NUMBER LISTS (mandatory for this skill):
+- A positive multiples list starts with one group: multiples of n begin n, 2n, 3n — not 0 and not the first value above a threshold.
+- For common multiples, build BOTH ordered lists from their first positive multiples before applying “greater than”, “less than”, or “between”.
+- Never clip the start of a sequence to the question's answer range. The range is a filter applied after the pattern is visible.
+- Factor lists begin with 1. Square and cube number lists begin with 1² and 1³.
+- The explanation must name the visual actually used: say “ordered lists/table” for a table and “equal jumps/number line” only for a number line.
+`;
+  }
   return "";
 }
 
