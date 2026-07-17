@@ -46,13 +46,19 @@ export default function ForceDiagramRenderer({ block, baseDelay }: Props) {
           </marker>
         </defs>
 
-        <rect x="164" y="102" width="92" height="76" rx="20" fill="#fff" stroke="#38bdf8" strokeWidth="2.5" />
-        <text x="210" y="137" textAnchor="middle" fontSize="30" aria-hidden>
-          {block.objectEmoji || "●"}
-        </text>
-        <text x="210" y="162" textAnchor="middle" fontSize="13" fontWeight="700" fill="#0f172a">
-          {inlineMathToPlainText(block.objectLabel)}
-        </text>
+        <g
+          data-teacher-target="primary"
+          data-teacher-label={inlineMathToPlainText(block.objectLabel)}
+          data-teacher-sequence={0}
+        >
+          <rect x="164" y="102" width="92" height="76" rx="20" fill="#fff" stroke="#38bdf8" strokeWidth="2.5" />
+          <text x="210" y="137" textAnchor="middle" fontSize="30" aria-hidden>
+            {block.objectEmoji || "●"}
+          </text>
+          <text x="210" y="162" textAnchor="middle" fontSize="13" fontWeight="700" fill="#0f172a">
+            {inlineMathToPlainText(block.objectLabel)}
+          </text>
+        </g>
 
         {block.forces.map((force, index) => {
           const repeated = counts.get(force.direction) || 0;
@@ -65,6 +71,9 @@ export default function ForceDiagramRenderer({ block, baseDelay }: Props) {
           return (
             <motion.g
               key={`${force.direction}-${index}`}
+              data-teacher-target="primary"
+              data-teacher-label={`${inlineMathToPlainText(force.label)} ${inlineMathToPlainText(force.detail || "")} ${force.direction}`}
+              data-teacher-sequence={index + 1}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.15 + index * 0.12 }}

@@ -255,6 +255,9 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
           d ? (
             <motion.path
               key={`plot-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={safePlots[i].equation}
+              data-teacher-sequence={i}
               d={d}
               fill="none"
               stroke={safePlots[i].color || LINE_COLORS[i % LINE_COLORS.length]}
@@ -283,6 +286,9 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
         {safeSegments.map((seg, i) => (
           <motion.line
             key={`seg-${i}`}
+            data-teacher-target="primary"
+            data-teacher-label={`${seg.from.x}, ${seg.from.y} to ${seg.to.x}, ${seg.to.y}`}
+            data-teacher-sequence={safePlots.length + i}
             x1={xPos(seg.from.x)}
             y1={yPos(seg.from.y)}
             x2={xPos(seg.to.x)}
@@ -300,6 +306,9 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
         {safePoints.map((p, i) => (
           <motion.g
             key={`pt-${i}`}
+            data-teacher-target="primary"
+            data-teacher-label={`${p.label} ${p.point.x}, ${p.point.y}`}
+            data-teacher-sequence={safePlots.length + safeSegments.length + i}
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{

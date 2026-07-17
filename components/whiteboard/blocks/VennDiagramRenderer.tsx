@@ -124,7 +124,12 @@ export default function VennDiagramRenderer({ block, baseDelay }: Props) {
 
         {/* Set circles */}
         {centers.map((c, i) => (
-          <motion.g key={`set-${i}`}>
+          <motion.g
+            key={`set-${i}`}
+            data-teacher-target="primary"
+            data-teacher-label={inlineMathToPlainText(sets[i]?.label || String.fromCharCode(65 + i))}
+            data-teacher-sequence={i}
+          >
             <motion.circle
               cx={c.x}
               cy={c.y}
@@ -173,6 +178,9 @@ export default function VennDiagramRenderer({ block, baseDelay }: Props) {
           return (
             <motion.text
               key={`region-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={`${reg.region} ${inlineMathToPlainText(String(reg.value))}`}
+              data-teacher-sequence={centers.length + i}
               x={pos.x}
               y={pos.y}
               textAnchor="middle"

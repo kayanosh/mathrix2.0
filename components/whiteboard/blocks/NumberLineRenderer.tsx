@@ -149,6 +149,8 @@ export default function NumberLineRenderer({ block, baseDelay }: Props) {
             <motion.g
               key={`marker-${i}`}
               data-teacher-target="primary"
+              data-teacher-label={`${m.label || m.value}`}
+              data-teacher-sequence={i}
               style={
                 {
                   transformOrigin: `${xPos(m.value)}px ${lineY}px`,

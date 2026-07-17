@@ -90,6 +90,8 @@ export default function TableRenderer({ block, baseDelay }: Props) {
                     <td
                       key={ci}
                       data-teacher-target={isHighlighted ? "primary" : undefined}
+                      data-teacher-label={cell}
+                      data-teacher-sequence={ri * Math.max(1, row.length) + ci}
                       style={
                         {
                           "--teacher-sequence": ri * Math.max(1, row.length) + ci,

@@ -94,7 +94,12 @@ function BarChartRenderer({
           const color = bar.color || BAR_COLORS[i % BAR_COLORS.length];
 
           return (
-            <motion.g key={i}>
+            <motion.g
+              key={i}
+              data-teacher-target="primary"
+              data-teacher-label={`${inlineMathToPlainText(bar.label)} ${bar.value}`}
+              data-teacher-sequence={i}
+            >
               <motion.rect
                 x={bx}
                 y={height - padding.bottom}
@@ -212,7 +217,12 @@ function PieChartRenderer({
             const d = `M ${cx},${cy} L ${x1},${y1} A ${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
 
             return (
-              <motion.g key={i}>
+              <motion.g
+                key={i}
+                data-teacher-target="primary"
+                data-teacher-label={`${inlineMathToPlainText(slice.label)} ${slice.value} ${Math.round((slice.value / total) * 100)} percent`}
+                data-teacher-sequence={i}
+              >
                 <motion.path
                   d={d}
                   fill={color}
@@ -378,6 +388,9 @@ function BoxPlotRenderer({
         ].map(({ v, label }, i) => (
           <motion.text
             key={i}
+            data-teacher-target="primary"
+            data-teacher-label={label}
+            data-teacher-sequence={i}
             x={xPos(v)}
             y={boxY + boxH + 30}
             textAnchor="middle"
@@ -465,6 +478,9 @@ function CumulativeFreqRenderer({
         {points.map((p, i) => (
           <motion.circle
             key={i}
+            data-teacher-target="primary"
+            data-teacher-label={`${p.upperBound} ${p.cumulativeFrequency}`}
+            data-teacher-sequence={i}
             cx={xPos(p.upperBound)}
             cy={yPos(p.cumulativeFrequency)}
             r="3"

@@ -43,6 +43,12 @@ import SpeechHighlighter, {
   countWords,
 } from "@/components/whiteboard/tutor/SpeechHighlighter";
 import InlineMath from "@/components/InlineMath";
+import {
+  teacherPointerPoint,
+  teacherSpeechProgress,
+  teacherTargetIndex,
+  type PointerTargetDescriptor,
+} from "@/lib/teacher-pointer";
 
 interface Props {
   data: WhiteboardResponse;
@@ -147,6 +153,22 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     () => buildTeacherSpeechParts(steps[activeCue + 1]),
     [activeCue, steps],
   );
+  const pointerSpeechText =
+    phase === "check" ? speechParts.check || "" : speechParts.explanation;
+  const pointerPlaybackRef = useRef({
+    phase,
+    activeWord,
+    narration: pointerSpeechText,
+  });
+  const schedulePointerPlaceRef = useRef<() => void>(() => undefined);
+
+  useEffect(() => {
+    pointerPlaybackRef.current = {
+      phase,
+      activeWord,
+      narration: pointerSpeechText,
+    };
+  }, [activeWord, phase, pointerSpeechText]);
 
   const { speak, prepare, cancel } = useWhiteboardSpeech();
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -168,64 +190,83 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setFocusEl(el);
   }, []);
 
-  // Pointer follows the exact semantic target and stays attached while the
-  // canvas scrolls. Renderers mark precise digits/terms as "primary" and the
-  // visual panel is the safe fallback for diagrams without finer anchors.
+  // Pointer follows semantic anchors using the same word clock as narration.
+  // It stays attached while the board scrolls and traces a larger visual when
+  // a renderer has no smaller labelled anchors.
   useEffect(() => {
     if (!focusEl) {
       const hideFrame = requestAnimationFrame(() => setPointerVisible(false));
       return () => cancelAnimationFrame(hideFrame);
     }
 
-    const preferLastTarget =
-      phase === "explain" ||
-      phase === "check" ||
-      phase === "pupil_pause" ||
-      phase === "complete";
     let frame = 0;
 
-    const findTarget = (): HTMLElement | null => {
-      const equationTargets = Array.from(
-        focusEl.querySelectorAll<HTMLElement>('[id$="-from"], [id$="-to"]'),
-      ).filter((el) => {
+    const visibleTargets = (selector: string): HTMLElement[] =>
+      Array.from(focusEl.querySelectorAll<HTMLElement>(selector)).filter((el) => {
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
       });
+
+    const findTargets = (): HTMLElement[] => {
+      const equationTargets = visibleTargets('[id$="-from"], [id$="-to"]');
       if (equationTargets.length > 0) {
-        const suffix = preferLastTarget ? "-to" : "-from";
-        return (
-          equationTargets.find((el) => el.id.endsWith(suffix)) ||
-          equationTargets[preferLastTarget ? equationTargets.length - 1 : 0]
-        );
+        return equationTargets;
       }
 
-      const precise = Array.from(
-        focusEl.querySelectorAll<HTMLElement>('[data-teacher-target="primary"]'),
-      ).filter((el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0;
-      });
-      if (precise.length > 0) {
-        return preferLastTarget ? precise[precise.length - 1] : precise[0];
-      }
-      return focusEl.querySelector<HTMLElement>('[data-teacher-target="visual"]');
+      const primary = visibleTargets('[data-teacher-target="primary"]');
+      if (primary.length > 0) return primary;
+      const detail = visibleTargets('[data-teacher-target="detail"]');
+      if (detail.length > 0) return detail;
+      const visual = focusEl.querySelector<HTMLElement>(
+        '[data-teacher-target="visual"]',
+      );
+      return visual ? [visual] : [];
     };
 
     const place = () => {
       frame = 0;
-      const target = findTarget();
+      const targets = findTargets();
+      const playback = pointerPlaybackRef.current;
+      const descriptors: PointerTargetDescriptor[] = targets.map((target, index) => ({
+        label:
+          target.dataset.teacherLabel ||
+          target.getAttribute("aria-label") ||
+          target.textContent ||
+          target.id,
+        sequence: (() => {
+          const parsed = Number(
+            target.dataset.teacherSequence ||
+              getComputedStyle(target).getPropertyValue("--teacher-sequence"),
+          );
+          return Number.isFinite(parsed) ? parsed : index;
+        })(),
+      }));
+      const ordered = targets
+        .map((target, index) => ({ target, descriptor: descriptors[index], index }))
+        .sort(
+          (a, b) =>
+            a.descriptor.sequence - b.descriptor.sequence || a.index - b.index,
+        );
+      const targetIndex = teacherTargetIndex(
+        ordered.map(({ descriptor }) => descriptor),
+        playback.narration,
+        playback.activeWord,
+        playback.phase,
+      );
+      const target = ordered[targetIndex]?.target;
       if (!target) {
         setPointerVisible(false);
         return;
       }
       const rect = target.getBoundingClientRect();
-      const compact = rect.width <= 90 && rect.height <= 90;
-      const next = compact
-        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-        : {
-            x: rect.left + Math.min(Math.max(rect.width * 0.2, 34), 110),
-            y: rect.top + Math.min(Math.max(rect.height * 0.3, 30), 100),
-          };
+      const next = teacherPointerPoint(
+        rect,
+        teacherSpeechProgress(
+          playback.narration,
+          playback.activeWord,
+          playback.phase,
+        ),
+      );
       setPointerPos((current) =>
         Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
           ? current
@@ -239,6 +280,8 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       frame = requestAnimationFrame(place);
     };
 
+    schedulePointerPlaceRef.current = schedulePlace;
+
     schedulePlace();
 
     document.addEventListener("scroll", schedulePlace, true);
@@ -250,12 +293,19 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     observer?.observe(focusEl);
 
     return () => {
+      schedulePointerPlaceRef.current = () => undefined;
       if (frame) cancelAnimationFrame(frame);
       observer?.disconnect();
       document.removeEventListener("scroll", schedulePlace, true);
       window.removeEventListener("resize", schedulePlace);
     };
-  }, [focusEl, activeCue, runId, phase]);
+  }, [focusEl, activeCue, runId]);
+
+  // Word updates arrive from the cloud audio duration (or browser speech word
+  // boundaries), so pointer movement and voice share one playback clock.
+  useEffect(() => {
+    if (isPlaying) schedulePointerPlaceRef.current();
+  }, [activeWord, isPlaying, phase, pointerSpeechText]);
 
   const advance = useCallback(() => {
     const prev = activeCue;
@@ -462,16 +512,6 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       : phase === "check" || phase === "pupil_pause"
         ? "check"
         : "point";
-  const pointerLabel =
-    phase === "focus"
-      ? "Get ready"
-      : phase === "point"
-        ? "Look here"
-        : phase === "write"
-          ? "Watch this"
-          : phase === "check" || phase === "pupil_pause"
-            ? "Your turn"
-            : "Follow me";
   const badge = getVerificationBadge(data);
   const showBadge =
     currentStep?.kind === "conclusion" || activeCue === totalCues - 1;
@@ -573,7 +613,6 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         y={pointerPos.y}
         visible={pointerVisible}
         mode={isPlaying ? pointerMode : "point"}
-        label={isPlaying ? pointerLabel : "Paused here"}
       />
 
       {/* Controls */}

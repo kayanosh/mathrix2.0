@@ -305,6 +305,8 @@ function BranchGroup({
             <motion.text
               x={nextX + 12}
               y={branchY}
+              data-teacher-target="primary"
+              data-teacher-label={`${inlineMathToPlainText(branch.event)} ${cleanLatex(branch.probability)}`}
               fill={isHighlighted ? "#fbbf24" : "#ffffff"}
               fontSize="17"
               fontWeight={isHighlighted ? 700 : 500}

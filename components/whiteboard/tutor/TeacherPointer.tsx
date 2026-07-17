@@ -8,7 +8,6 @@ interface Props {
   visible: boolean;
   /** Writing vs pointing */
   mode?: "point" | "write" | "check";
-  label?: string;
 }
 
 /**
@@ -20,7 +19,6 @@ export default function TeacherPointer({
   y,
   visible,
   mode = "point",
-  label,
 }: Props) {
   return (
     <motion.div
@@ -33,7 +31,7 @@ export default function TeacherPointer({
         scale: visible ? 1 : 0.8,
       }}
       transition={{ type: "spring", stiffness: 320, damping: 30, mass: 0.55 }}
-      style={{ left: 0, top: 0, width: 112, height: 62 }}
+      style={{ left: 0, top: 0, width: 40, height: 48 }}
       aria-hidden
     >
       <motion.span
@@ -58,9 +56,6 @@ export default function TeacherPointer({
           strokeLinejoin="round"
         />
       </svg>
-      <div className="absolute left-8 top-7 whitespace-nowrap rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg ring-2 ring-white/90">
-        {label || (mode === "write" ? "Watch this" : mode === "check" ? "Your turn" : "Look here")}
-      </div>
     </motion.div>
   );
 }

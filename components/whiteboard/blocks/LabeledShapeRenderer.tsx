@@ -314,6 +314,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           return (
             <motion.text
               key={`v-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={inlineMathToPlainText(label)}
+              data-teacher-sequence={i}
               x={p.x + offsetX}
               y={p.y + offsetY}
               textAnchor="middle"
@@ -356,6 +359,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           return (
             <motion.g
               key={`side-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={`${side.from} ${side.to} ${inlineMathToPlainText(side.label)}`}
+              data-teacher-sequence={vertexLabels.length + i}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.7 + i * 0.1 }}
@@ -430,6 +436,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
             return (
               <motion.path
                 key={`angle-${i}`}
+                data-teacher-target="primary"
+                data-teacher-label={`${angle.vertex} right angle ${inlineMathToPlainText(angle.label)}`}
+                data-teacher-sequence={vertexLabels.length + (sides?.length || 0) + i}
                 d={sqPath}
                 fill="none"
                 stroke={COLORS.angle}
@@ -459,6 +468,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           return (
             <motion.g
               key={`angle-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={`${angle.vertex} ${inlineMathToPlainText(angle.label)}`}
+              data-teacher-sequence={vertexLabels.length + (sides?.length || 0) + i}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.9 + i * 0.1 }}
@@ -552,10 +564,10 @@ function StraightLineAngleRenderer({
         <text x={width - 55} y={cy + 24} fill={COLORS.label} fontSize="14">B</text>
         <text x={cx - 7} y={cy + 24} fill={COLORS.label} fontSize="14">O</text>
         <text x={cx + 66} y="54" fill={COLORS.label} fontSize="14">C</text>
-        <text x={cx - 58} y={cy - 42} fill={COLORS.angle} fontSize="16" textAnchor="middle">
+        <text data-teacher-target="primary" data-teacher-label={labels[0] || ""} data-teacher-sequence={0} x={cx - 58} y={cy - 42} fill={COLORS.angle} fontSize="16" textAnchor="middle">
           {labels[0] ?? ""}
         </text>
-        <text x={cx + 60} y={cy - 38} fill={COLORS.angle} fontSize="16" textAnchor="middle">
+        <text data-teacher-target="primary" data-teacher-label={labels[1] || ""} data-teacher-sequence={1} x={cx + 60} y={cy - 38} fill={COLORS.angle} fontSize="16" textAnchor="middle">
           {labels[1] ?? ""}
         </text>
       </svg>
@@ -613,6 +625,9 @@ function AroundPointAngleRenderer({
           return (
             <text
               key={`angle-label-${i}`}
+              data-teacher-target="primary"
+              data-teacher-label={label}
+              data-teacher-sequence={i}
               x={cx + 58 * Math.cos(mid)}
               y={cy + 58 * Math.sin(mid)}
               fill={COLORS.angle}
@@ -686,6 +701,9 @@ function CircleRenderer({
         {/* Center label */}
         {circleData?.center && (
           <motion.text
+            data-teacher-target="primary"
+            data-teacher-label={inlineMathToPlainText(circleData.center)}
+            data-teacher-sequence={0}
             x={cx + 8}
             y={cy - 8}
             fill="#e8e8f0"
@@ -718,6 +736,9 @@ function CircleRenderer({
         {/* Radius label */}
         {circleData?.radius && circleData.showRadius && (
           <motion.text
+            data-teacher-target="primary"
+            data-teacher-label={`radius ${inlineMathToPlainText(circleData.radius)}`}
+            data-teacher-sequence={1}
             x={cx + r / 2}
             y={cy - 10}
             textAnchor="middle"
