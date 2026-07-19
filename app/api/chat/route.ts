@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest } from "next/server";
 
 // Allow longer execution time for multi-stage solving and verification.
@@ -52,9 +52,6 @@ import { applyMethodBuilderToWhiteboard } from "@/lib/methods/apply-builder";
 import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 /* ── Model configuration ─────────────────────────────────────────────────── */
 
@@ -366,7 +363,7 @@ export async function POST(req: NextRequest) {
         followUpRaw = r.content;
         recordClaude(r);
       } catch {
-        const fb = await openai.chat.completions.create({
+        const fb = await getOpenAI().chat.completions.create({
           model: "gpt-4o",
           max_tokens: 1024,
           response_format: { type: "json_object" },
@@ -435,7 +432,7 @@ export async function POST(req: NextRequest) {
         teacherRaw = r.content;
         recordClaude(r);
       } catch {
-        const fb = await openai.chat.completions.create({
+        const fb = await getOpenAI().chat.completions.create({
           model: "gpt-4o",
           max_tokens: 8192,
           response_format: { type: "json_object" },
@@ -602,7 +599,7 @@ export async function POST(req: NextRequest) {
           });
           return r.content;
         } catch {
-          const fb = await openai.chat.completions.create({
+          const fb = await getOpenAI().chat.completions.create({
             model: "gpt-4o",
             max_tokens: 8192,
             response_format: { type: "json_object" },
@@ -861,7 +858,7 @@ export async function POST(req: NextRequest) {
     } catch (claudeErr) {
       // Fallback to GPT-4o if Claude is unavailable
       console.warn(`[Pass 1] Claude failed, falling back to GPT-4o: ${(claudeErr as Error).message}`);
-      const fallbackResponse = await openai.chat.completions.create({
+      const fallbackResponse = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         max_tokens: 8192,
         response_format: { type: "json_object" },
@@ -1094,7 +1091,7 @@ export async function POST(req: NextRequest) {
       groundTruth.verified ? groundTruth : null,
     );
 
-    const criticResponse = await openai.chat.completions.create({
+    const criticResponse = await getOpenAI().chat.completions.create({
       model: CRITIC_MODEL,
       max_tokens: CRITIC_MAX_TOKENS,
       response_format: { type: "json_object" },
@@ -1142,7 +1139,7 @@ export async function POST(req: NextRequest) {
           recordClaude(correctionResult);
         } catch {
           // Fall back to GPT-4o for correction
-          const fallback = await openai.chat.completions.create({
+          const fallback = await getOpenAI().chat.completions.create({
             model: "gpt-4o",
             max_tokens: 8192,
             response_format: { type: "json_object" },

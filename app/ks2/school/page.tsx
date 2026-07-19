@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, GraduationCap, Loader2, School } from "lucide-react";
+import { ArrowRight, GraduationCap, Loader2 } from "lucide-react";
 import {
   DEFAULT_KS2_SCHOOL_ID,
   getKS2School,
@@ -61,9 +61,14 @@ export default function KS2SchoolPage() {
           transition={{ duration: 0.45 }}
           className="text-center"
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 mb-5">
-            <School size={32} strokeWidth={2} />
-          </div>
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mb-4 w-28"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mascot.png" alt="Matty the maths owl" className="w-full drop-shadow-lg" />
+          </motion.div>
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-2">Welcome to your school</h1>
           <p className="text-gray-500 text-lg mb-8">Choose your school to see your learning path.</p>
         </motion.div>

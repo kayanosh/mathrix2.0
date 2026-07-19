@@ -1,10 +1,9 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishQuizExtra } from "@/lib/ks2-english";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 import { withOpenAIModelFallback } from "@/lib/openai-retry";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const QUIZ_MODEL = process.env.OPENAI_KS2_QUIZ_MODEL || "gpt-5.6-luna";
 const QUIZ_FALLBACK_MODEL =
   process.env.OPENAI_KS2_QUIZ_FALLBACK_MODEL || "gpt-5.4-mini";
@@ -67,7 +66,7 @@ ${englishQuizExtra(subject, topic, subtopics)}`;
     const completion = await withOpenAIModelFallback(
       QUIZ_MODEL,
       QUIZ_FALLBACK_MODEL,
-      (model) => openai.chat.completions.create({
+      (model) => getOpenAI().chat.completions.create({
         model,
         reasoning_effort: "none",
         response_format: { type: "json_object" },

@@ -2,6 +2,7 @@
 
 import { buildMethodForQuestion } from "@/lib/methods";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+import { mathsValuesEquivalent, parseMathsValue } from "@/lib/maths-value";
 
 export interface MathsAnswerIssue {
   location: string;
@@ -23,16 +24,15 @@ export interface MathsPracticeLessonLike {
   tryThis?: PracticeItemLike;
 }
 
+/**
+ * Numeric value of an answer string, via the exact-rational canonicaliser
+ * (lib/maths-value). Mixed numbers, LaTeX fractions, unicode vulgar
+ * fractions, money and decimals all reduce to one structural value.
+ */
 function numericValue(text: string): number | null {
-  const normalized = normalizeMathText(text).replace(/,/g, "");
-  const fractions = [...normalized.matchAll(/(-?\d+)\s*\/\s*(\d+)/g)];
-  if (fractions.length > 0) {
-    const match = fractions[fractions.length - 1];
-    const denominator = Number(match[2]);
-    return denominator === 0 ? null : Number(match[1]) / denominator;
-  }
-  const numbers = normalized.match(/-?\d+(?:\.\d+)?/g);
-  return numbers?.length ? Number(numbers[numbers.length - 1]) : null;
+  const parsed = parseMathsValue(text);
+  if (!parsed) return null;
+  return Number(parsed.value.num) / Number(parsed.value.den);
 }
 
 function coordinateTuple(text: string): [number, number] | null {
@@ -60,8 +60,8 @@ export function mathsAnswersEquivalent(
     );
   }
 
-  const expectedNumber = numericValue(expectedText);
-  const suppliedNumber = numericValue(actualText);
+  const expectedNumber = numericValue(expected || "");
+  const suppliedNumber = numericValue(supplied || "");
   if (expectedNumber !== null && suppliedNumber !== null) {
     // Lists of values (for example common multiples) must contain every value.
     const expectedNumbers: string[] =
@@ -71,7 +71,8 @@ export function mathsAnswersEquivalent(
         actualText.match(/-?\d+(?:\.\d+)?/g) ?? [];
       return expectedNumbers.every((value) => actualNumbers.includes(value));
     }
-    return Math.abs(expectedNumber - suppliedNumber) < 1e-9;
+    // Exact rational comparison — no float tolerance.
+    return mathsValuesEquivalent(supplied || "", expected || "");
   }
 
   const compactActual = actualText.replace(/[^a-z0-9]/g, "");

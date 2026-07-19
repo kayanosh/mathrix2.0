@@ -1,7 +1,6 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { supabaseAdmin } from "./supabase/admin";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * Retrieve the most relevant content chunks for a user's question.
@@ -21,7 +20,7 @@ export async function retrieveContentChunks(
 ): Promise<string[]> {
   try {
     // Generate embedding for the question
-    const embeddingResponse = await openai.embeddings.create({
+    const embeddingResponse = await getOpenAI().embeddings.create({
       model: "text-embedding-3-small",
       input: question,
     });

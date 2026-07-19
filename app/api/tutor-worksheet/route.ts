@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
   tutorLessonCacheKey,
@@ -8,7 +8,6 @@ import {
 import { buildTutorWorksheetPrompt } from "@/lib/prompts/tutor";
 import type { TutorSolutionQuestion, TutorWorksheet } from "@/types";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const maxDuration = 60;
 
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
       count,
     });
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
       messages: [

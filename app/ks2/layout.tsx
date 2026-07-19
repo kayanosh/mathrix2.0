@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { MotionConfig } from "framer-motion";
 import { getKS2School } from "@/lib/ks2-school";
 
 export default function KS2Layout({ children }: { children: React.ReactNode }) {
@@ -30,5 +31,6 @@ export default function KS2Layout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  // Honour the OS "reduce motion" setting for every spring/entrance in KS2.
+  return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
 }

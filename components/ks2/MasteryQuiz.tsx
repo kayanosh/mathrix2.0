@@ -8,6 +8,8 @@ import { recordCorrect, recordIncorrect, markTopicMastered, type SkillMeta } fro
 import { ks2SkillKey } from "@/lib/ks2";
 import { MASTERY_QUIZ_SIZE, MASTERY_PASS_MARK, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
 import { fetchKS2Questions } from "@/lib/ks2-quiz-client";
+import { playKS2Sound } from "@/lib/ks2-sounds";
+import StarBurst from "@/components/ks2/StarBurst";
 
 interface QuizQuestion {
   question: string;
@@ -104,6 +106,7 @@ export default function MasteryQuiz({
     if (gotIt) {
       recordCorrect(topicKey, meta2);
       setCorrect((c) => c + 1);
+      playKS2Sound("correct");
     } else {
       recordIncorrect(topicKey, meta2);
     }
@@ -111,6 +114,7 @@ export default function MasteryQuiz({
       const finalCorrect = correct + (gotIt ? 1 : 0);
       if (finalCorrect >= MASTERY_PASS_MARK) {
         markTopicMastered(topicKey, meta2);
+        playKS2Sound("fanfare");
         onPassed();
       }
       setDone(true);
@@ -179,8 +183,21 @@ export default function MasteryQuiz({
               <button onClick={onClose} className="text-indigo-600 font-medium">Close</button>
             </div>
           ) : done ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-3">{passed ? "🎉" : "💪"}</div>
+            <div className="relative text-center py-8">
+              {passed && <StarBurst />}
+              {passed ? (
+                <motion.div
+                  initial={{ scale: 0, rotate: -8 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 220, damping: 14 }}
+                  className="mx-auto mb-3 w-28"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/mascot.png" alt="Matty the maths owl celebrates with you" className="w-full" />
+                </motion.div>
+              ) : (
+                <div className="text-5xl mb-3">💪</div>
+              )}
               <h3 className="text-2xl font-extrabold text-gray-900 mb-1">
                 {passed ? "Mastered!" : "Keep going!"}
               </h3>

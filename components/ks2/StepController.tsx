@@ -89,12 +89,16 @@ export default function StepController({
         >
           <List size={14} /> Show all
         </button>
-        <span className="ml-auto text-[11px] font-medium text-gray-500">
+        <span
+          role="status"
+          aria-live="polite"
+          className="ml-auto text-[11px] font-medium text-gray-500"
+        >
           Step {showAll ? reasoning.length : index + 1} of {reasoning.length}
         </span>
       </div>
 
-      <ol className="space-y-2.5">
+      <ol aria-live="polite" aria-label="Worked example steps" className="space-y-2.5">
         {visible.map((step, i) => (
           <motion.li
             key={`${step.title}-${i}`}

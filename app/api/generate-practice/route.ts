@@ -1,7 +1,6 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,7 +24,7 @@ Difficulty: ${resolvedDifficulty}. ${difficultyGuide}
 It must be self-contained — include all necessary numbers and context.
 Return ONLY the question text — no answer, no explanation, no preamble.`;
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },

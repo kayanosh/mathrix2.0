@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { hashTtsKey, lookupTtsAudio, writeTtsAudio } from "@/lib/tts-cache";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const TTS_VOICE = "onyx"; // deep, authoritative — closest to Jarvis
 const memoryTtsCache = new Map<string, Buffer>();
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const response = await openai.audio.speech.create({
+    const response = await getOpenAI().audio.speech.create({
       model: "tts-1",
       voice: TTS_VOICE,
       input: text,

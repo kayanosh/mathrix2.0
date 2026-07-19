@@ -15,13 +15,10 @@ import { buildTeacherQuestionsPrompt } from "@/lib/prompts/teacher";
 import { TeacherQuestionsResponseSchema } from "@/lib/schemas";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -84,7 +81,7 @@ export async function POST(req: NextRequest) {
     } catch {
       // Fallback to GPT-4o
       console.warn("[TeacherQuestions] Claude failed, falling back to GPT-4o");
-      const fallback = await openai.chat.completions.create({
+      const fallback = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
         max_tokens: 4096,
         response_format: { type: "json_object" },

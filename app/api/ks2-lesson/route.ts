@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 import { scienceLessonExtra } from "@/lib/ks2-science";
@@ -50,7 +50,6 @@ import { ensureRelevantSubjectVisuals } from "@/lib/ks2-subject-visuals";
 import { parseMultiplesQuestion } from "@/lib/methods/multiples-factors";
 import { hardenKS2MathsPracticeAnswers } from "@/lib/ks2-maths-accuracy";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
 const FAST_MODEL = process.env.OPENAI_KS2_FAST_MODEL || "gpt-5.6-luna";
 const LESSON_FALLBACK_MODEL =
@@ -695,7 +694,7 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       const completion = await withOpenAIModelFallback(
         FAST_MODEL,
         FAST_FALLBACK_MODEL,
-        (model) => openai.chat.completions.create({
+        (model) => getOpenAI().chat.completions.create({
           model,
           reasoning_effort: "none",
           response_format: { type: "json_object" },
@@ -944,7 +943,7 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
       const completion = await withOpenAIModelFallback(
         LESSON_MODEL,
         LESSON_FALLBACK_MODEL,
-        (model) => openai.chat.completions.create({
+        (model) => getOpenAI().chat.completions.create({
           model,
           reasoning_effort: "none",
           response_format: { type: "json_object" },

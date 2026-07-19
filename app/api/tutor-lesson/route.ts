@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
   tutorLessonCacheKey,
@@ -8,7 +8,6 @@ import {
 import { buildTutorLessonPrompt } from "@/lib/prompts/tutor";
 import type { TutorLesson } from "@/types";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * POST /api/tutor-lesson
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
       scienceTrack,
     });
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
       messages: [
