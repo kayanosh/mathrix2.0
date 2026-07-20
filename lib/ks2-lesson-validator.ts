@@ -210,6 +210,10 @@ function mixedSkill(
   ) {
     return false;
   }
+  // Scale drawings apply scale factors TO shapes — the question is geometry
+  // by nature, the skill is ratio by name. Not a mixed skill.
+  if (skillFam === "ratio" && qFam === "geometry") return false;
+  if (skillFam === "geometry" && qFam === "ratio") return false;
   // FDP equivalence can look like percentages or fraction_ops depending on wording
   if (
     (skillFam === "percentages" || skillFam === "fraction_ops" || skillFam === "decimals") &&

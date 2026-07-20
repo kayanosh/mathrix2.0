@@ -17,3 +17,13 @@ describe("factor skills use the multiples family", () => {
     ).toBe("fraction_simplify");
   });
 });
+
+describe("scale drawing lessons are not mixed-skill", () => {
+  it("scale-factor skill + shape question is allowed", () => {
+    // ratio skill family with geometry question family must not 422
+    const skillFam = detectSkillVisualFamily("", "Properties of Shape", "Scale factors and scale drawings");
+    const qFam = detectSkillVisualFamily("A rectangle is 4 cm long and 2 cm wide. Draw it using a scale factor of 3.");
+    expect(skillFam).toBe("ratio");
+    expect(qFam).toBe("geometry");
+  });
+});
