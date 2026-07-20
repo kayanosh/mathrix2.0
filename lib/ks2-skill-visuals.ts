@@ -47,7 +47,13 @@ export function detectSkillVisualFamily(
   topic = "",
   skill = "",
 ): KS2SkillVisualFamily {
-  const q = normalizeMathText(question).toLowerCase();
+  // Strip LaTeX commands before keyword matching: "\square" contains the
+  // literal word "square" and was hijacking sequence questions into the
+  // geometry family.
+  const q = normalizeMathText(question)
+    .replace(/\\[a-zA-Z]+/g, " ")
+    .replace(/\$+/g, " ")
+    .toLowerCase();
   const t = `${topic} ${skill}`.toLowerCase();
 
   // Curriculum skill names are more authoritative than incidental wording in

@@ -214,6 +214,20 @@ function mixedSkill(
   // by nature, the skill is ratio by name. Not a mixed skill.
   if (skillFam === "ratio" && qFam === "geometry") return false;
   if (skillFam === "geometry" && qFam === "ratio") return false;
+  // "Multiplication and division problems" are word problems BY DEFINITION —
+  // a word-problem question is the skill, not a second skill.
+  if (
+    (skillFam === "multiplication" || skillFam === "division") &&
+    qFam === "word_problems"
+  ) {
+    return false;
+  }
+  if (
+    skillFam === "word_problems" &&
+    (qFam === "multiplication" || qFam === "division")
+  ) {
+    return false;
+  }
   // FDP equivalence can look like percentages or fraction_ops depending on wording
   if (
     (skillFam === "percentages" || skillFam === "fraction_ops" || skillFam === "decimals") &&
