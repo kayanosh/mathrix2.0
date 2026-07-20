@@ -141,7 +141,7 @@ export default function LessonPanel(props: Props) {
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
-  async function load(force = false) {
+  async function load(force = false, attempt = 0) {
     const key = cacheKey(props);
     if (!force) {
       const cached = readCache(key);
@@ -195,10 +195,20 @@ export default function LessonPanel(props: Props) {
       setQualityWarnings(data.qualityWarnings || []);
       if (data.cacheable !== false) writeCache(key, data.lesson);
     } catch {
+      // A teacher in front of a class must not have to press "Try again"
+      // for a transient generation failure: retry once automatically with a
+      // fresh generation before showing the error state.
+      if (attempt === 0) {
+        setTimeout(() => {
+          void load(true, 1);
+        }, 1500);
+        return; // keep the loading state during the automatic retry
+      }
       setError(true);
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
   }
 
   useEffect(() => {

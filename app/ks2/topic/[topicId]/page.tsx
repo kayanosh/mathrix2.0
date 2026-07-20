@@ -306,20 +306,12 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
           Your learning journey
         </p>
         <div className="relative">
-          {PATHWAY_STAGES.map((stage, i) => {
+          {PATHWAY_STAGES.map((stage) => {
             const isQuiz = stage.id === "quiz";
             const isOpen = activeStage === stage.id;
             const stageDone = isQuiz ? isMastered : false;
-            const isLast = i === PATHWAY_STAGES.length - 1;
             return (
               <div key={stage.id} className="relative flex gap-4">
-                {/* Connector line */}
-                {!isLast && (
-                  <span
-                    aria-hidden
-                    className="absolute left-[26px] top-[60px] bottom-0 w-1 rounded-full bg-indigo-100"
-                  />
-                )}
                 <div className="flex-1 mb-4">
                   <motion.button
                     type="button"

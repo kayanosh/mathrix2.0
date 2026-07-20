@@ -48,7 +48,11 @@ import { allowRequest, requestClientKey } from "@/lib/rate-limit";
 import { withOpenAIModelFallback } from "@/lib/openai-retry";
 import { ensureRelevantSubjectVisuals } from "@/lib/ks2-subject-visuals";
 import { parseMultiplesQuestion } from "@/lib/methods/multiples-factors";
-import { hardenKS2MathsPracticeAnswers } from "@/lib/ks2-maths-accuracy";
+import {
+  deterministicMathsAnswer,
+  hardenKS2MathsPracticeAnswers,
+  mathsAnswersEquivalent,
+} from "@/lib/ks2-maths-accuracy";
 
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
 const FAST_MODEL = process.env.OPENAI_KS2_FAST_MODEL || "gpt-5.6-luna";
@@ -526,6 +530,18 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
     };
   }
   next = applyMethodBuilderToWorkedExample(next, topic, subtopics);
+  // Single source of truth: the validator checks the worked answer with
+  // deterministicMathsAnswer(question). If that solver can solve the
+  // question, its answer IS the answer — replace whatever the model wrote.
+  // Without this, a question the builder parses only via question-text
+  // routing (not topic routing) keeps the model's answer and the validator
+  // rejects the whole lesson with math_answer_mismatch (422 in class).
+  if (next.question) {
+    const solved = deterministicMathsAnswer(String(next.question));
+    if (solved && !mathsAnswersEquivalent(String(next.answer || ""), solved.answer)) {
+      next = { ...next, answer: solved.answer };
+    }
+  }
   if (next.whiteboard?.blocks) {
     const fit = filterFitBlocks(next.whiteboard.blocks, next.question);
     next = {
