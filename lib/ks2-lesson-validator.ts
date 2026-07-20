@@ -196,6 +196,20 @@ function mixedSkill(
   if (skillFam === "place_value" && qFam === "rounding") return false;
   if (skillFam === "rounding" && qFam === "place_value") return false;
   if (skillFam === "decimals" && qFam === "rounding") return false;
+  // Powers-of-ten shift skills legitimately span ×, ÷ and place value
+  // ("Multiply and divide decimals by 10, 100 and 1,000").
+  if (
+    (skillFam === "multiplication" || skillFam === "division" || skillFam === "decimals") &&
+    qFam === "place_value_shift"
+  ) {
+    return false;
+  }
+  if (
+    skillFam === "place_value_shift" &&
+    (qFam === "multiplication" || qFam === "division" || qFam === "decimals")
+  ) {
+    return false;
+  }
   // FDP equivalence can look like percentages or fraction_ops depending on wording
   if (
     (skillFam === "percentages" || skillFam === "fraction_ops" || skillFam === "decimals") &&

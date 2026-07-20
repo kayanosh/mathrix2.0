@@ -136,6 +136,11 @@ export function detectSkillVisualFamily(
   ) {
     return "fraction_ops";
   }
+  // Factor skills belong to the multiples/factors family (number line or
+  // table), not multiplication — "Find the common factors of 18 and 24" is
+  // not an area-model lesson. Simplify lessons mention the HCF, so exclude
+  // them explicitly.
+  if (/\bfactor/.test(`${q} ${t}`) && !/\bsimplif/.test(t)) return "multiples";
   if (/\bdivid/.test(t)) return "division";
   if (/\bmultipl/.test(t)) return "multiplication";
   if (/\bfraction\b/.test(t)) return "fraction_ops";
