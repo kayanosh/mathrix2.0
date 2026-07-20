@@ -172,6 +172,8 @@ export interface LabeledShapeBlock {
     tangentPoints?: string[];
     sectors?: { from: string; to: string; shaded?: boolean }[];
   };
+  /** Lines of symmetry to draw as dashed lines through the shape (0–4). */
+  symmetryLines?: number;
   /** Construction marks (arcs, bisectors) */
   constructions?: { type: "angle_bisector" | "perpendicular_bisector" | "arc"; description: string }[];
   /** Annotations — curly arrows showing relationships */

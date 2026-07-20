@@ -121,20 +121,18 @@ function mistakeMatchesSkill(
     .map((m) => `${m.mistake} ${m.correction}`)
     .join(" ")
     .toLowerCase();
+  // Blocking is reserved for mistakes that belong to a DIFFERENT skill —
+  // genuinely dangerous. An on-topic mistake phrased in an unexpected way
+  // (e.g. an FDP-ordering misconception with no "denominator" keyword) is a
+  // paraphrase, not a mismatch, and must not 422 the lesson.
   if (family === "fraction_simplify") {
-    if (/add(?:ing)? fractions|common denominator first/.test(blob)) {
-      return false;
-    }
-    return /numerator|denominator|both|same number|hcf|only the/.test(blob);
+    return !/add(?:ing)? fractions|common denominator first/.test(blob);
   }
   if (family === "fraction_compare") {
-    return /denominator|equivalent|common|numerators without/.test(blob);
+    return !/nearest\s+(ten|hundred)|round(?:ing)?\s+to|bus.?stop/.test(blob);
   }
   if (family === "rounding") {
-    if (/add(?:ing)? fractions|hcf|simplif|multiply|bus.?stop/.test(blob)) {
-      return false;
-    }
-    return /round|digit|decimal|nearest|truncat|place/.test(blob);
+    return !/add(?:ing)? fractions|hcf|simplif|bus.?stop/.test(blob);
   }
   void prose;
   return true;

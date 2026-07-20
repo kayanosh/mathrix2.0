@@ -104,6 +104,14 @@ function semanticChecks(
         break;
       }
       case "labeled_shape": {
+        if (
+          block.symmetryLines !== undefined &&
+          (!Number.isInteger(block.symmetryLines) ||
+            block.symmetryLines < 0 ||
+            block.symmetryLines > 4)
+        ) {
+          errors.push("labeled_shape symmetryLines must be an integer 0–4");
+        }
         if (block.shape === "triangle" && block.angles) {
           const total = block.angles.reduce((s, a) => s + a.degrees, 0);
           // Only check if all 3 angles are provided

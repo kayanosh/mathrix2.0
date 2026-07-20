@@ -301,6 +301,34 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           transition={{ delay: baseDelay, duration: 0.8 }}
         />
 
+        {/* Lines of symmetry (dashed) */}
+        {block.symmetryLines
+          ? [
+              // 1: vertical, 2: +horizontal, 3+: +diagonals
+              { x1: cx, y1: 6, x2: cx, y2: height - 6 },
+              { x1: 6, y1: cy, x2: width - 6, y2: cy },
+              { x1: 14, y1: 14, x2: width - 14, y2: height - 14 },
+              { x1: width - 14, y1: 14, x2: 14, y2: height - 14 },
+            ]
+              .slice(0, Math.min(4, Math.max(0, Math.round(block.symmetryLines))))
+              .map((line, i) => (
+                <motion.line
+                  key={`sym-${i}`}
+                  x1={line.x1}
+                  y1={line.y1}
+                  x2={line.x2}
+                  y2={line.y2}
+                  stroke="#f59e0b"
+                  strokeWidth={2.5}
+                  strokeDasharray="8 6"
+                  strokeLinecap="round"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.9 }}
+                  transition={{ delay: baseDelay + 0.6 + i * 0.15 }}
+                />
+              ))
+          : null}
+
         {/* Vertex labels */}
         {vertexLabels.map((label, i) => {
           const p = points[i];

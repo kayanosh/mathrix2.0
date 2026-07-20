@@ -79,6 +79,7 @@ Allowed block types for KS2: column_method, equation_steps, number_line, labeled
 • Fractions on a line → number_line
 • Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape
+• Symmetry → labeled_shape with "symmetryLines": <number of lines> (dashed lines are drawn through the shape — pupils must SEE the mirror line, not read about it)
 • Measuring an angle → protractor block: {"type": "protractor", "angle": <degrees>, "vertex": "B", "armLabels": ["C", "A"], "revealReading": false}. The FIRST teaching step must ESTIMATE — compare the angle with a right angle (90°) and classify it (acute/obtuse) BEFORE measuring, using revealReading: false. A later step reveals the reading (revealReading: true) and links the estimate to choosing the correct scale. Never teach protractor use with a bare triangle.
 • Introducing angle names/families (acute, right, obtuse, straight) → angle_scale block: {"type": "angle_scale"} — show the coloured 0–180° strip, NOT a paragraph of definitions. Add "highlight" ("acute"|"right"|"obtuse"|"straight") when focusing on one family.
 • Short hints between visuals → text (one sentence max)
