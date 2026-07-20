@@ -15,6 +15,10 @@ import {
   KS2_LESSON_VISUAL_SCHEMA,
   ks2LessonVisualsPrompt,
 } from "@/lib/ks2-required-visuals";
+import {
+  detectSkillVisualFamily,
+  KS2_SKILL_VISUALS,
+} from "@/lib/ks2-skill-visuals";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import {
   parseRomanNumeralQuestion,
@@ -844,9 +848,22 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       ? resolveKS2Taxonomy(topicId, focusSkill || undefined)
       : null;
 
+    // The validator enforces a per-skill visual family (ks2-skill-visuals).
+    // Tell the generator EXACTLY which block types will be required, so the
+    // first attempt already complies instead of being rejected after the fact.
+    const visualFamily = isMaths
+      ? detectSkillVisualFamily("", topic, focusSkill || "")
+      : null;
+    const visualContract = visualFamily
+      ? KS2_SKILL_VISUALS[visualFamily]
+      : null;
+    const visualContractPrompt = visualContract
+      ? `SKILL VISUAL CONTRACT (mandatory): this skill's visual family is "${visualFamily}". The workedExample.whiteboard.blocks MUST include at least one of these block types: ${visualContract.requiredAnyOf.join(", ")}. ${visualContract.guidance}\n`
+      : "";
+
     const teachingEngineExtra = teachingSubject
       ? `
-${isMaths ? `MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:\n${ks2LessonVisualsPrompt(topic, [focusSkill].filter(Boolean))}\n${KS2_LESSON_VISUAL_SCHEMA}\n` : ""}
+${isMaths ? `MATHEMATICS — WHITEBOARD DIAGRAM REQUIRED:\n${visualContractPrompt}${ks2LessonVisualsPrompt(topic, [focusSkill].filter(Boolean))}\n${KS2_LESSON_VISUAL_SCHEMA}\n` : ""}
 ${ks2TeachingEnginePrompt(taxonomy, kind, subject)}
 ${KS2_TEACHING_JSON_SHAPE}
 `
