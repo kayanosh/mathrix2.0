@@ -1213,6 +1213,12 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
               {
                 error: "The generated lesson contained unsafe or mismatched teaching content.",
                 issues: qualityWarnings,
+                // Diagnostic metadata for the audit tooling (safe to expose:
+                // block type names only, no content).
+                visualTypes:
+                  lesson.workedExample?.whiteboard?.blocks?.map(
+                    (block) => block.type,
+                  ) || [],
               },
               { status: 422 },
             );
