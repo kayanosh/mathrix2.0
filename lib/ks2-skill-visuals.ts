@@ -108,7 +108,16 @@ export function detectSkillVisualFamily(
   if (/\bdecimal\b|\d+\.\d+/.test(q)) return "decimals";
   if (/\bfraction\b|\d+\s*\/\s*\d+/.test(q)) return "fraction_ops";
   if (isAngleMeasuring(q) || isAngleMeasuring(t)) return "measure_angles";
-  if (/\bangle|perimeter|area|shape|triangle|rectangle/.test(q)) return "geometry";
+  // Geometry must outrank "how many…" word-problem phrasing: "How many
+  // lines of symmetry does this square have?" is geometry, not a word
+  // problem.
+  if (
+    /\bangle|perimeter|area|shape|triangle|rectangle|square|circle|pentagon|hexagon|octagon|polygon|quadrilateral|symmetr\w*|cube|cuboid/.test(
+      q,
+    )
+  ) {
+    return "geometry";
+  }
   if (/\bword problem|how many|altogether|left over/.test(q)) return "word_problems";
   if (/\bplace value\b/.test(q)) return "place_value";
 

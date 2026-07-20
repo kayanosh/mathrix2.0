@@ -55,3 +55,20 @@ describe("angle_scale block fitness", () => {
     expect(isBlockFit({ type: "angle_scale", highlight: "reflex" as never }, "")).toBe(false);
   });
 });
+
+describe("geometry outranks word-problem phrasing", () => {
+  it("classifies 'how many lines of symmetry' questions as geometry", () => {
+    expect(
+      detectSkillVisualFamily("How many lines of symmetry does this square have?", "Properties of Shape", "Lines of symmetry"),
+    ).toBe("geometry");
+    expect(
+      detectSkillVisualFamily("How many sides does a pentagon have?"),
+    ).toBe("geometry");
+  });
+
+  it("keeps genuine word problems as word_problems", () => {
+    expect(
+      detectSkillVisualFamily("How many sweets are left over altogether?"),
+    ).toBe("word_problems");
+  });
+});
