@@ -4,6 +4,7 @@
 
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import { parseOrderOperationsQuestion } from "@/lib/methods/order-of-operations";
+import type { VisualBlock } from "@/types/whiteboard";
 
 export type KS2SkillVisualFamily =
   | "fraction_simplify"
@@ -313,4 +314,42 @@ export function satisfiesSkillVisuals(
     return req.requiredAllOf.every((t) => set.has(t));
   }
   return true;
+}
+
+/**
+ * Deterministic repair for word-problem lessons whose only visual is a
+ * written calculation method (for example column_method). The strict
+ * word_problems contract requires a structure visual (key_info, bar_model,
+ * equation_steps or table); a bare algorithm misses the "find the key
+ * information" teaching moment and the validator rejects the whole lesson
+ * (visual_mismatch → 422 in class). The model gets the contract prompt but
+ * does not always comply, so we repair rather than reject: prepend a
+ * key_info block built from the question's own numbers, then keep the
+ * model's calculation visual after it. Returns the blocks unchanged when no
+ * repair is needed or no numbers exist to highlight.
+ */
+export function repairWordProblemVisuals(
+  blocks: VisualBlock[],
+  question: string,
+  topic = "",
+  skill = "",
+): VisualBlock[] {
+  if (!question || blocks.length === 0) return blocks;
+  const family = detectSkillVisualFamily(question, topic, skill);
+  if (family !== "word_problems") return blocks;
+  if (satisfiesSkillVisuals(blocks.map((b) => b.type), family)) return blocks;
+  const highlights = Array.from(question.matchAll(/\d+(?:\.\d+)?/g), (m) => ({
+    text: m[0],
+    kind: "number" as const,
+  }));
+  if (highlights.length === 0) return blocks;
+  return [
+    {
+      type: "key_info",
+      stem: question,
+      highlights,
+      caption: "Find the key information",
+    },
+    ...blocks,
+  ];
 }

@@ -18,6 +18,7 @@ import {
 import {
   detectSkillVisualFamily,
   KS2_SKILL_VISUALS,
+  repairWordProblemVisuals,
 } from "@/lib/ks2-skill-visuals";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import {
@@ -545,6 +546,26 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
     if (solved && !mathsAnswersEquivalent(String(next.answer || ""), solved.answer)) {
       next = { ...next, answer: solved.answer };
     }
+  }
+  // Word problems whose only visual is a written calculation method (for
+  // example column_method) miss the "find the key information" teaching
+  // moment and fail the strict word_problems visual contract (visual_mismatch
+  // → 422 in class). Repair deterministically by prepending a key_info block
+  // built from the question's own numbers — repair rather than reject,
+  // because a teacher cannot retry mid-lesson.
+  if (next.whiteboard?.blocks?.length && next.question) {
+    next = {
+      ...next,
+      whiteboard: {
+        ...next.whiteboard,
+        blocks: repairWordProblemVisuals(
+          next.whiteboard.blocks,
+          String(next.question),
+          topic,
+          subtopics.join(" "),
+        ),
+      },
+    };
   }
   if (next.whiteboard?.blocks) {
     const fit = filterFitBlocks(next.whiteboard.blocks, next.question);

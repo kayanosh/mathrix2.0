@@ -1,6 +1,11 @@
-import { detectSkillVisualFamily } from "@/lib/ks2-skill-visuals";
+import {
+  detectSkillVisualFamily,
+  repairWordProblemVisuals,
+  satisfiesSkillVisuals,
+} from "@/lib/ks2-skill-visuals";
 import { validateKS2TeachingLesson } from "@/lib/ks2-lesson-validator";
 import type { KS2TeachingLesson } from "@/types/ks2-lesson";
+import type { VisualBlock } from "@/types/whiteboard";
 
 describe("LaTeX does not hijack visual family detection", () => {
   it("$\\square$ in a sequence question is not detected as geometry", () => {
@@ -129,5 +134,79 @@ describe("word problems inside a multiplication/division skill are not mixed-ski
     };
     const v = validateKS2TeachingLesson(lesson, { maths: true });
     expect(v.issues.some((i) => i.code === "mixed_skill")).toBe(false);
+  });
+});
+
+describe("repairWordProblemVisuals", () => {
+  const question =
+    "A school buys $24$ boxes of pencils. Each box has $36$ pencils. How many pencils does the school buy?";
+  const columnOnly: VisualBlock[] = [
+    {
+      type: "column_method",
+      method: "column_multiplication",
+      rows: ["36", "24", "144", "720", "864"],
+      question: "36 × 24",
+      answer: "864",
+    },
+  ];
+
+  it("prepends a key_info block when only a calculation method is present", () => {
+    const repaired = repairWordProblemVisuals(
+      columnOnly,
+      question,
+      "Multiplication & Division B",
+      "Multiplication and division problems",
+    );
+    expect(repaired[0].type).toBe("key_info");
+    expect(repaired).toHaveLength(2);
+    // The repaired set now satisfies the strict word_problems contract
+    expect(
+      satisfiesSkillVisuals(
+        repaired.map((b) => b.type),
+        "word_problems",
+      ),
+    ).toBe(true);
+    // Key numbers from the question are highlighted
+    const keyInfo = repaired[0];
+    if (keyInfo.type !== "key_info") throw new Error("expected key_info");
+    expect(keyInfo.stem).toBe(question);
+    expect(keyInfo.highlights.map((h) => h.text)).toEqual(["24", "36"]);
+  });
+
+  it("leaves blocks that already satisfy the contract unchanged", () => {
+    const withTable: VisualBlock[] = [
+      {
+        type: "table",
+        headers: ["Item", "Value"],
+        rows: [["Boxes", "24"]],
+      },
+    ];
+    const repaired = repairWordProblemVisuals(
+      withTable,
+      question,
+      "Multiplication & Division B",
+      "Multiplication and division problems",
+    );
+    expect(repaired).toBe(withTable);
+  });
+
+  it("does not touch non-word-problem families", () => {
+    const repaired = repairWordProblemVisuals(
+      columnOnly,
+      "Simplify 12/16",
+      "Fractions",
+      "Simplify fractions using the highest common factor",
+    );
+    expect(repaired).toBe(columnOnly);
+  });
+
+  it("returns blocks unchanged when the question has no numbers", () => {
+    const repaired = repairWordProblemVisuals(
+      columnOnly,
+      "How many pencils are left over altogether?",
+      "",
+      "",
+    );
+    expect(repaired).toBe(columnOnly);
   });
 });
