@@ -1219,6 +1219,12 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
                   lesson.workedExample?.whiteboard?.blocks?.map(
                     (block) => block.type,
                   ) || [],
+                debugFamily: detectSkillVisualFamily(
+                  lesson.workedExample?.question ?? "",
+                  topic,
+                  focusSkill,
+                ),
+                debugQuestion: lesson.workedExample?.question ?? null,
               },
               { status: 422 },
             );
