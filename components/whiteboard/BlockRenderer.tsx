@@ -12,6 +12,7 @@ import TableRenderer from "./blocks/TableRenderer";
 import ChartRenderer from "./blocks/ChartRenderer";
 import ColumnMethodRenderer from "./blocks/ColumnMethodRenderer";
 import ForceDiagramRenderer from "./blocks/ForceDiagramRenderer";
+import ProtractorRenderer from "./blocks/ProtractorRenderer";
 import {
   AreaModelRenderer,
   BarModelRenderer,
@@ -64,6 +65,8 @@ export default function BlockRenderer({ block, baseDelay }: Props) {
       return <ChartRenderer block={block} baseDelay={baseDelay} />;
     case "column_method":
       return <ColumnMethodRenderer block={block} baseDelay={baseDelay} />;
+    case "protractor":
+      return <ProtractorRenderer block={block} />;
     case "text":
       return <TextRenderer block={block} />;
     default: {

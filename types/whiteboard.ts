@@ -506,6 +506,24 @@ export interface TextBlock {
   heading?: string;
 }
 
+// ── Block: Protractor (measuring angles) ──────────────────────────────────────
+
+export interface ProtractorBlock {
+  type: "protractor";
+  /** The angle to measure, in degrees (1–180). */
+  angle: number;
+  /** Vertex label, e.g. "B" — shown large at the protractor centre. */
+  vertex?: string;
+  /** Labels for the two arms: [baseline arm, rotating arm], e.g. ["C", "A"] for angle ABC. */
+  armLabels?: [string, string];
+  /**
+   * Hide the arc and the degree reading so pupils can ESTIMATE first
+   * (classify against a right angle) before the measurement is revealed.
+   */
+  revealReading?: boolean;
+  caption?: string;
+}
+
 // ── Discriminated Union ───────────────────────────────────────────────────────
 
 export type VisualBlock =
@@ -526,6 +544,7 @@ export type VisualBlock =
   | TableBlock
   | ChartBlock
   | ColumnMethodBlock
+  | ProtractorBlock
   | TextBlock;
 
 // ── Top-level Response ────────────────────────────────────────────────────────

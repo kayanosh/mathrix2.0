@@ -14,6 +14,7 @@ export type KS2SkillVisualFamily =
   | "decimals"
   | "percentages"
   | "geometry"
+  | "measure_angles"
   | "word_problems"
   | "rounding"
   | "place_value"
@@ -32,6 +33,13 @@ export interface KS2SkillVisualRequirement {
   requiredAnyOf: string[];
   requiredAllOf?: string[];
   guidance: string;
+}
+
+/** True when the skill is measuring angles with a protractor (not missing-angle rules). */
+function isAngleMeasuring(text: string): boolean {
+  return /protractor|measur\w*[^.!?]*\bangle|\bangle[^.!?]*measur\w*|classif\w*\s+(?:and\s+\w+\s+)*angles?/i.test(
+    text,
+  );
 }
 
 export function detectSkillVisualFamily(
@@ -99,6 +107,7 @@ export function detectSkillVisualFamily(
     return "multiplication";
   if (/\bdecimal\b|\d+\.\d+/.test(q)) return "decimals";
   if (/\bfraction\b|\d+\s*\/\s*\d+/.test(q)) return "fraction_ops";
+  if (isAngleMeasuring(q) || isAngleMeasuring(t)) return "measure_angles";
   if (/\bangle|perimeter|area|shape|triangle|rectangle/.test(q)) return "geometry";
   if (/\bword problem|how many|altogether|left over/.test(q)) return "word_problems";
   if (/\bplace value\b/.test(q)) return "place_value";
@@ -122,6 +131,7 @@ export function detectSkillVisualFamily(
   if (/\bmultipl/.test(t)) return "multiplication";
   if (/\bfraction\b/.test(t)) return "fraction_ops";
   if (/\bdecimal/.test(t)) return "decimals";
+  if (isAngleMeasuring(t)) return "measure_angles";
   if (/\bangle|perimeter|area|shape/.test(t)) return "geometry";
   if (/\bplace value/.test(t)) return "place_value";
   return "general";
@@ -173,6 +183,12 @@ export const KS2_SKILL_VISUALS: Record<
     family: "geometry",
     requiredAnyOf: ["labeled_shape"],
     guidance: "Use a labelled diagram with dimensions or angles.",
+  },
+  measure_angles: {
+    family: "measure_angles",
+    requiredAnyOf: ["protractor"],
+    guidance:
+      "Use a protractor block over the angle (vertex at the centre, baseline arm along 0°). First TEACH estimation — classify against a right angle — then reveal the reading (revealReading: false on the estimation step's block, true when measuring).",
   },
   word_problems: {
     family: "word_problems",

@@ -230,6 +230,17 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
           kind: "hint",
         });
         break;
+      case "protractor":
+        cues.push({
+          blockIndex: bi,
+          text:
+            block.caption ||
+            (block.revealReading === false
+              ? `Look at the angle at ${block.vertex || "the vertex"} — is it bigger or smaller than a right angle? Estimate first.`
+              : `Line the protractor centre on ${block.vertex || "the vertex"}, start from zero on the baseline arm, and read the scale to ${block.angle} degrees.`),
+          kind: "hint",
+        });
+        break;
       default: {
         const _: never = block;
         void _;

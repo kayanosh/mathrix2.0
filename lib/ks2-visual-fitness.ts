@@ -256,6 +256,12 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return forceDiagramFit(block);
     case "coordinate_graph":
       return coordinateGraphFit(block);
+    case "protractor":
+      return (
+        Number.isFinite(Number(block.angle)) &&
+        Number(block.angle) > 0 &&
+        Number(block.angle) <= 180
+      );
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
     default:
