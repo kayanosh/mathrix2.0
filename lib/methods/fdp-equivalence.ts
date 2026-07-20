@@ -192,3 +192,154 @@ export function buildFdpEquivalence(problem: FdpProblem): MethodBuildResult {
     intro: `Let's show this value as a fraction, a decimal, and a percentage.`,
   };
 }
+
+// ── Ordering fractions, decimals and percentages ─────────────────────────────
+
+export interface FdpOrderValue {
+  /** Original notation as written in the question, e.g. "1/4", "0.3", "40%". */
+  text: string;
+  value: number;
+}
+
+export interface FdpOrderProblem {
+  kind: "order";
+  values: FdpOrderValue[];
+  ascending: boolean;
+}
+
+/**
+ * Parse "Order 1/4, 0.3 and 40% from smallest to largest" (and friends).
+ * Returns null unless at least two comparable values are present.
+ */
+export function parseFdpOrder(text: string): FdpOrderProblem | null {
+  const t = normalizeMathText(text);
+  if (!/\b(order|ascending|descending|smallest|largest|biggest|compare)\b/i.test(t)) {
+    return null;
+  }
+  const values: FdpOrderValue[] = [];
+  const token = /(\d+\s*\/\s*\d+)|(\d+(?:\.\d+)?\s*%)|(\d+\.\d+)|(\d+)/g;
+  for (const m of t.matchAll(token)) {
+    if (m[1]) {
+      const [n, d] = m[1].split("/").map((s) => parseFloat(s));
+      if (!d) continue;
+      values.push({ text: m[1].replace(/\s+/g, ""), value: n / d });
+    } else if (m[2]) {
+      values.push({ text: m[2].replace(/\s+/g, ""), value: parseFloat(m[2]) / 100 });
+    } else if (m[3] !== undefined && m[3] !== "") {
+      values.push({ text: m[3], value: parseFloat(m[3]) });
+    }
+  }
+  // De-duplicate identical tokens (e.g. "0.5" and "0.5") but keep equal values in different forms.
+  const seen = new Set<string>();
+  const unique = values.filter((v) => (seen.has(v.text) ? false : (seen.add(v.text), true)));
+  if (unique.length < 2) return null;
+  // Direction: "from smallest to largest" contains BOTH words, so decide by
+  // the starting end of the range, not by word presence alone.
+  let ascending = true;
+  const fromMatch = t.match(/from\s+(smallest|largest|biggest)\s+to/i);
+  if (fromMatch) {
+    ascending = /smallest/i.test(fromMatch[1]);
+  } else if (/descending/i.test(t)) {
+    ascending = false;
+  } else if (/(?:largest|biggest)\s+(?:first|to\s+smallest)/i.test(t)) {
+    ascending = false;
+  }
+  return { kind: "order", values: unique, ascending };
+}
+
+/** Deterministic ordering lesson: number line with every value placed. */
+export function buildFdpOrder(problem: FdpOrderProblem): MethodBuildResult {
+  const sorted = [...problem.values].sort((a, b) =>
+    problem.ascending ? a.value - b.value : b.value - a.value,
+  );
+  const answer = sorted.map((v) => v.text).join(", ");
+  const max = Math.max(...problem.values.map((v) => v.value), 0.1);
+  const top = max <= 1 ? 1 : Math.ceil(max);
+  const tickInterval = top <= 1 ? 0.1 : top <= 5 ? 0.5 : 1;
+
+  const line: NumberLineBlock = {
+    type: "number_line",
+    range: [0, top],
+    tickInterval,
+    markers: problem.values.map((v) => ({
+      value: v.value,
+      label: v.text,
+      style: "filled",
+    })),
+  };
+
+  const decimalList = problem.values
+    .map((v) => `${v.text} = ${Number(v.value.toFixed(4))}`)
+    .join(", ");
+
+  // fraction_compare contract: number line AND conversion table.
+  const table: TableBlock = {
+    type: "table",
+    headers: ["Value", "As a decimal"],
+    rows: problem.values.map((v) => [v.text, String(Number(v.value.toFixed(4)))]),
+    caption: "Convert everything to decimals to compare",
+    highlightCells: problem.values.map((_, i) => [i, 1] as [number, number]),
+  };
+
+  const steps: EquationStepBlock = {
+    type: "equation_steps",
+    steps: [
+      {
+        stepNumber: 1,
+        operationLabel: "Convert",
+        explanation: `Write every value as a decimal so they are easy to compare: ${decimalList}.`,
+        latexBefore: problem.values[0].text,
+        latexAfter: String(Number(problem.values[0].value.toFixed(4))),
+        arrowDirection: "simplify",
+      },
+      {
+        stepNumber: 2,
+        operationLabel: "Compare",
+        explanation: `Place each one on the number line — the line shows which is ${problem.ascending ? "smallest" : "largest"}.`,
+        latexBefore: decimalList,
+        latexAfter: sorted.map((v) => Number(v.value.toFixed(4))).join(" < "),
+        arrowDirection: "simplify",
+      },
+    ],
+  };
+
+  const teachingSteps: TeachingStep[] = [
+    {
+      title: "Convert to decimals",
+      explanation: decimalList,
+      why: "Decimals all use the same units, so we can compare sizes fairly.",
+      narration: `First, turn every value into a decimal: ${decimalList}.`,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+    },
+    {
+      title: "Place on the number line",
+      explanation: `Each value is marked on the line from 0 to ${top}.`,
+      why: "The number line shows the order visually.",
+      narration: `Look at the number line — every value has its own marker.`,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+    },
+    {
+      title: "Write the order",
+      explanation: answer,
+      narration: `In order: ${answer}.`,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer: true,
+    },
+  ];
+
+  return {
+    builderId: "fdp_equivalence",
+    block: line,
+    extraBlocks: [table, steps],
+    teachingSteps,
+    captions: teachingSteps.map((s) => `${s.title}: ${s.explanation}`),
+    intro: "To order fractions, decimals and percentages, first write them all as decimals.",
+    answer,
+  };
+}

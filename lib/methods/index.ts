@@ -67,6 +67,8 @@ import {
 import {
   buildFdpEquivalence,
   parseFdpEquivalence,
+  parseFdpOrder,
+  buildFdpOrder,
 } from "@/lib/methods/fdp-equivalence";
 import {
   buildMultiplesFactors,
@@ -258,6 +260,15 @@ function tryDecimalColumn(text: string): MethodBuildResult | null {
 }
 
 function tryFdpEquivalence(text: string): MethodBuildResult | null {
+  // Ordering questions ("Order 1/4, 0.3 and 40%") get their own build.
+  const order = parseFdpOrder(text);
+  if (order) {
+    try {
+      return buildFdpOrder(order);
+    } catch {
+      /* fall through to equivalence parse */
+    }
+  }
   const parsed = parseFdpEquivalence(text);
   if (!parsed) return null;
   try {
