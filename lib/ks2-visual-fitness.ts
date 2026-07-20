@@ -262,6 +262,11 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
         Number(block.angle) > 0 &&
         Number(block.angle) <= 180
       );
+    case "angle_scale":
+      return (
+        block.highlight === undefined ||
+        ["acute", "right", "obtuse", "straight"].includes(String(block.highlight))
+      );
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
     default:

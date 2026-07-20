@@ -230,6 +230,15 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
           kind: "hint",
         });
         break;
+      case "angle_scale":
+        cues.push({
+          blockIndex: bi,
+          text:
+            block.caption ||
+            "Every angle belongs to a family — acute angles are smaller than a right angle, obtuse angles are bigger, and a straight angle is a flat line.",
+          kind: "hint",
+        });
+        break;
       case "protractor":
         cues.push({
           blockIndex: bi,

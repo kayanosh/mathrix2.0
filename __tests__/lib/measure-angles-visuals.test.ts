@@ -45,3 +45,13 @@ describe("protractor block fitness", () => {
     expect(isBlockFit({ ...base, angle: Number.NaN }, "")).toBe(false);
   });
 });
+
+describe("angle_scale block fitness", () => {
+  it("accepts valid highlights and none", () => {
+    expect(isBlockFit({ type: "angle_scale" }, "")).toBe(true);
+    expect(isBlockFit({ type: "angle_scale", highlight: "obtuse" }, "")).toBe(true);
+  });
+  it("rejects unknown highlight values", () => {
+    expect(isBlockFit({ type: "angle_scale", highlight: "reflex" as never }, "")).toBe(false);
+  });
+});

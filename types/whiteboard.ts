@@ -524,6 +524,15 @@ export interface ProtractorBlock {
   caption?: string;
 }
 
+// ── Block: Angle family strip (classifying angles) ────────────────────────────
+
+export interface AngleScaleBlock {
+  type: "angle_scale";
+  /** Zone to emphasise when teaching one family at a time. */
+  highlight?: "acute" | "right" | "obtuse" | "straight";
+  caption?: string;
+}
+
 // ── Discriminated Union ───────────────────────────────────────────────────────
 
 export type VisualBlock =
@@ -545,6 +554,7 @@ export type VisualBlock =
   | ChartBlock
   | ColumnMethodBlock
   | ProtractorBlock
+  | AngleScaleBlock
   | TextBlock;
 
 // ── Top-level Response ────────────────────────────────────────────────────────

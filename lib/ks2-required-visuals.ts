@@ -69,7 +69,7 @@ workedExample MUST include a "whiteboard" object:
   "conclusion": "one sentence stating the answer clearly"
 }
 
-Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, fraction_bar, fraction_wall, bar_model, hundred_square, area_model, key_info, chart, coordinate_graph, protractor, text.
+Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, fraction_bar, fraction_wall, bar_model, hundred_square, area_model, key_info, chart, coordinate_graph, protractor, angle_scale, text.
 • Long / column multiply or divide → column_method WITH "moves" carry arrows + equation_steps explaining each partial product
 • × or ÷ by 10, 100, 1000 → place-value TABLE (Th H T O columns) + equation_steps showing each digit shift (NEVER column_method for this)
 • Round N to the nearest 10/100/1000/10,000 → number_line whose range is the two multiples either side of N (e.g. 50,000–60,000 for nearest 10,000). NEVER a generic 0–10 line.
@@ -80,6 +80,7 @@ Allowed block types for KS2: column_method, equation_steps, number_line, labeled
 • Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape
 • Measuring an angle → protractor block: {"type": "protractor", "angle": <degrees>, "vertex": "B", "armLabels": ["C", "A"], "revealReading": false}. The FIRST teaching step must ESTIMATE — compare the angle with a right angle (90°) and classify it (acute/obtuse) BEFORE measuring, using revealReading: false. A later step reveals the reading (revealReading: true) and links the estimate to choosing the correct scale. Never teach protractor use with a bare triangle.
+• Introducing angle names/families (acute, right, obtuse, straight) → angle_scale block: {"type": "angle_scale"} — show the coloured 0–180° strip, NOT a paragraph of definitions. Add "highlight" ("acute"|"right"|"obtuse"|"straight") when focusing on one family.
 • Short hints between visuals → text (one sentence max)
 
 column_method RULES (critical for accuracy):
