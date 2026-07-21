@@ -4,6 +4,7 @@
 
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import { parseOrderOperationsQuestion } from "@/lib/methods/order-of-operations";
+import type { TeachingStep } from "@/lib/methods/types";
 import type { VisualBlock } from "@/types/whiteboard";
 
 export type KS2SkillVisualFamily =
@@ -352,4 +353,129 @@ export function repairWordProblemVisuals(
     },
     ...blocks,
   ];
+}
+
+/** Rounding precision named in the question, else inferred from the number. */
+function roundingPrecision(question: string, n: number): number {
+  if (/nearest\s+(?:thousand|1,?000)\b/i.test(question)) return 1000;
+  if (/nearest\s+(?:hundred|100)\b/i.test(question)) return 100;
+  if (/nearest\s+(?:ten|10)\b/i.test(question)) return 10;
+  if (/nearest\s+(?:whole|unit)s?\b/i.test(question)) return 1;
+  const dp = /(\d+)\s*(?:d\.?p\.?|decimal\s*places?)/i.exec(question);
+  if (dp) return Math.pow(10, -Number(dp[1]));
+  if (Number.isInteger(n)) return n >= 1000 ? 1000 : n >= 100 ? 100 : 10;
+  return 1;
+}
+
+function roundTo(n: number, p: number): number {
+  return Math.round(n / p) * p;
+}
+
+/** Format without floating-point noise (0.30000000000000004 → "0.3"). */
+function fmt(n: number): string {
+  return String(Number(n.toFixed(6)));
+}
+
+/**
+ * Deterministic repair for rounding lessons that fail the strict rounding
+ * contract (requiredAllOf: table + number_line). Estimation-style skills
+ * such as "Round to check answers" reliably make the model emit a
+ * column_method check instead — repair rather than reject, because a
+ * teacher cannot retry mid-lesson. Builds the missing pieces from the
+ * question's own numbers: a number line anchoring the first number between
+ * its rounding neighbours, and a number → rounded table for all of them.
+ */
+export function repairRoundingVisuals(
+  blocks: VisualBlock[],
+  question: string,
+  topic = "",
+  skill = "",
+): VisualBlock[] {
+  if (!question || blocks.length === 0) return blocks;
+  const family = detectSkillVisualFamily(question, topic, skill);
+  if (family !== "rounding") return blocks;
+  const types = blocks.map((b) => b.type);
+  if (satisfiesSkillVisuals(types, family)) return blocks;
+
+  // Strip precision phrases first — "to the nearest 100" and "2 decimal
+  // places" are instructions, not values to round.
+  const stripped = question
+    .replace(/nearest\s+(?:ten|hundred|thousand|whole|unit)s?(?:\s+number)?\b/gi, " ")
+    .replace(/nearest\s+(?:1,?000|100|10)\b/gi, " ")
+    .replace(/\b\d+\s*(?:d\.?p\.?|decimal\s*places?)/gi, " ");
+  const numbers = Array.from(
+    stripped.matchAll(/\d+(?:\.\d+)?/g),
+    (m) => Number(m[0]),
+  ).filter((n) => Number.isFinite(n) && n > 0);
+  const unique = [...new Set(numbers)].slice(0, 4);
+  if (unique.length === 0) return blocks;
+
+  const p = roundingPrecision(question, unique[0]);
+  const repaired: VisualBlock[] = [];
+
+  if (!types.includes("number_line")) {
+    const n = unique[0];
+    const lo = Math.floor(n / p) * p;
+    const hi = lo + p;
+    const rounded = roundTo(n, p);
+    repaired.push({
+      type: "number_line",
+      range: [lo - p, hi + p],
+      tickInterval: p / 2,
+      markers: [
+        { value: n, label: fmt(n), style: "filled" },
+        { value: rounded, label: `rounds to ${fmt(rounded)}`, style: "filled" },
+      ],
+    });
+  }
+  if (!types.includes("table")) {
+    repaired.push({
+      type: "table",
+      caption: `Round to the nearest ${fmt(p)}`,
+      headers: ["Number", `Rounded to the nearest ${fmt(p)}`],
+      rows: unique.map((n) => [fmt(n), fmt(roundTo(n, p))]),
+      highlightCells: unique.map((_, i) => [i, 1] as [number, number]),
+    });
+  }
+  return [...repaired, ...blocks];
+}
+
+/**
+ * Deterministic repair for rounding lessons whose teaching steps never
+ * explain the deciding-digit rule (the validator's rounding_not_explained
+ * check). Prepends the rule step only when the existing steps do not already
+ * cover it, so well-formed lessons are untouched.
+ */
+export function repairRoundingExplanation(
+  teachingSteps: TeachingStep[] | undefined,
+  question: string,
+  topic = "",
+  skill = "",
+): TeachingStep[] | undefined {
+  if (!teachingSteps?.length || !question) return teachingSteps;
+  if (detectSkillVisualFamily(question, topic, skill) !== "rounding") {
+    return teachingSteps;
+  }
+  const blob = teachingSteps
+    .map((s) => `${s.title} ${s.explanation} ${s.why || ""}`)
+    .join("\n")
+    .toLowerCase();
+  const deciding =
+    /decid(?:e|ing)\s+digit|look(?:s|ing)?\s+(?:at\s+)?(?:the\s+)?(?:next|digit)|digit\s+(?:to\s+the\s+)?right|one place to the right/.test(
+      blob,
+    );
+  const fiveRule = /5\s+or\s+more|five\s+or\s+more|≥\s*5|>=\s*5/.test(blob);
+  if (deciding && fiveRule) return teachingSteps;
+  const rule: TeachingStep = {
+    title: "Find the deciding digit",
+    explanation:
+      "Look at the digit to the right of the place you are rounding to — that is the deciding digit. If it is 5 or more, round up. If it is 4 or less, round down.",
+    why: "The deciding digit tells you which side of the halfway point the number sits on, so the rounded answer stays as close as possible.",
+    narration:
+      "Find the deciding digit: the digit to the right of your rounding place. Five or more, round up. Four or less, round down.",
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+  };
+  return [rule, ...teachingSteps];
 }

@@ -18,6 +18,8 @@ import {
 import {
   detectSkillVisualFamily,
   KS2_SKILL_VISUALS,
+  repairRoundingExplanation,
+  repairRoundingVisuals,
   repairWordProblemVisuals,
 } from "@/lib/ks2-skill-visuals";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
@@ -549,23 +551,41 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
   }
   // Word problems whose only visual is a written calculation method (for
   // example column_method) miss the "find the key information" teaching
-  // moment and fail the strict word_problems visual contract (visual_mismatch
-  // → 422 in class). Repair deterministically by prepending a key_info block
-  // built from the question's own numbers — repair rather than reject,
-  // because a teacher cannot retry mid-lesson.
+  // moment and fail the strict word_problems visual contract; rounding
+  // lessons like "Round to check answers" similarly arrive without the
+  // required number line, table, or deciding-digit explanation
+  // (visual_mismatch / rounding_not_explained → 422 in class). Repair
+  // deterministically from the question's own numbers — repair rather than
+  // reject, because a teacher cannot retry mid-lesson.
   if (next.whiteboard?.blocks?.length && next.question) {
     next = {
       ...next,
       whiteboard: {
         ...next.whiteboard,
-        blocks: repairWordProblemVisuals(
-          next.whiteboard.blocks,
+        blocks: repairRoundingVisuals(
+          repairWordProblemVisuals(
+            next.whiteboard.blocks,
+            String(next.question),
+            topic,
+            subtopics.join(" "),
+          ),
           String(next.question),
           topic,
           subtopics.join(" "),
         ),
       },
     };
+  }
+  if (next.question) {
+    const steps = repairRoundingExplanation(
+      next.teachingSteps,
+      String(next.question),
+      topic,
+      subtopics.join(" "),
+    );
+    if (steps !== next.teachingSteps) {
+      next = { ...next, teachingSteps: steps };
+    }
   }
   if (next.whiteboard?.blocks) {
     const fit = filterFitBlocks(next.whiteboard.blocks, next.question);

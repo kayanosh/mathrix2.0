@@ -1,5 +1,7 @@
 import {
   detectSkillVisualFamily,
+  repairRoundingExplanation,
+  repairRoundingVisuals,
   repairWordProblemVisuals,
   satisfiesSkillVisuals,
 } from "@/lib/ks2-skill-visuals";
@@ -208,5 +210,140 @@ describe("repairWordProblemVisuals", () => {
       "",
     );
     expect(repaired).toBe(columnOnly);
+  });
+});
+
+describe("repairRoundingVisuals", () => {
+  const question = "Use rounding to check $47.6 + 32.8 = 80.4$.";
+  const columnOnly: VisualBlock[] = [
+    {
+      type: "column_method",
+      method: "column_addition",
+      rows: ["47.6", "32.8", "80.4"],
+      question: "47.6 + 32.8",
+      answer: "80.4",
+    },
+  ];
+
+  it("adds a number line and table so the strict rounding contract passes", () => {
+    const repaired = repairRoundingVisuals(
+      columnOnly,
+      question,
+      "Addition and Subtraction",
+      "Round to check answers",
+    );
+    const types = repaired.map((b) => b.type);
+    expect(types).toContain("number_line");
+    expect(types).toContain("table");
+    expect(types).toContain("column_method");
+    expect(satisfiesSkillVisuals(types, "rounding")).toBe(true);
+  });
+
+  it("the injected table rounds every question number to the nearest whole", () => {
+    const repaired = repairRoundingVisuals(
+      columnOnly,
+      question,
+      "Addition and Subtraction",
+      "Round to check answers",
+    );
+    const table = repaired.find((b) => b.type === "table");
+    if (table?.type !== "table") throw new Error("expected table");
+    expect(table.rows).toEqual([
+      ["47.6", "48"],
+      ["32.8", "33"],
+      ["80.4", "80"],
+    ]);
+  });
+
+  it("the injected number line anchors the first number at its rounded neighbour", () => {
+    const repaired = repairRoundingVisuals(
+      columnOnly,
+      question,
+      "Addition and Subtraction",
+      "Round to check answers",
+    );
+    const line = repaired.find((b) => b.type === "number_line");
+    if (line?.type !== "number_line") throw new Error("expected number_line");
+    expect(line.markers.map((m) => m.value)).toEqual([47.6, 48]);
+    expect(line.range[0]).toBeLessThan(47.6);
+    expect(line.range[1]).toBeGreaterThan(48);
+  });
+
+  it("respects an explicit rounding precision in the question", () => {
+    const repaired = repairRoundingVisuals(
+      columnOnly,
+      "Round 462 to the nearest 100.",
+      "Number and Place Value",
+      "Round to the nearest 100",
+    );
+    const table = repaired.find((b) => b.type === "table");
+    if (table?.type !== "table") throw new Error("expected table");
+    expect(table.rows).toEqual([["462", "500"]]);
+  });
+
+  it("leaves lessons that already satisfy the contract unchanged", () => {
+    const good: VisualBlock[] = [
+      {
+        type: "number_line",
+        range: [40, 60],
+        tickInterval: 5,
+        markers: [{ value: 47.6, label: "47.6", style: "filled" }],
+      },
+      { type: "table", headers: ["Number", "Rounded"], rows: [["47.6", "48"]] },
+    ];
+    expect(
+      repairRoundingVisuals(good, question, "Addition and Subtraction", "Round to check answers"),
+    ).toBe(good);
+  });
+
+  it("does not touch non-rounding families", () => {
+    expect(
+      repairRoundingVisuals(columnOnly, "Simplify 12/16", "Fractions", "Simplify fractions"),
+    ).toBe(columnOnly);
+  });
+});
+
+describe("repairRoundingExplanation", () => {
+  const step = (title: string, explanation: string) => ({
+    title,
+    explanation,
+    narration: explanation,
+    cellKeys: [],
+    carryKeys: [],
+    noteKeys: [],
+  });
+  const question = "Use rounding to check $47.6 + 32.8 = 80.4$.";
+
+  it("prepends the deciding-digit rule when the steps lack it", () => {
+    const steps = [step("Add the numbers", "Line up the digits and add.")];
+    const repaired = repairRoundingExplanation(
+      steps,
+      question,
+      "Addition and Subtraction",
+      "Round to check answers",
+    );
+    expect(repaired).toHaveLength(2);
+    expect(repaired?.[0].title).toBe("Find the deciding digit");
+    expect(repaired?.[0].explanation).toMatch(/digit to the right/);
+    expect(repaired?.[0].explanation).toMatch(/5 or more/);
+  });
+
+  it("leaves steps that already explain the rule unchanged", () => {
+    const steps = [
+      step(
+        "Find the deciding digit",
+        "Look at the digit to the right of the rounding place. If it is 5 or more, round up.",
+      ),
+    ];
+    expect(
+      repairRoundingExplanation(steps, question, "Addition and Subtraction", "Round to check answers"),
+    ).toBe(steps);
+  });
+
+  it("does not touch non-rounding lessons", () => {
+    const steps = [step("Add", "Just add the numbers.")];
+    expect(
+      repairRoundingExplanation(steps, "Simplify 12/16", "Fractions", "Simplify fractions"),
+    ).toBe(steps);
   });
 });
