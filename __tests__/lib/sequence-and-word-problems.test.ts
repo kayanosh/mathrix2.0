@@ -328,6 +328,22 @@ describe("repairRoundingExplanation", () => {
     expect(repaired?.[0].explanation).toMatch(/5 or more/);
   });
 
+  it("folds the rule into the first step when the lesson is already at the 6-step cap", () => {
+    const steps = Array.from({ length: 6 }, (_, i) =>
+      step(`Step ${i + 1}`, `Work through part ${i + 1} of the calculation.`),
+    );
+    const repaired = repairRoundingExplanation(
+      steps,
+      question,
+      "Addition and Subtraction",
+      "Round to check answers",
+    );
+    expect(repaired).toHaveLength(6);
+    expect(repaired?.[0].explanation).toMatch(/digit to the right/);
+    expect(repaired?.[0].explanation).toMatch(/5 or more/);
+    expect(repaired?.[1].title).toBe("Step 2");
+  });
+
   it("leaves steps that already explain the rule unchanged", () => {
     const steps = [
       step(

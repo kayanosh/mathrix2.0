@@ -466,10 +466,24 @@ export function repairRoundingExplanation(
     );
   const fiveRule = /5\s+or\s+more|five\s+or\s+more|≥\s*5|>=\s*5/.test(blob);
   if (deciding && fiveRule) return teachingSteps;
+  const ruleSentence =
+    "Look at the digit to the right of the place you are rounding to — that is the deciding digit. If it is 5 or more, round up. If it is 4 or less, round down.";
+  // Worked examples are capped at 6 micro-steps — at the cap, fold the rule
+  // into the first step rather than adding a seventh.
+  if (teachingSteps.length >= 6) {
+    const [first, ...rest] = teachingSteps;
+    return [
+      {
+        ...first,
+        explanation: `${ruleSentence} ${first.explanation}`,
+        narration: `${ruleSentence} ${first.narration}`,
+      },
+      ...rest,
+    ];
+  }
   const rule: TeachingStep = {
     title: "Find the deciding digit",
-    explanation:
-      "Look at the digit to the right of the place you are rounding to — that is the deciding digit. If it is 5 or more, round up. If it is 4 or less, round down.",
+    explanation: ruleSentence,
     why: "The deciding digit tells you which side of the halfway point the number sits on, so the rounded answer stays as close as possible.",
     narration:
       "Find the deciding digit: the digit to the right of your rounding place. Five or more, round up. Four or less, round down.",
