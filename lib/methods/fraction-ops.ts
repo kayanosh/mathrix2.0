@@ -4,7 +4,11 @@
  * Output: equation_steps board + digit-level TeachingStep script.
  */
 
-import type { EquationStep, EquationStepBlock } from "@/types/whiteboard";
+import type {
+  EquationStep,
+  EquationStepBlock,
+  VisualBlock,
+} from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
@@ -52,11 +56,39 @@ function plain(f: Fraction): string {
 
 export type FractionOp = "add" | "subtract" | "multiply" | "divide";
 
+/** A mixed number (2 1/2) or a plain fraction (whole = 0). */
+export interface MixedOperand {
+  whole: number;
+  frac: Fraction;
+}
+
 export type FractionOpProblem =
   | { kind?: "binary"; left: Fraction; right: Fraction; op: FractionOp }
+  | {
+      kind: "mixed_binary";
+      left: MixedOperand;
+      right: MixedOperand;
+      op: "add" | "subtract";
+    }
   | { kind: "of_amount"; fraction: Fraction; amount: number }
   | { kind: "to_improper"; whole: number; frac: Fraction }
   | { kind: "to_mixed"; improper: Fraction };
+
+function mixedToImproper(m: MixedOperand): Fraction {
+  return { n: m.whole * m.frac.d + m.frac.n, d: m.frac.d };
+}
+
+function mixedPlain(m: MixedOperand): string {
+  if (m.whole === 0) return plain(m.frac);
+  if (m.frac.n === 0) return String(m.whole);
+  return `${m.whole} ${plain(m.frac)}`;
+}
+
+function mixedLatex(m: MixedOperand): string {
+  if (m.whole === 0) return latex(m.frac);
+  if (m.frac.n === 0) return String(m.whole);
+  return `${m.whole}${latex(m.frac)}`;
+}
 
 function buildSteps(
   problem: { left: Fraction; right: Fraction; op: FractionOp },
@@ -388,7 +420,165 @@ function buildToMixed(
   return { steps, teachingSteps, answerPlain: mixedPlain };
 }
 
+/**
+ * Add/subtract mixed numbers via improper fractions. The conversion step is
+ * the whole point: LLMs notoriously concatenate the whole number with the
+ * numerator (2 1/2 → "21/2"), so this builder teaches whole × denominator +
+ * numerator explicitly and computes every line deterministically.
+ */
+function buildMixedBinary(problem: {
+  left: MixedOperand;
+  right: MixedOperand;
+  op: "add" | "subtract";
+}): {
+  steps: EquationStep[];
+  teachingSteps: TeachingStep[];
+  answerPlain: string;
+  extraBlocks: VisualBlock[];
+} {
+  const { left, right, op } = problem;
+  const leftImp = mixedToImproper(left);
+  const rightImp = mixedToImproper(right);
+  if (op === "subtract" && leftImp.n / leftImp.d < rightImp.n / rightImp.d) {
+    throw new Error("mixed-number subtraction would go negative");
+  }
+
+  const steps: EquationStep[] = [];
+  const teachingSteps: TeachingStep[] = [];
+  const push = (
+    title: string,
+    explanation: string,
+    latexBefore: string,
+    latexAfter: string,
+    operationLabel: string,
+    why?: string,
+    showAnswer?: boolean,
+  ) => {
+    steps.push({
+      stepNumber: steps.length + 1,
+      operationLabel,
+      explanation,
+      latexBefore,
+      latexAfter,
+      arrowDirection: "down",
+      rule: title,
+    });
+    teachingSteps.push({
+      title,
+      explanation,
+      why,
+      narration: explanation,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer,
+    });
+  };
+
+  const start = `${mixedLatex(left)} ${opSymbol(op)} ${mixedLatex(right)}`;
+  push(
+    "Write the calculation",
+    `Start with ${mixedPlain(left)} ${opSymbol(op)} ${mixedPlain(right)}.`,
+    start,
+    start,
+    "Set up",
+    "We keep both numbers visible so each step is clear.",
+  );
+
+  const whyExample = left.whole > 0 ? left : right;
+  const whyImp = left.whole > 0 ? leftImp : rightImp;
+  push(
+    "Convert to improper fractions",
+    `${mixedPlain(left)} = ${plain(leftImp)} and ${mixedPlain(right)} = ${plain(rightImp)}. Multiply the whole number by the denominator, then add the numerator.`,
+    start,
+    `${latex(leftImp)} ${opSymbol(op)} ${latex(rightImp)}`,
+    "Mixed → improper",
+    `For ${mixedPlain(whyExample)}: ${whyExample.whole} × ${whyExample.frac.d} + ${whyExample.frac.n} = ${whyImp.n}, so it is ${plain(whyImp)}. The whole number hides extra parts inside it.`,
+  );
+
+  // The core working reuses the battle-tested binary builder (common
+  // denominator, numerators, simplify) — minus its duplicate set-up line.
+  const inner = buildSteps({ left: leftImp, right: rightImp, op });
+  steps.push(...inner.steps.slice(1));
+  teachingSteps.push(...inner.teachingSteps.slice(1));
+  steps.forEach((s, i) => {
+    s.stepNumber = i + 1;
+  });
+
+  // Inner steps mark their own showAnswer — the true reveal is the mixed
+  // number (or the final fraction), decided below.
+  for (const s of teachingSteps) s.showAnswer = undefined;
+
+  const ans = inner.answer;
+  let answerPlain: string;
+  if (ans.d !== 1 && ans.n > ans.d) {
+    const whole = Math.floor(ans.n / ans.d);
+    const rem = ans.n % ans.d;
+    answerPlain = `${whole} ${rem}/${ans.d}`;
+    push(
+      "Write as a mixed number",
+      `${plain(ans)} = ${answerPlain}. ${ans.n} ÷ ${ans.d} is ${whole} remainder ${rem}.`,
+      latex(ans),
+      `${whole}${latex({ n: rem, d: ans.d })}`,
+      "Improper → mixed",
+      "An improper fraction is whole numbers plus the leftover part.",
+      true,
+    );
+  } else {
+    answerPlain = plain(ans);
+    teachingSteps[teachingSteps.length - 1].showAnswer = true;
+  }
+
+  const extraBlocks: VisualBlock[] = [];
+  if (left.whole > 0 || right.whole > 0) {
+    extraBlocks.push({
+      type: "table",
+      caption: "Rename as improper fractions",
+      headers: ["Mixed number", "Improper fraction"],
+      rows: [
+        [mixedLatex(left), latex(leftImp)],
+        [mixedLatex(right), latex(rightImp)],
+      ],
+      mathColumns: [0, 1],
+      highlightCells: [
+        [0, 1],
+        [1, 1],
+      ],
+    });
+  }
+
+  return { steps, teachingSteps, answerPlain, extraBlocks };
+}
+
 export function buildFractionOps(problem: FractionOpProblem): MethodBuildResult {
+  if (problem.kind === "mixed_binary") {
+    const { steps, teachingSteps, answerPlain, extraBlocks } =
+      buildMixedBinary(problem);
+    // The final math step already reveals the answer — a separate Answer
+    // card would push worked examples past the 6 micro-step cap.
+    if (teachingSteps.length <= 5) {
+      teachingSteps.push({
+        title: "Answer",
+        explanation: `So ${mixedPlain(problem.left)} ${opSymbol(problem.op)} ${mixedPlain(problem.right)} = ${answerPlain}.`,
+        narration: `The answer is ${answerPlain}.`,
+        cellKeys: [],
+        carryKeys: [],
+        noteKeys: [],
+        showAnswer: true,
+      });
+    }
+    return {
+      builderId: "fraction_ops",
+      block: { type: "equation_steps", steps },
+      extraBlocks,
+      teachingSteps,
+      captions: teachingSteps
+        .filter((s) => s.title !== "Answer")
+        .map((s) => s.explanation),
+      answer: answerPlain,
+    };
+  }
+
   if (problem.kind === "of_amount") {
     const { steps, teachingSteps, answerPlain } = buildOfAmount(
       problem.fraction,
@@ -555,6 +745,62 @@ export function parseFractionOp(text: string): FractionOpProblem | null {
       kind: "to_improper",
       whole: parseInt(bareMixed[1], 10),
       frac: { n: parseInt(bareMixed[2], 10), d: parseInt(bareMixed[3], 10) },
+    };
+  }
+
+  // Mixed numbers: 2 1/2 + 1 3/4 (or one mixed + one plain fraction).
+  // Must run before the plain-fraction branches so the whole-number part is
+  // never mistaken for a numerator. Mixed ×/÷ is not KS2 — return null so no
+  // other branch mis-reads the whole numbers either.
+  const mm = t.match(new RegExp(`${MIXED}\\s*${OP}\\s*${MIXED}`, "i"));
+  if (mm) {
+    const op = mapOp(mm[4]);
+    if (op !== "add" && op !== "subtract") return null;
+    return {
+      kind: "mixed_binary",
+      left: {
+        whole: parseInt(mm[1], 10),
+        frac: { n: parseInt(mm[2], 10), d: parseInt(mm[3], 10) },
+      },
+      right: {
+        whole: parseInt(mm[5], 10),
+        frac: { n: parseInt(mm[6], 10), d: parseInt(mm[7], 10) },
+      },
+      op,
+    };
+  }
+  const mf = t.match(new RegExp(`${MIXED}\\s*${OP}\\s*${FRAC}`, "i"));
+  if (mf) {
+    const op = mapOp(mf[4]);
+    if (op !== "add" && op !== "subtract") return null;
+    return {
+      kind: "mixed_binary",
+      left: {
+        whole: parseInt(mf[1], 10),
+        frac: { n: parseInt(mf[2], 10), d: parseInt(mf[3], 10) },
+      },
+      right: {
+        whole: 0,
+        frac: { n: parseInt(mf[5], 10), d: parseInt(mf[6], 10) },
+      },
+      op,
+    };
+  }
+  const fm = t.match(new RegExp(`${FRAC}\\s*${OP}\\s*${MIXED}`, "i"));
+  if (fm) {
+    const op = mapOp(fm[3]);
+    if (op !== "add" && op !== "subtract") return null;
+    return {
+      kind: "mixed_binary",
+      left: {
+        whole: 0,
+        frac: { n: parseInt(fm[1], 10), d: parseInt(fm[2], 10) },
+      },
+      right: {
+        whole: parseInt(fm[4], 10),
+        frac: { n: parseInt(fm[5], 10), d: parseInt(fm[6], 10) },
+      },
+      op,
     };
   }
 
