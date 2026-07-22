@@ -130,3 +130,71 @@ describe("buildFractionOps with mixed numbers", () => {
     expect(solved?.answer).toBe("4 1/4");
   });
 });
+
+describe("teaching quality of the steps", () => {
+  it("the conversion step shows the arithmetic for each mixed number", () => {
+    const built = buildFractionOps({
+      kind: "mixed_binary",
+      left: { whole: 2, frac: { n: 1, d: 2 } },
+      right: { whole: 1, frac: { n: 3, d: 4 } },
+      op: "add",
+    });
+    const step = built.teachingSteps.find(
+      (s) => s.title === "Convert to improper fractions",
+    );
+    expect(step).toBeDefined();
+    // The rule AND the worked arithmetic, in the main explanation
+    expect(step!.explanation).toContain("Multiply the whole number by the denominator");
+    expect(step!.explanation).toContain("2 × 2 + 1 = 5");
+    expect(step!.explanation).toContain("1 × 4 + 3 = 7");
+    expect(step!.explanation).toContain("so 2 1/2 = 5/2");
+    expect(step!.explanation).toContain("so 1 3/4 = 7/4");
+  });
+
+  it("the conversion step skips the arithmetic for plain-fraction operands", () => {
+    const built = buildFractionOps({
+      kind: "mixed_binary",
+      left: { whole: 0, frac: { n: 1, d: 2 } },
+      right: { whole: 1, frac: { n: 3, d: 4 } },
+      op: "add",
+    });
+    const step = built.teachingSteps.find(
+      (s) => s.title === "Convert to improper fractions",
+    );
+    expect(step!.explanation).toContain("1/2 is already a fraction");
+    expect(step!.explanation).not.toContain("0 ×");
+  });
+
+  it("the common-denominator step says what happens to the numerator", () => {
+    const built = buildFractionOps({
+      left: { n: 7, d: 3 },
+      right: { n: 5, d: 4 },
+      op: "add",
+    });
+    const step = built.teachingSteps.find(
+      (s) => s.title === "Find a common denominator",
+    );
+    expect(step).toBeDefined();
+    expect(step!.explanation).toContain("numerator and denominator");
+    expect(step!.explanation).toContain("7 × 4 = 28");
+    expect(step!.explanation).toContain("5 × 3 = 15");
+    expect(step!.explanation).toContain("so 7/3 = 28/12");
+    expect(step!.explanation).toContain("so 5/4 = 15/12");
+    expect(step!.why).toContain("also do to the numerator");
+  });
+
+  it("the common-denominator step leaves already-matching fractions alone", () => {
+    const built = buildFractionOps({
+      left: { n: 1, d: 2 },
+      right: { n: 1, d: 4 },
+      op: "add",
+    });
+    const step = built.teachingSteps.find(
+      (s) => s.title === "Find a common denominator",
+    );
+    expect(step!.explanation).toContain("1 × 2 = 2");
+    expect(step!.explanation).toContain(
+      "1/4 already has denominator 4, so it stays 1/4.",
+    );
+  });
+});

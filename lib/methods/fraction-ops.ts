@@ -173,16 +173,24 @@ function buildSteps(
     }
 
     const den = lcm(left.d, right.d);
-    const leftEq = { n: left.n * (den / left.d), d: den };
-    const rightEq = { n: right.n * (den / right.d), d: den };
+    const leftMult = den / left.d;
+    const rightMult = den / right.d;
+    const leftEq = { n: left.n * leftMult, d: den };
+    const rightEq = { n: right.n * rightMult, d: den };
     const common = `${latex(leftEq)} ${opSymbol(op)} ${latex(rightEq)}`;
+    // First-time students must see what happens to the NUMERATOR, not just
+    // the before/after fractions: "7 × 4 = 28, so 7/3 = 28/12".
+    const scalePart = (f: Fraction, eq: Fraction, mult: number) =>
+      mult === 1
+        ? `${plain(f)} already has denominator ${den}, so it stays ${plain(eq)}.`
+        : `Multiply the numerator and denominator of ${plain(f)} by ${mult}: ${f.n} × ${mult} = ${eq.n}, so ${plain(f)} = ${plain(eq)}.`;
     push(
       "Find a common denominator",
-      `Common denominator of ${left.d} and ${right.d} is ${den}. Rewrite as ${plain(leftEq)} ${opSymbol(op)} ${plain(rightEq)}.`,
+      `Common denominator of ${left.d} and ${right.d} is ${den}. ${scalePart(left, leftEq, leftMult)} ${scalePart(right, rightEq, rightMult)}`,
       start,
       common,
       "Equivalent fractions",
-      "Same-size pieces let us add or subtract the numerators.",
+      "Whatever you do to the denominator you must also do to the numerator — the fraction's value stays the same. Same-size pieces let us add or subtract the numerators.",
     );
 
     const raw =
@@ -485,15 +493,21 @@ function buildMixedBinary(problem: {
     "We keep both numbers visible so each step is clear.",
   );
 
+  // Show the arithmetic for each number in the main explanation — the rule
+  // alone ("multiply the whole by the denominator") is not enough for a
+  // first-time student, who needs to see 2 × 3 + 1 = 7 worked out.
+  const convertPart = (m: MixedOperand, imp: Fraction) =>
+    m.whole === 0
+      ? `${plain(m.frac)} is already a fraction, so it stays ${plain(imp)}.`
+      : `${mixedPlain(m)}: ${m.whole} × ${m.frac.d} + ${m.frac.n} = ${imp.n}, so ${mixedPlain(m)} = ${plain(imp)}.`;
   const whyExample = left.whole > 0 ? left : right;
-  const whyImp = left.whole > 0 ? leftImp : rightImp;
   push(
     "Convert to improper fractions",
-    `${mixedPlain(left)} = ${plain(leftImp)} and ${mixedPlain(right)} = ${plain(rightImp)}. Multiply the whole number by the denominator, then add the numerator.`,
+    `Multiply the whole number by the denominator, then add the numerator. ${convertPart(left, leftImp)} ${convertPart(right, rightImp)}`,
     start,
     `${latex(leftImp)} ${opSymbol(op)} ${latex(rightImp)}`,
     "Mixed → improper",
-    `For ${mixedPlain(whyExample)}: ${whyExample.whole} × ${whyExample.frac.d} + ${whyExample.frac.n} = ${whyImp.n}, so it is ${plain(whyImp)}. The whole number hides extra parts inside it.`,
+    `For ${mixedPlain(whyExample)} the denominator tells you how many parts are inside each whole. The whole number hides extra parts inside it.`,
   );
 
   // The core working reuses the battle-tested binary builder (common
