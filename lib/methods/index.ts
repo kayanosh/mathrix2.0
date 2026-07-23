@@ -84,6 +84,10 @@ import {
   parseRectMeasure,
 } from "@/lib/methods/measurement-builders";
 import {
+  buildRectilinearPerimeter,
+  parseRectilinearPerimeter,
+} from "@/lib/methods/rectilinear-perimeter";
+import {
   buildAngleDiagram,
   buildBarChart,
   buildCoordinatePlot,
@@ -298,6 +302,16 @@ function trySignedNumberLine(text: string): MethodBuildResult | null {
   }
 }
 
+function tryRectilinearPerimeter(text: string): MethodBuildResult | null {
+  const parsed = parseRectilinearPerimeter(text);
+  if (!parsed) return null;
+  try {
+    return buildRectilinearPerimeter(parsed);
+  } catch {
+    return null;
+  }
+}
+
 function tryRectPerimeterArea(text: string): MethodBuildResult | null {
   const parsed = parseRectMeasure(text);
   if (!parsed || parsed.kind === "volume") return null;
@@ -411,6 +425,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   fdp_equivalence: tryFdpEquivalence,
   multiples_number_line: tryMultiplesNumberLine,
   signed_number_line: trySignedNumberLine,
+  rectilinear_perimeter: tryRectilinearPerimeter,
   rect_perimeter_area: tryRectPerimeterArea,
   cuboid_volume: tryCuboidVolume,
   angle_diagram: tryAngleDiagram,
@@ -444,6 +459,7 @@ const DEFAULT_ORDER: MethodBuilderId[] = [
   "ratio_table",
   "function_machine",
   "signed_number_line",
+  "rectilinear_perimeter",
   "rect_perimeter_area",
   "cuboid_volume",
   "multiples_number_line",

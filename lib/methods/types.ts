@@ -41,6 +41,7 @@ export type MethodBuilderId =
   | "multiples_number_line"
   | "signed_number_line"
   | "rect_perimeter_area"
+  | "rectilinear_perimeter"
   | "cuboid_volume"
   | "angle_diagram"
   | "coordinate_plot"

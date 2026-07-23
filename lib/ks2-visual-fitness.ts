@@ -269,10 +269,47 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       );
     case "text":
       return typeof block.content === "string" && block.content.trim().length > 0;
+    case "labeled_shape":
+      return labeledShapeFit(block);
     default:
-      // Other visuals (shapes, graphs…) — keep if structurally present
+      // Other visuals (graphs…) — keep if structurally present
       return true;
   }
+}
+
+const KNOWN_SHAPES = new Set([
+  "triangle",
+  "circle",
+  "rectangle",
+  "parallelogram",
+  "trapezium",
+  "polygon",
+  "rectilinear",
+  "straight_line",
+  "around_point",
+]);
+
+/**
+ * Shape blocks must name a shape the renderer actually supports — the model
+ * has emitted dialect like "L-shaped rectilinear polygon" with x/y vertices
+ * and "sideLabels", which the renderer silently drew as a bare regular
+ * polygon with no labels (the perimeter-lesson bug). Rectilinear shapes
+ * additionally need sane dimensions.
+ */
+function labeledShapeFit(block: VisualBlock): boolean {
+  if (block.type !== "labeled_shape") return true;
+  if (!KNOWN_SHAPES.has(String(block.shape))) return false;
+  if (block.shape === "rectilinear") {
+    const r = block.rectilinear;
+    if (!r) return false;
+    const dims = [r.width, r.height, r.notchWidth, r.notchHeight];
+    return (
+      dims.every((n) => Number.isFinite(Number(n)) && Number(n) > 0) &&
+      Number(r.width) > Number(r.notchWidth) &&
+      Number(r.height) > Number(r.notchHeight)
+    );
+  }
+  return true;
 }
 
 /** Filter out unfit blocks. Never invent a placeholder scale. */

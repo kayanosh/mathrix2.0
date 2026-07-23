@@ -112,6 +112,22 @@ function semanticChecks(
         ) {
           errors.push("labeled_shape symmetryLines must be an integer 0–4");
         }
+        if (block.shape === "rectilinear") {
+          const r = block.rectilinear;
+          if (
+            !r ||
+            !(
+              Number(r.width) > Number(r.notchWidth) &&
+              Number(r.height) > Number(r.notchHeight) &&
+              Number(r.notchWidth) > 0 &&
+              Number(r.notchHeight) > 0
+            )
+          ) {
+            errors.push(
+              "labeled_shape rectilinear requires width > notchWidth > 0 and height > notchHeight > 0",
+            );
+          }
+        }
         if (block.shape === "triangle" && block.angles) {
           const total = block.angles.reduce((s, a) => s + a.degrees, 0);
           // Only check if all 3 angles are provided

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
 import InlineMath from "@/components/InlineMath";
 import { inlineMathToPlainText } from "@/lib/inline-math";
+import RectilinearShapeRenderer from "@/components/whiteboard/blocks/RectilinearShapeRenderer";
 
 interface Props {
   block: LabeledShapeBlock;
@@ -258,6 +259,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
         height={height}
       />
     );
+  }
+  if (shape === "rectilinear") {
+    return <RectilinearShapeRenderer block={block} baseDelay={baseDelay} />;
   }
 
   const points = vertexDefs

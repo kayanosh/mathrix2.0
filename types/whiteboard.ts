@@ -147,6 +147,22 @@ export interface SideLabel {
   parallelMarks?: number;
 }
 
+/** Geometry of an L-shaped rectilinear polygon (all angles 90°). */
+export interface RectilinearShape {
+  /** Full width of the bounding rectangle (units) */
+  width: number;
+  /** Full height of the bounding rectangle (units) */
+  height: number;
+  /** Inner horizontal step length (units) */
+  notchWidth: number;
+  /** Inner vertical step length (units) */
+  notchHeight: number;
+  /** Unit label, e.g. "cm" */
+  unit?: string;
+  /** Mark the two unlabelled sides with "?" (perimeter lessons) */
+  showMissing?: boolean;
+}
+
 export interface LabeledShapeBlock {
   type: "labeled_shape";
   shape:
@@ -156,8 +172,11 @@ export interface LabeledShapeBlock {
     | "parallelogram"
     | "trapezium"
     | "polygon"
+    | "rectilinear"
     | "straight_line"
     | "around_point";
+  /** For rectilinear L-shapes: bounding box + notch dimensions */
+  rectilinear?: RectilinearShape;
   /** Vertex labels and optional explicit coordinates (usually omitted — renderer computes layout) */
   vertices?: { label: string; position?: Point2D }[];
   sides?: SideLabel[];
@@ -178,6 +197,8 @@ export interface LabeledShapeBlock {
   constructions?: { type: "angle_bisector" | "perpendicular_bisector" | "arc"; description: string }[];
   /** Annotations — curly arrows showing relationships */
   arrows?: CurlyArrow[];
+  /** Optional caption shown below the shape */
+  caption?: string;
 }
 
 // ── Block: Probability Tree ───────────────────────────────────────────────────
