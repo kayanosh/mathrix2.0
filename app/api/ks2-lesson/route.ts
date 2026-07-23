@@ -19,6 +19,7 @@ import {
   detectSkillVisualFamily,
   KS2_SKILL_VISUALS,
   repairRoundingExplanation,
+  repairGeometryVisuals,
   repairRoundingVisuals,
   repairWordProblemVisuals,
 } from "@/lib/ks2-skill-visuals";
@@ -572,14 +573,19 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
       },
     };
   }
-  if (next.whiteboard?.blocks?.length && next.question) {
+  if (next.question) {
     next = {
       ...next,
       whiteboard: {
-        ...next.whiteboard,
-        blocks: repairRoundingVisuals(
-          repairWordProblemVisuals(
-            next.whiteboard.blocks,
+        ...(next.whiteboard || { intro: "", blocks: [], conclusion: "" }),
+        blocks: repairGeometryVisuals(
+          repairRoundingVisuals(
+            repairWordProblemVisuals(
+              next.whiteboard?.blocks || [],
+              String(next.question),
+              topic,
+              subtopics.join(" "),
+            ),
             String(next.question),
             topic,
             subtopics.join(" "),
@@ -587,6 +593,7 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
           String(next.question),
           topic,
           subtopics.join(" "),
+          String(next.answer || ""),
         ),
       },
     };

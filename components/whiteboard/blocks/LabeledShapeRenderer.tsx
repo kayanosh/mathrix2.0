@@ -37,6 +37,14 @@ function computeVertices(
         { x: cx + r, y: cy + r * 0.6 },
         { x: cx - r, y: cy + r * 0.6 },
       ];
+    case "square":
+      // Equal sides — diagonal mirror lines are only true for a true square.
+      return [
+        { x: cx - r * 0.75, y: cy - r * 0.75 },
+        { x: cx + r * 0.75, y: cy - r * 0.75 },
+        { x: cx + r * 0.75, y: cy + r * 0.75 },
+        { x: cx - r * 0.75, y: cy + r * 0.75 },
+      ];
     case "parallelogram":
       return [
         { x: cx - r * 0.7, y: cy - r * 0.5 },
@@ -219,7 +227,7 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
   const r = 100;
 
   // Compute vertices
-  const numV = vertexDefs?.length || (shape === "triangle" ? 3 : shape === "rectangle" ? 4 : 5);
+  const numV = vertexDefs?.length || (shape === "triangle" ? 3 : shape === "rectangle" || shape === "square" ? 4 : 5);
   const defaultPositions = useMemo(() => {
     // For triangles, try angle/side-aware computation first
     if (shape === "triangle") {
@@ -315,13 +323,31 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
 
         {/* Lines of symmetry (dashed) */}
         {block.symmetryLines
-          ? [
-              // 1: vertical, 2: +horizontal, 3+: +diagonals
-              { x1: cx, y1: 6, x2: cx, y2: height - 6 },
-              { x1: 6, y1: cy, x2: width - 6, y2: cy },
-              { x1: 14, y1: 14, x2: width - 14, y2: height - 14 },
-              { x1: width - 14, y1: 14, x2: 14, y2: height - 14 },
-            ]
+          ? (() => {
+              // Mirror lines must pass through the SHAPE, not the canvas:
+              // bbox corners give true diagonals for a square, and we only
+              // offer diagonals for squares (an oblong's diagonals are NOT
+              // lines of symmetry).
+              const xs = points.map((p) => p.x);
+              const ys = points.map((p) => p.y);
+              const minX = Math.min(...xs) - 10;
+              const maxX = Math.max(...xs) + 10;
+              const minY = Math.min(...ys) - 10;
+              const maxY = Math.max(...ys) + 10;
+              const midX = (minX + maxX) / 2;
+              const midY = (minY + maxY) / 2;
+              const lines = [
+                { x1: midX, y1: minY, x2: midX, y2: maxY },
+                { x1: minX, y1: midY, x2: maxX, y2: midY },
+              ];
+              if (block.shape === "square") {
+                lines.push(
+                  { x1: minX, y1: minY, x2: maxX, y2: maxY },
+                  { x1: maxX, y1: minY, x2: minX, y2: maxY },
+                );
+              }
+              return lines;
+            })()
               .slice(0, Math.min(4, Math.max(0, Math.round(block.symmetryLines))))
               .map((line, i) => (
                 <motion.line

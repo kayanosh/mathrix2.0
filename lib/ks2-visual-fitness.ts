@@ -281,6 +281,7 @@ export const KNOWN_SHAPES = new Set([
   "triangle",
   "circle",
   "rectangle",
+  "square",
   "parallelogram",
   "trapezium",
   "polygon",
@@ -377,6 +378,7 @@ export function normalizeShapeDialect(blocks: VisualBlock[]): VisualBlock[] {
     if (/circle|sphere/.test(name)) return as2("circle");
     if (/trapezi/.test(name)) return as2("trapezium");
     if (/parallelogram/.test(name)) return as2("parallelogram");
+    if (/\bsquare\b/.test(name)) return as2("square");
     if (/rectangle|oblong/.test(name)) return as2("rectangle");
       return next;
     } catch {

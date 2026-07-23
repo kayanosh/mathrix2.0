@@ -169,6 +169,7 @@ export interface LabeledShapeBlock {
     | "triangle"
     | "circle"
     | "rectangle"
+    | "square"
     | "parallelogram"
     | "trapezium"
     | "polygon"

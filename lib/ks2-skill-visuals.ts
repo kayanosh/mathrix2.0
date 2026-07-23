@@ -111,6 +111,11 @@ export function detectSkillVisualFamily(
   }
   if (/\bdivid|÷|bus stop|short division|long division/.test(q) && /\d/.test(q))
     return "division";
+  // "Estimate the area of the irregular shape on a 1 cm × 1 cm square grid"
+  // is geometry — the × belongs to the grid pitch, not a multiplication.
+  if (/irregular\s+shape|square\s+grid|estimate\s+the\s+area/i.test(q)) {
+    return "geometry";
+  }
   if (/\bmultipl|×|times|area model/.test(q) && /\d/.test(q))
     return "multiplication";
   if (/\bdecimal\b|\d+\.\d+/.test(q)) return "decimals";
@@ -446,6 +451,109 @@ export function repairRoundingVisuals(
  * check). Prepends the rule step only when the existing steps do not already
  * cover it, so well-formed lessons are untouched.
  */
+/**
+ * Deterministic repair for geometry lessons that arrive with NO usable
+ * shape visual (missing_visual → 422 in class). Two question types the
+ * model reliably leaves bare:
+ *
+ * 1. "How many lines of symmetry does a square/rectangle have?" → a
+ *    labeled_shape with the correct dashed symmetry lines. Only square (4)
+ *    and rectangle (2) are repaired: the renderer's mirror lines are only
+ *    mathematically true for those — a diagonal across an oblong or a line
+ *    through a scalene triangle would LIE, and a lying diagram is worse
+ *    than a 422.
+ * 2. "Is this pentagon regular or irregular?" → a lettered polygon whose
+ *    side labels carry the maths (all equal = regular; all different =
+ *    irregular, captioned "not drawn to scale"). The labels are matched to
+ *    the lesson's own answer so the diagram cannot disagree with it.
+ *
+ * Repair rather than reject — a teacher cannot retry mid-lesson.
+ */
+export function repairGeometryVisuals(
+  blocks: VisualBlock[],
+  question: string,
+  topic = "",
+  skill = "",
+  answer = "",
+): VisualBlock[] {
+  if (!question) return blocks;
+  if (detectSkillVisualFamily(question, topic, skill) !== "geometry") {
+    return blocks;
+  }
+  if (satisfiesSkillVisuals(blocks.map((b) => b.type), "geometry")) {
+    return blocks;
+  }
+  const q = question.toLowerCase();
+
+  if (/lines? of symmetry|symmetr(?:y|ic)/.test(q)) {
+    if (/\bsquare\b/.test(q)) {
+      return [
+        {
+          type: "labeled_shape",
+          shape: "square",
+          symmetryLines: 4,
+          caption: "Count the mirror lines: each dashed line folds the square onto itself.",
+        } as VisualBlock,
+        ...blocks,
+      ];
+    }
+    if (/\brectangle|oblong\b/.test(q)) {
+      return [
+        {
+          type: "labeled_shape",
+          shape: "rectangle",
+          vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }],
+          symmetryLines: 2,
+          caption: "A rectangle has 2 mirror lines — its diagonals are NOT lines of symmetry.",
+        } as VisualBlock,
+        ...blocks,
+      ];
+    }
+    return blocks; // other shapes: no honest repair exists
+  }
+
+  const polyCount = /pentagon/.test(q)
+    ? 5
+    : /hexagon/.test(q)
+      ? 6
+      : /heptagon/.test(q)
+        ? 7
+        : /octagon/.test(q)
+          ? 8
+          : 0;
+  if (polyCount > 0 && /regular|irregular/.test(q)) {
+    const a = answer.toLowerCase();
+    const irregular =
+      /\birregular\b/.test(a) &&
+      !/\bregular\b/.test(a.replace(/\birregular\b/g, ""));
+    const vertices = Array.from({ length: polyCount }, (_, i) => ({
+      label: String.fromCharCode(65 + i),
+    }));
+    // Equal lengths for regular; a distinct length per side for irregular.
+    const lengths = Array.from({ length: polyCount }, (_, i) =>
+      irregular ? 4 + ((i * 2) % polyCount) : 5,
+    );
+    const sides = vertices.map((v, i) => ({
+      from: v.label,
+      to: vertices[(i + 1) % polyCount].label,
+      label: `${lengths[i]} cm`,
+    }));
+    return [
+      {
+        type: "labeled_shape",
+        shape: "polygon",
+        vertices,
+        sides,
+        caption: irregular
+          ? "Not drawn to scale — the side lengths are all different, so this is an irregular polygon."
+          : `Every side is the same length — a regular ${q.includes("hexagon") ? "hexagon" : q.includes("heptagon") ? "heptagon" : q.includes("octagon") ? "octagon" : "pentagon"}.`,
+      } as VisualBlock,
+      ...blocks,
+    ];
+  }
+  return blocks;
+}
+
 export function repairRoundingExplanation(
   teachingSteps: TeachingStep[] | undefined,
   question: string,
