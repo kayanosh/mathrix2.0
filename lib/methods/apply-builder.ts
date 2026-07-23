@@ -459,7 +459,9 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   const boardIntro =
     built.intro ||
     wb?.intro ||
-    `Let's work out ${example.question}.`;
+    // Strip trailing punctuation from the question so we never render
+    // "Let's work out Change 11/4 into a mixed number.."
+    `Let's work out ${example.question.replace(/[.?!]+\s*$/, "")}.`;
   const boardConclusion =
     built.block.type === "column_method"
       ? `${built.block.question} = ${built.block.answer}`

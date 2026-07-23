@@ -363,68 +363,138 @@ function buildOfAmount(
   return { steps, teachingSteps, answerPlain: String(result) };
 }
 
+/** Shared step/teaching-step pusher for the small conversion builders. */
+function makeConversionPusher(steps: EquationStep[], teachingSteps: TeachingStep[]) {
+  return (
+    title: string,
+    explanation: string,
+    latexBefore: string,
+    latexAfter: string,
+    operationLabel: string,
+    why?: string,
+    showAnswer?: boolean,
+  ) => {
+    steps.push({
+      stepNumber: steps.length + 1,
+      operationLabel,
+      explanation,
+      latexBefore,
+      latexAfter,
+      arrowDirection: "down" as const,
+      rule: title,
+    });
+    teachingSteps.push({
+      title,
+      explanation,
+      why,
+      narration: explanation,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      showAnswer,
+    });
+  };
+}
+
+/**
+ * Mixed → improper, shown as full working: multiply to find the hidden
+ * parts, add the visible ones, then an inverse check. A single jump step
+ * ("2 3/4 = 11/4") teaches nothing to a first-time student.
+ */
 function buildToImproper(
   whole: number,
   frac: Fraction,
 ): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answerPlain: string } {
-  const teachingSteps: TeachingStep[] = [];
   const steps: EquationStep[] = [];
-  let stepNumber = 1;
+  const teachingSteps: TeachingStep[] = [];
+  const push = makeConversionPusher(steps, teachingSteps);
   const improper = { n: whole * frac.d + frac.n, d: frac.d };
-  steps.push({
-    stepNumber: stepNumber++,
-    operationLabel: "Mixed → improper",
-    explanation: `Multiply the whole by the denominator, then add the numerator: ${whole} × ${frac.d} + ${frac.n} = ${improper.n}.`,
-    rule: "Mixed to improper",
-    why: "You're counting all the equal-sized pieces.",
-    latexBefore: `${whole}\\ ${latex(frac)}`,
-    latexAfter: latex(improper),
-    arrowDirection: "simplify",
-  });
-  teachingSteps.push({
-    title: "Mixed → improper",
-    explanation: `${whole} ${plain(frac)} = ${plain(improper)}.`,
-    why: "Whole × denominator + numerator.",
-    narration: `${whole} and ${plain(frac)} is ${plain(improper)}.`,
-    cellKeys: [],
-    carryKeys: [],
-    noteKeys: [],
-    showAnswer: true,
-  });
+  const mixedLatexStr = `${whole}\\frac{${frac.n}}{${frac.d}}`;
+
+  push(
+    "Multiply the whole by the denominator",
+    `${whole} × ${frac.d} = ${whole * frac.d}. Each whole hides ${frac.d} equal parts, so ${whole} whole${whole === 1 ? "" : "s"} hide ${whole * frac.d} parts.`,
+    mixedLatexStr,
+    `${whole} \\times ${frac.d} = ${whole * frac.d}`,
+    "Whole → parts",
+    "The denominator tells you how many parts are inside each whole.",
+  );
+  push(
+    "Add the numerator",
+    `${whole * frac.d} + ${frac.n} = ${improper.n} parts altogether. The denominator stays ${frac.d}, so ${whole} ${plain(frac)} = ${plain(improper)}.`,
+    `${whole * frac.d} + ${frac.n}`,
+    latex(improper),
+    "Mixed → improper",
+    "You are counting all the equal-sized pieces — the hidden ones and the visible ones.",
+    true,
+  );
+  push(
+    "Check with the inverse",
+    `Check: ${improper.n} ÷ ${improper.d} = ${whole} remainder ${frac.n}, so ${plain(improper)} = ${whole} ${plain(frac)} — back where we started. ✓`,
+    latex(improper),
+    mixedLatexStr,
+    "Check",
+    "Dividing must return the original mixed number.",
+  );
   return { steps, teachingSteps, answerPlain: plain(improper) };
 }
 
+/**
+ * Improper → mixed, shown as full working: divide with remainder, assemble
+ * the mixed number keeping the denominator, then an inverse check.
+ */
 function buildToMixed(
   improper: Fraction,
 ): { steps: EquationStep[]; teachingSteps: TeachingStep[]; answerPlain: string } {
-  const teachingSteps: TeachingStep[] = [];
   const steps: EquationStep[] = [];
+  const teachingSteps: TeachingStep[] = [];
+  const push = makeConversionPusher(steps, teachingSteps);
   const whole = Math.floor(improper.n / improper.d);
   const rem = improper.n % improper.d;
   const mixedPlain = rem === 0 ? String(whole) : `${whole} ${rem}/${improper.d}`;
-  steps.push({
-    stepNumber: 1,
-    operationLabel: "Improper → mixed",
-    explanation: `Divide ${improper.n} ÷ ${improper.d} = ${whole} remainder ${rem}.`,
-    rule: "Improper to mixed",
-    why: "The quotient is wholes; the remainder stays as a fraction.",
-    latexBefore: latex(improper),
-    latexAfter:
-      rem === 0
-        ? String(whole)
-        : `${whole}\\ \\frac{${rem}}{${improper.d}}`,
-    arrowDirection: "simplify",
-  });
-  teachingSteps.push({
-    title: "Improper → mixed",
-    explanation: `${plain(improper)} = ${mixedPlain}.`,
-    why: "Divide numerator by denominator.",
-    narration: `${plain(improper)} as a mixed number is ${mixedPlain}.`,
-    cellKeys: [],
-    carryKeys: [],
-    noteKeys: [],
-    showAnswer: true,
-  });
+  const mixedLatexStr =
+    rem === 0 ? String(whole) : `${whole}\\frac{${rem}}{${improper.d}}`;
+  const divisionLatex = `${improper.n} \\div ${improper.d} = ${whole}\\ \\mathrm{r}${rem}`;
+
+  push(
+    "Divide the numerator by the denominator",
+    `${improper.n} ÷ ${improper.d} = ${whole} remainder ${rem}. ${improper.d} parts make each whole, so ${improper.n} parts make ${whole} whole${whole === 1 ? "" : "s"} with ${rem} left over.`,
+    latex(improper),
+    divisionLatex,
+    "Divide",
+    "The denominator tells you how many parts make one whole.",
+  );
+  if (rem === 0) {
+    push(
+      "Write the answer",
+      `${improper.n} ÷ ${improper.d} = ${whole} exactly. No parts are left over, so the answer is the whole number ${whole}.`,
+      divisionLatex,
+      String(whole),
+      "Whole number",
+      "Nothing is left over, so there is no fraction part.",
+      true,
+    );
+  } else {
+    push(
+      "Write the mixed number",
+      `The division gives ${whole} whole${whole === 1 ? "" : "s"}. The remainder ${rem} stays over the same denominator: ${rem}/${improper.d}. So ${plain(improper)} = ${mixedPlain}.`,
+      divisionLatex,
+      mixedLatexStr,
+      "Improper → mixed",
+      "The remainder is still counted in the same-sized parts, so the denominator does not change.",
+      true,
+    );
+  }
+  push(
+    "Check with the inverse",
+    rem === 0
+      ? `Check: ${whole} × ${improper.d} = ${improper.n}, which matches the numerator. ✓`
+      : `Check: ${whole} × ${improper.d} + ${rem} = ${whole * improper.d + rem}, which matches the numerator ${improper.n}. ✓`,
+    mixedLatexStr,
+    latex(improper),
+    "Check",
+    "Working backwards must return the original fraction.",
+  );
   return { steps, teachingSteps, answerPlain: mixedPlain };
 }
 
