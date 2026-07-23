@@ -5,7 +5,7 @@
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import { parseOrderOperationsQuestion } from "@/lib/methods/order-of-operations";
 import type { TeachingStep } from "@/lib/methods/types";
-import type { VisualBlock } from "@/types/whiteboard";
+import type { LabeledShapeBlock, VisualBlock } from "@/types/whiteboard";
 
 export type KS2SkillVisualFamily =
   | "fraction_simplify"
@@ -480,10 +480,47 @@ export function repairGeometryVisuals(
   if (detectSkillVisualFamily(question, topic, skill) !== "geometry") {
     return blocks;
   }
+  const q = question.toLowerCase();
+
+  // Symmetry questions must SHOW the mirror lines. A cached/model shape
+  // without symmetryLines gets patched in place when the count is
+  // knowable (square → 4, rectangle → 2); anything else is left alone —
+  // fake lines are worse than none.
+  if (/lines? of symmetry|symmetr(?:y|ic)/.test(q)) {
+    const count = /\bsquare\b/.test(q)
+      ? 4
+      : /\brectangle|oblong\b/.test(q)
+        ? 2
+        : 0;
+    if (count > 0) {
+      const idx = blocks.findIndex((b) => b.type === "labeled_shape");
+      if (idx >= 0) {
+        const shape = blocks[idx] as LabeledShapeBlock;
+        if (shape.symmetryLines) return blocks; // already honest
+        if (["square", "rectangle", "polygon"].includes(String(shape.shape))) {
+          const patched = {
+            ...shape,
+            // 4 lines are only true on a true square — upgrade the drawing.
+            shape: (count === 4 ? "square" : shape.shape === "square" ? "square" : "rectangle") as LabeledShapeBlock["shape"],
+            symmetryLines: count,
+            caption:
+              shape.caption ||
+              (count === 4
+                ? "Count the mirror lines: each dashed line folds the square onto itself."
+                : "A rectangle has 2 mirror lines — its diagonals are NOT lines of symmetry."),
+          };
+          const next = [...blocks];
+          next[idx] = patched;
+          return next;
+        }
+        return blocks;
+      }
+    }
+  }
+
   if (satisfiesSkillVisuals(blocks.map((b) => b.type), "geometry")) {
     return blocks;
   }
-  const q = question.toLowerCase();
 
   if (/lines? of symmetry|symmetr(?:y|ic)/.test(q)) {
     if (/\bsquare\b/.test(q)) {

@@ -98,16 +98,33 @@ describe("repairGeometryVisuals — regular vs irregular polygons", () => {
     ).toHaveLength(0);
   });
 
-  it("does not touch lessons that already satisfy the geometry contract", () => {
+  it("patches a bare drawn shape with the correct mirror lines", () => {
+    const bare = [
+      { type: "labeled_shape", shape: "rectangle", vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }] } as LabeledShapeBlock,
+    ];
+    const out = repairGeometryVisuals(
+      bare,
+      "How many lines of symmetry does a square have?",
+      "Shape",
+      "Lines of symmetry",
+      "4",
+    );
+    const b = out[0] as LabeledShapeBlock;
+    // Upgraded to a true square — 4 mirror lines on an oblong would lie.
+    expect(b.shape).toBe("square");
+    expect(b.symmetryLines).toBe(4);
+  });
+
+  it("does not touch lessons that already show mirror lines", () => {
     const existing = [
       { type: "labeled_shape", shape: "triangle", vertices: [{ label: "A" }, { label: "B" }, { label: "C" }] } as LabeledShapeBlock,
     ];
     const out = repairGeometryVisuals(
       existing,
-      "How many lines of symmetry does a square have?",
+      "What is the name of a three-sided shape?",
       "Shape",
-      "Lines of symmetry",
-      "4",
+      "Regular and irregular polygons",
+      "triangle",
     );
     expect(out).toBe(existing);
   });

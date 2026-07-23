@@ -80,7 +80,7 @@ export function buildIrregularArea(
 
   push(
     "Split the shape into two rectangles",
-    `Draw one dividing line to split the irregular shape into rectangle A (${W}${unit ? ` ${unit}` : ""} wide, ${topH}${unit ? ` ${unit}` : ""} tall) and rectangle B (${bottomW}${unit ? ` ${unit}` : ""} wide, ${nh}${unit ? ` ${unit}` : ""} tall).`,
+    `Draw one dividing line. Rectangle A is ${W}${unit ? ` ${unit}` : ""} by ${topH}${unit ? ` ${unit}` : ""}. Rectangle B is ${bottomW}${unit ? ` ${unit}` : ""} by ${nh}${unit ? ` ${unit}` : ""}.`,
     `\\text{A: } ${W} \\times ${topH} \\qquad \\text{B: } ${bottomW} \\times ${nh}`,
     `\\text{A: } ${W} \\times ${topH} \\qquad \\text{B: } ${bottomW} \\times ${nh}`,
     "Split",
