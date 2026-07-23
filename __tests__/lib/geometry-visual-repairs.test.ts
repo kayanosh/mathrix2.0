@@ -115,6 +115,22 @@ describe("repairGeometryVisuals — regular vs irregular polygons", () => {
     expect(b.symmetryLines).toBe(4);
   });
 
+  it("converts a 1-line rectangle to an isosceles trapezium (a rectangle has 2 lines)", () => {
+    const drawn = [
+      { type: "labeled_shape", shape: "rectangle", symmetryLines: 1 } as LabeledShapeBlock,
+    ];
+    const out = repairGeometryVisuals(
+      drawn,
+      "Does the vertical line through $x = 0$ form a line of symmetry for the shape with points $A(-3,1)$, $B(-1,3)$, $C(1,3)$ and $D(3,1)$?",
+      "Position & Direction",
+      "Lines of symmetry",
+      "Yes, the line x = 0 is a line of symmetry.",
+    );
+    const b = out[0] as LabeledShapeBlock;
+    expect(b.shape).toBe("trapezium");
+    expect(b.symmetryLines).toBe(1);
+  });
+
   it("does not touch lessons that already show mirror lines", () => {
     const existing = [
       { type: "labeled_shape", shape: "triangle", vertices: [{ label: "A" }, { label: "B" }, { label: "C" }] } as LabeledShapeBlock,

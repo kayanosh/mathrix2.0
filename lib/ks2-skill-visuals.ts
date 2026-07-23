@@ -477,16 +477,40 @@ export function repairGeometryVisuals(
   answer = "",
 ): VisualBlock[] {
   if (!question) return blocks;
-  if (detectSkillVisualFamily(question, topic, skill) !== "geometry") {
+  const q = question.toLowerCase();
+  // Symmetry healing runs regardless of visual family — a coordinate
+  // symmetry question is family "coordinates" but its drawn shape must
+  // still show honest mirror lines.
+  const isSymmetry = /lines? of symmetry|symmetr(?:y|ic)/.test(q);
+  if (!isSymmetry && detectSkillVisualFamily(question, topic, skill) !== "geometry") {
     return blocks;
   }
-  const q = question.toLowerCase();
 
   // Symmetry questions must SHOW the mirror lines. A cached/model shape
   // without symmetryLines gets patched in place when the count is
   // knowable (square → 4, rectangle → 2); anything else is left alone —
   // fake lines are worse than none.
   if (/lines? of symmetry|symmetr(?:y|ic)/.test(q)) {
+    // A drawn rectangle labelled with exactly 1 mirror line contradicts
+    // itself — a rectangle always has 2. Coordinate symmetry questions
+    // ("Does the line x = 0 form a line of symmetry for A(-3,1), B(-1,3),
+    // C(1,3), D(3,1)?") plot an isosceles trapezium, which genuinely has
+    // exactly 1 line — convert the drawing so the picture stops lying.
+    const existingIdx = blocks.findIndex((b) => b.type === "labeled_shape");
+    if (existingIdx >= 0) {
+      const drawn = blocks[existingIdx] as LabeledShapeBlock;
+      if (String(drawn.shape) === "rectangle" && drawn.symmetryLines === 1) {
+        const next = [...blocks];
+        next[existingIdx] = {
+          ...drawn,
+          shape: "trapezium",
+          caption:
+            drawn.caption ||
+            "An isosceles trapezium has exactly 1 line of symmetry — straight down the middle.",
+        };
+        return next;
+      }
+    }
     const count = /\bsquare\b/.test(q)
       ? 4
       : /\brectangle|oblong\b/.test(q)

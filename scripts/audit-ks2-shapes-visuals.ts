@@ -126,11 +126,14 @@ function checkVisualConsistency(
     if (!withLines) {
       failures.push("symmetry question has no symmetryLines on its shape");
     } else {
-      const ans = questionNumbers(answer)[0];
+      // Only compare against an explicit "N lines" phrase — yes/no
+      // questions answer "Yes, the line x = 0 …", and grabbing the first
+      // number would read the 0 from the equation as a line count.
+      const m = /(\d+)\s*lines?/i.exec(answer);
       checks.push("symmetryLines count matches the answer");
-      if (ans !== undefined && ans !== withLines.symmetryLines) {
+      if (m && Number(m[1]) !== withLines.symmetryLines) {
         failures.push(
-          `shape draws ${String(withLines.symmetryLines)} lines but answer says ${ans}`,
+          `shape draws ${String(withLines.symmetryLines)} lines but answer says ${m[1]}`,
         );
       }
     }
