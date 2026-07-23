@@ -144,14 +144,10 @@ export function buildCuboidVolume(l: number, w: number, h: number): MethodBuildR
   const volume = l * w * h;
   const shape: LabeledShapeBlock = {
     type: "labeled_shape",
-    shape: "rectangle",
-    vertices: [{ label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }],
-    sides: [
-      { from: "A", to: "B", label: `${l}` },
-      { from: "B", to: "C", label: `${w}` },
-    ],
+    shape: "cuboid",
+    dimensions: [l, w, h],
+    caption: "Volume = length × width × height",
   };
-  // Note: true 3D cuboid isn't in shape enum — use labeled rectangle footprint + height in steps
   const steps: EquationStepBlock = {
     type: "equation_steps",
     steps: [

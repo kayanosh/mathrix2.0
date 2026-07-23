@@ -6,6 +6,8 @@ import type { LabeledShapeBlock } from "@/types/whiteboard";
 import InlineMath from "@/components/InlineMath";
 import { inlineMathToPlainText } from "@/lib/inline-math";
 import RectilinearShapeRenderer from "@/components/whiteboard/blocks/RectilinearShapeRenderer";
+import CuboidRenderer from "@/components/whiteboard/blocks/CuboidRenderer";
+import NetRenderer from "@/components/whiteboard/blocks/NetRenderer";
 
 interface Props {
   block: LabeledShapeBlock;
@@ -262,6 +264,12 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
   }
   if (shape === "rectilinear") {
     return <RectilinearShapeRenderer block={block} baseDelay={baseDelay} />;
+  }
+  if (shape === "cuboid") {
+    return <CuboidRenderer block={block} baseDelay={baseDelay} />;
+  }
+  if (shape === "net") {
+    return <NetRenderer block={block} baseDelay={baseDelay} />;
   }
 
   const points = vertexDefs

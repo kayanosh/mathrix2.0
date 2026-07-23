@@ -3,7 +3,7 @@
  * empty grids, etc.). Prefer omission over a lying diagram.
  */
 
-import type { VisualBlock } from "@/types/whiteboard";
+import type { LabeledShapeBlock, VisualBlock } from "@/types/whiteboard";
 
 /** Extract integers from question text (commas allowed). */
 export function extractQuestionNumbers(question: string): number[] {
@@ -277,7 +277,7 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
   }
 }
 
-const KNOWN_SHAPES = new Set([
+export const KNOWN_SHAPES = new Set([
   "triangle",
   "circle",
   "rectangle",
@@ -285,9 +285,101 @@ const KNOWN_SHAPES = new Set([
   "trapezium",
   "polygon",
   "rectilinear",
+  "cuboid",
+  "net",
   "straight_line",
   "around_point",
 ]);
+
+/**
+ * The model writes labeled_shape in dialects — unknown shape names ("L-shaped
+ * rectilinear polygon", "cuboid", "net of a cube"), vertices with x/y coords
+ * the renderer ignores, and "sideLabels" instead of "sides". Normalize the
+ * dialect onto supported shapes so lessons keep a CORRECT visual instead of
+ * dropping every block to a 422. Anything unrecognisable is left for the
+ * fitness guard to drop.
+ */
+export function normalizeShapeDialect(blocks: VisualBlock[]): VisualBlock[] {
+  return blocks.map((b) => {
+    if (b.type !== "labeled_shape") return b;
+    const raw = b as unknown as Record<string, unknown>;
+    let next = b;
+
+    // Rename sideLabels → sides; strip x/y coords from vertices.
+    const patch: Record<string, unknown> = {};
+    if (Array.isArray(raw.sideLabels) && !next.sides) {
+      patch.sides = raw.sideLabels;
+    }
+    if (
+      Array.isArray(next.vertices) &&
+      next.vertices.some(
+        (v) =>
+          v &&
+          typeof v === "object" &&
+          ("x" in (v as object) || "y" in (v as object)) &&
+          !("position" in (v as object)),
+      )
+    ) {
+      patch.vertices = (next.vertices as unknown[])
+        .map((v) => ({
+          label: String((v as { label?: unknown })?.label ?? ""),
+        }))
+        .filter((v) => v.label);
+    }
+    if (Object.keys(patch).length > 0) {
+      next = { ...next, ...patch } as LabeledShapeBlock;
+    }
+
+    const name = String(next.shape || "").toLowerCase();
+    if (KNOWN_SHAPES.has(name)) return next;
+    const as2 = (shape: string): LabeledShapeBlock =>
+      ({ ...next, shape }) as LabeledShapeBlock;
+    if (/\bnet/.test(name)) return as2("net");
+    if (/cuboid|cube|box/.test(name)) return as2("cuboid");
+    if (/around.*point|point.*angle/.test(name)) return as2("around_point");
+    if (/straight.*line|line.*angle/.test(name)) return as2("straight_line");
+    if (/l-?shaped|rectilinear|compound/.test(name)) {
+      const r = next.rectilinear;
+      if (
+        r &&
+        Number(r.width) > Number(r.notchWidth) &&
+        Number(r.height) > Number(r.notchHeight)
+      ) {
+        return as2("rectilinear");
+      }
+      return next; // fitness drops it; the deterministic builder supplies one
+    }
+    const polyCount = /pentagon/.test(name)
+      ? 5
+      : /hexagon/.test(name)
+        ? 6
+        : /heptagon/.test(name)
+          ? 7
+          : /octagon/.test(name)
+            ? 8
+            : /nonagon/.test(name)
+              ? 9
+              : /decagon/.test(name)
+                ? 10
+                : 0;
+    if (polyCount > 0) {
+      const vertices =
+        next.vertices && next.vertices.length > 0
+          ? next.vertices
+          : Array.from({ length: polyCount }, (_, i) => ({
+              label: String.fromCharCode(65 + i),
+            }));
+      return { ...next, shape: "polygon", vertices } as LabeledShapeBlock;
+    }
+    if (/polygon|shape/.test(name)) return as2("polygon");
+    if (/triangle/.test(name)) return as2("triangle");
+    if (/circle|sphere/.test(name)) return as2("circle");
+    if (/trapezi/.test(name)) return as2("trapezium");
+    if (/parallelogram/.test(name)) return as2("parallelogram");
+    if (/rectangle|oblong/.test(name)) return as2("rectangle");
+    return next;
+  });
+}
 
 /**
  * Shape blocks must name a shape the renderer actually supports — the model
