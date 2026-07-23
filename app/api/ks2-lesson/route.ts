@@ -27,10 +27,7 @@ import {
   parseRomanNumeralQuestion,
   parseRomanToNumberQuestion,
 } from "@/lib/methods/roman-numerals";
-import {
-  filterFitBlocks,
-  normalizeShapeDialect,
-} from "@/lib/ks2-visual-fitness";
+import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
 import { deepRepairStrings } from "@/lib/validate";
 import { detectPromptInjection, INJECTION_GUARD } from "@/lib/input-safety";
 import type { VisualBlock } from "@/types/whiteboard";
@@ -560,18 +557,6 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
   // (visual_mismatch / rounding_not_explained → 422 in class). Repair
   // deterministically from the question's own numbers — repair rather than
   // reject, because a teacher cannot retry mid-lesson.
-  // Normalize model shape dialects ("L-shaped rectilinear polygon", x/y
-  // vertices, sideLabels) onto supported shapes BEFORE fitness runs, so
-  // shape lessons keep a correct visual instead of 422-ing in class.
-  if (next.whiteboard?.blocks?.length) {
-    next = {
-      ...next,
-      whiteboard: {
-        ...next.whiteboard,
-        blocks: normalizeShapeDialect(next.whiteboard.blocks),
-      },
-    };
-  }
   if (next.whiteboard?.blocks?.length && next.question) {
     next = {
       ...next,
