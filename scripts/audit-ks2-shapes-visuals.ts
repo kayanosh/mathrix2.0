@@ -214,7 +214,7 @@ async function runSkill(topicId: string, topicName: string, skill: string): Prom
     requireVisual: true,
   });
   for (const issue of v.issues) {
-    if (issue.blocking) failures.push(`validator: ${issue.code}`);
+    failures.push(`validator: ${issue.code}`);
   }
 
   const we = (lesson as KS2TeachingLesson).workedExample;
