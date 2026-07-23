@@ -50,6 +50,8 @@ const KNOWN_SHAPES = new Set([
   "trapezium",
   "polygon",
   "rectilinear",
+  "cuboid",
+  "net",
   "straight_line",
   "around_point",
 ]);

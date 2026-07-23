@@ -301,8 +301,9 @@ export const KNOWN_SHAPES = new Set([
  */
 export function normalizeShapeDialect(blocks: VisualBlock[]): VisualBlock[] {
   return blocks.map((b) => {
-    if (b.type !== "labeled_shape") return b;
-    const raw = b as unknown as Record<string, unknown>;
+    try {
+      if (!b || typeof b !== "object" || b.type !== "labeled_shape") return b;
+      const raw = b as unknown as Record<string, unknown>;
     let next = b;
 
     // Rename sideLabels → sides; strip x/y coords from vertices.
@@ -377,7 +378,11 @@ export function normalizeShapeDialect(blocks: VisualBlock[]): VisualBlock[] {
     if (/trapezi/.test(name)) return as2("trapezium");
     if (/parallelogram/.test(name)) return as2("parallelogram");
     if (/rectangle|oblong/.test(name)) return as2("rectangle");
-    return next;
+      return next;
+    } catch {
+      // Normalization must never crash a lesson — keep the original block.
+      return b;
+    }
   });
 }
 

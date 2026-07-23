@@ -72,6 +72,12 @@ describe("normalizeShapeDialect", () => {
     expect(isBlockFit(out, "shapes")).toBe(false);
   });
 
+  it("never crashes on null or malformed entries", () => {
+    const messy = [null, undefined, 42, "x", { type: null }] as unknown as VisualBlock[];
+    expect(() => normalizeShapeDialect(messy)).not.toThrow();
+    expect(normalizeShapeDialect(messy)).toHaveLength(5);
+  });
+
   it("does not touch non-shape blocks", () => {
     const table: VisualBlock = {
       type: "table",
