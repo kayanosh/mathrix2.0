@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import InlineMath from "@/components/InlineMath";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
 
 type Props = {
@@ -12,7 +13,7 @@ const COLORS = {
   stroke: "#818cf8",
   fold: "rgba(129,140,248,0.45)",
   fill: "rgba(129,140,248,0.12)",
-  label: "#c7d2fe",
+  label: "#3730a3",
 };
 
 /**
@@ -84,8 +85,8 @@ export default function NetRenderer({ block, baseDelay }: Props) {
         </motion.text>
       </svg>
       {block.caption ? (
-        <p className="mt-2 text-center text-sm" style={{ color: COLORS.label }}>
-          {block.caption}
+        <p className="mt-2 text-center text-sm font-medium text-slate-600">
+          <InlineMath text={block.caption} />
         </p>
       ) : null}
     </div>

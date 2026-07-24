@@ -209,12 +209,14 @@ function computeTriangleFromData(
   return null; // fall back to equilateral
 }
 
+// The whiteboard sits on a WHITE card in every lesson view — label and
+// angle colours must read on white, not on a dark canvas.
 const COLORS = {
   stroke: "#818cf8",
   fill: "rgba(129,140,248,0.06)",
-  label: "#e8e8f0",
+  label: "#334155",
   side: "#22d3ee",
-  angle: "#fbbf24",
+  angle: "#d97706",
 };
 
 export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
@@ -388,9 +390,12 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
               textAnchor="middle"
               dominantBaseline="middle"
               fill={COLORS.label}
-              fontSize="14"
+              fontSize="16"
               fontFamily="var(--font-caveat), cursive"
               fontWeight="bold"
+              stroke="#ffffff"
+              strokeWidth={3.5}
+              paintOrder="stroke"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.5 + i * 0.08 }}
@@ -562,6 +567,11 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           );
         })}
       </svg>
+      {block.caption ? (
+        <p className="mt-2 text-center text-sm font-medium text-slate-600">
+          <InlineMath text={block.caption} />
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import InlineMath from "@/components/InlineMath";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 const COLORS = {
   stroke: "#818cf8",
   fill: "rgba(129,140,248,0.15)",
-  label: "#c7d2fe",
+  label: "#3730a3",
   missing: "#f59e0b",
 };
 
@@ -122,9 +123,12 @@ export default function RectilinearShapeRenderer({ block, baseDelay }: Props) {
               textAnchor="middle"
               dominantBaseline="middle"
               fill={side.missing ? COLORS.missing : COLORS.label}
-              fontSize={side.missing ? 20 : 15}
+              fontSize={side.missing ? 22 : 18}
               fontWeight="bold"
               fontFamily="var(--font-caveat), cursive"
+              stroke="#ffffff"
+              strokeWidth={4}
+              paintOrder="stroke"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.6 + i * 0.12 }}
@@ -135,8 +139,8 @@ export default function RectilinearShapeRenderer({ block, baseDelay }: Props) {
         })}
       </svg>
       {block.caption ? (
-        <p className="mt-2 text-center text-sm" style={{ color: COLORS.label }}>
-          {block.caption}
+        <p className="mt-2 text-center text-sm font-medium text-slate-600">
+          <InlineMath text={block.caption} />
         </p>
       ) : null}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import InlineMath from "@/components/InlineMath";
 import type { LabeledShapeBlock } from "@/types/whiteboard";
 
 type Props = {
@@ -8,11 +9,13 @@ type Props = {
   baseDelay: number;
 };
 
+// The whiteboard sits on a WHITE card in every lesson view — labels must be
+// dark enough to read on white, with a white halo so edges don't cross them.
 const COLORS = {
   stroke: "#818cf8",
   hidden: "rgba(129,140,248,0.4)",
   fill: "rgba(129,140,248,0.10)",
-  label: "#c7d2fe",
+  label: "#3730a3",
 };
 
 /**
@@ -79,9 +82,12 @@ export default function CuboidRenderer({ block, baseDelay }: Props) {
       textAnchor="middle"
       dominantBaseline="middle"
       fill={COLORS.label}
-      fontSize={16}
+      fontSize={21}
       fontWeight="bold"
       fontFamily="var(--font-caveat), cursive"
+      stroke="#ffffff"
+      strokeWidth={4}
+      paintOrder="stroke"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: baseDelay + 0.7 + i * 0.15 }}
@@ -145,8 +151,8 @@ export default function CuboidRenderer({ block, baseDelay }: Props) {
           : null}
       </svg>
       {block.caption ? (
-        <p className="mt-2 text-center text-sm" style={{ color: COLORS.label }}>
-          {block.caption}
+        <p className="mt-2 text-center text-sm font-medium text-slate-600">
+          <InlineMath text={block.caption} />
         </p>
       ) : null}
     </div>
