@@ -289,7 +289,7 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
     label: "Volume & Capacity",
     years: "5-6",
     builderId: "cuboid_volume",
-    requiredBlocks: ["labeled_shape", "equation_steps"],
+    requiredBlocks: ["cuboid_array", "equation_steps"],
     keywords:
       /\b(volume|cuboids?|capacity|estimate volume|estimate capacity)\b/i,
     vocabulary: ["volume", "capacity", "cubic", "length", "width", "height"],
@@ -297,6 +297,8 @@ export const KS2_PEDAGOGY: PedagogyEntry[] = [
       "Using area formula instead of volume",
       "Mixing cm³ and ml without converting",
     ],
+    notes:
+      "Use a cuboid_array with visible unit boundaries and explain cubes per layer × number of layers.",
   },
   {
     id: "statistics",

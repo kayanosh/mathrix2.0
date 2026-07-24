@@ -30,6 +30,7 @@ const SCIENCE_MATHS_ONLY = new Set<VisualBlock["type"]>([
   "bar_model",
   "hundred_square",
   "area_model",
+  "cuboid_array",
   "column_method",
 ]);
 

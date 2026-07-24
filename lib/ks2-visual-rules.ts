@@ -123,8 +123,14 @@ export const KS2_VISUAL_RULES: Record<KS2VisualRuleId, KS2VisualRule> = {
   measurement: {
     id: "measurement",
     label: "Measurement",
-    preferredBlocks: ["labeled_shape", "table", "equation_steps"],
-    guidance: "Use labelled shapes for perimeter/area/volume and conversion tables.",
+    preferredBlocks: [
+      "cuboid_array",
+      "labeled_shape",
+      "table",
+      "equation_steps",
+    ],
+    guidance:
+      "Use unit-cube cuboids for volume, labelled shapes for area/perimeter, and conversion tables for units.",
   },
   literacy: {
     id: "literacy",

@@ -463,9 +463,10 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     // "Let's work out Change 11/4 into a mixed number.."
     `Let's work out ${example.question.replace(/[.?!]+\s*$/, "")}.`;
   const boardConclusion =
-    built.block.type === "column_method"
+    built.conclusion ||
+    (built.block.type === "column_method"
       ? `${built.block.question} = ${built.block.answer}`
-      : `${example.question} = ${answer}`;
+      : `${example.question} = ${answer}`);
 
   const builderBlocks = [
     built.block,
@@ -477,7 +478,8 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   if (
     built.builderId === "multiples_number_line" ||
     built.builderId === "order_of_operations" ||
-    built.builderId === "coordinate_plot"
+    built.builderId === "coordinate_plot" ||
+    built.builderId === "cuboid_volume"
   ) {
     return {
       ...next,

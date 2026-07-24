@@ -89,6 +89,7 @@ const BLOCKING_LESSON_ISSUES = new Set([
   "bar_model_empty",
   "hundred_square_invalid",
   "area_model_invalid",
+  "cuboid_array_invalid",
   "key_info_empty",
   "force_diagram_invalid",
   "subject_visual_mismatch",
@@ -212,13 +213,17 @@ function enrichTeachingFields(
 
   const originalSteps = lesson.workedExample?.steps || [];
   let teachingSteps = lesson.workedExample?.teachingSteps;
+  const firstStepWhy =
+    taxonomy?.pedagogyId === "volume"
+      ? "Volume counts the equal unit cubes that fill every layer of the solid."
+      : "This identifies the maths idea before we apply its method.";
   if (originalSteps.length > 0 && !teachingSteps?.length) {
     teachingSteps = originalSteps.map((explanation, index) => ({
       title: `Step ${index + 1}`,
       explanation,
       why:
         index === 0
-          ? `This keeps the method focused on ${taxonomy?.skill || topic}.`
+          ? firstStepWhy
           : undefined,
       narration: explanation,
       cellKeys: [],
@@ -230,7 +235,7 @@ function enrichTeachingFields(
       index === 0
         ? {
             ...step,
-            why: `This keeps the method focused on ${taxonomy?.skill || topic}.`,
+            why: firstStepWhy,
           }
         : step,
     );

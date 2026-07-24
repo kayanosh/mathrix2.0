@@ -65,6 +65,8 @@ export interface MethodBuildResult {
   answer?: string;
   /** Replaces vague LLM whiteboard.intro when the builder owns the method */
   intro?: string;
+  /** Replaces an awkward question-equals-answer sentence on the whiteboard. */
+  conclusion?: string;
 }
 
 export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {

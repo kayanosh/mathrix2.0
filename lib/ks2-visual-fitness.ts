@@ -176,6 +176,40 @@ function areaModelFit(block: VisualBlock): boolean {
   return Number.isFinite(block.rows) && Number.isFinite(block.cols) && block.rows > 0 && block.cols > 0;
 }
 
+function cuboidArrayFit(block: VisualBlock, question: string): boolean {
+  if (block.type !== "cuboid_array") return false;
+  const dimensions = [block.length, block.width, block.height];
+  if (
+    !dimensions.every(
+      (value) => Number.isInteger(value) && value > 0 && value <= 12,
+    )
+  ) {
+    return false;
+  }
+
+  const representedCubes = block.length * block.width * block.height;
+  const statedCubeCount = question.match(
+    /\b(\d+)\s+(?:(?:equal|small|unit)\s+)*cubes?\b/i,
+  );
+  if (
+    statedCubeCount &&
+    representedCubes !== Number(statedCubeCount[1])
+  ) {
+    return false;
+  }
+
+  const statedDimensions =
+    question.match(
+      /(\d+)\s*(?:cm|m|mm|units?)?\s*(?:by|[×x*])\s*(\d+)\s*(?:cm|m|mm|units?)?\s*(?:by|[×x*])\s*(\d+)/i,
+    );
+  if (statedDimensions) {
+    const expected = statedDimensions.slice(1, 4).map(Number).sort((a, b) => a - b);
+    const actual = [...dimensions].sort((a, b) => a - b);
+    if (expected.some((value, index) => value !== actual[index])) return false;
+  }
+  return true;
+}
+
 function keyInfoFit(block: VisualBlock): boolean {
   if (block.type !== "key_info") return false;
   return (
@@ -250,6 +284,8 @@ export function isBlockFit(block: VisualBlock, question: string): boolean {
       return hundredSquareFit(block);
     case "area_model":
       return areaModelFit(block);
+    case "cuboid_array":
+      return cuboidArrayFit(block, question);
     case "key_info":
       return keyInfoFit(block);
     case "force_diagram":

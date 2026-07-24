@@ -69,7 +69,7 @@ workedExample MUST include a "whiteboard" object:
   "conclusion": "one sentence stating the answer clearly"
 }
 
-Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, fraction_bar, fraction_wall, bar_model, hundred_square, area_model, key_info, chart, coordinate_graph, protractor, angle_scale, text.
+Allowed block types for KS2: column_method, equation_steps, number_line, labeled_shape, table, fraction_bar, fraction_wall, bar_model, hundred_square, area_model, cuboid_array, key_info, chart, coordinate_graph, protractor, angle_scale, text.
 • Long / column multiply or divide → column_method WITH "moves" carry arrows + equation_steps explaining each partial product
 • × or ÷ by 10, 100, 1000 → place-value TABLE (Th H T O columns) + equation_steps showing each digit shift (NEVER column_method for this)
 • Round N to the nearest 10/100/1000/10,000 → number_line whose range is the two multiples either side of N (e.g. 50,000–60,000 for nearest 10,000). NEVER a generic 0–10 line.
@@ -80,7 +80,8 @@ Allowed block types for KS2: column_method, equation_steps, number_line, labeled
 • Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape
 • Perimeter of an L-shaped / rectilinear / compound shape → labeled_shape with "shape": "rectilinear" and "rectilinear": {"width": 10, "height": 8, "notchWidth": 6, "notchHeight": 5, "unit": "cm", "showMissing": true} (adjust the four numbers to your question). NEVER invent a shape name like "L-shaped rectilinear polygon" — the renderer only understands the documented shape values, and a wrong name renders a bare polygon with no labels.
-• Volume / 3D shapes → labeled_shape with "shape": "cuboid" and optional "dimensions": [length, width, height] (drawn as a labelled 3D wireframe)
+• Volume of a cuboid / counting unit cubes → cuboid_array AND equation_steps. The cuboid_array must use whole-number length, width and height matching the example. Never use an empty cuboid outline.
+• Other 3D shape questions → labeled_shape with "shape": "cuboid" and optional "dimensions": [length, width, height] (drawn as a labelled 3D wireframe)
 • Nets → labeled_shape with "shape": "net" (drawn as a cube net with fold lines)
 • Symmetry → labeled_shape with "symmetryLines": <number of lines> (dashed lines are drawn through the shape — pupils must SEE the mirror line, not read about it)
 • Measuring an angle → protractor block: {"type": "protractor", "angle": <degrees>, "vertex": "B", "armLabels": ["C", "A"], "revealReading": false}. The FIRST teaching step must ESTIMATE — compare the angle with a right angle (90°) and classify it (acute/obtuse) BEFORE measuring, using revealReading: false. A later step reveals the reading (revealReading: true) and links the estimate to choosing the correct scale. Never teach protractor use with a bare triangle.
@@ -125,6 +126,17 @@ table block:
   "highlightCells": [[3, 0], [3, 1], [3, 2]]
 }
 equation_steps: 250 → ×10 = 2500 → ×10 = 25000 → ×10 = 250000, with arrows on each shift.
+
+Volume example (a 3 × 2 × 2 cuboid made from 12 unit cubes):
+{
+  "type": "cuboid_array",
+  "length": 3,
+  "width": 2,
+  "height": 2,
+  "unit": "unit",
+  "caption": "2 equal layers of 6 unit cubes"
+}
+Follow it with equation_steps showing one layer, 3 × 2 = 6, then all layers, 6 × 2 = 12 cubic units.
 
 workedExample.steps[] must be SHORT captions matching the diagram (2-4 steps). Never replace the diagram with prose.
 NOTE: The server may replace column_method / place-value table digits with a deterministic builder — still emit a correct sketch.

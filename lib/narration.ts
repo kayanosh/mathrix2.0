@@ -21,6 +21,7 @@ import type {
   TableBlock,
   ChartBlock,
   ColumnMethodBlock,
+  CuboidArrayBlock,
 } from "@/types/whiteboard";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 
@@ -82,6 +83,9 @@ function findTeachingVisualIndex(
   }
   if (/shape|angle|side|perimeter|area of/.test(searchable)) {
     preferredTypes.push("labeled_shape", "area_model");
+  }
+  if (/volume|cuboid|unit cube|layer/.test(searchable)) {
+    preferredTypes.push("cuboid_array");
   }
   if (/equation|calculate|work out|missing number/.test(searchable)) {
     preferredTypes.push("equation_steps");
@@ -214,6 +218,9 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
           kind: "hint",
         });
         break;
+      case "cuboid_array":
+        cuesForCuboidArray(cues, block, bi);
+        break;
       case "key_info":
         cues.push({
           blockIndex: bi,
@@ -337,6 +344,19 @@ function cuesForShape(
   if (sides) text += ` Sides: ${sides}.`;
   if (angles) text += ` Angles: ${angles}.`;
   cues.push({ blockIndex: bi, text, kind: "shape" });
+}
+
+function cuesForCuboidArray(
+  cues: NarrationCue[],
+  block: CuboidArrayBlock,
+  bi: number,
+) {
+  const layerSize = block.length * block.width;
+  cues.push({
+    blockIndex: bi,
+    text: `The cuboid is ${block.length} cubes long and ${block.width} cubes deep, so one layer has ${layerSize} cubes. It is ${block.height} layers high.`,
+    kind: "shape",
+  });
 }
 
 function cuesForTree(

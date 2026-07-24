@@ -127,7 +127,7 @@ UK PRIMARY RULES:
 
 ${kind === "guided" ? "This is GUIDED practice: lean on hints and tryThis." : "This is LEARN: teach the idea clearly first (I do), then steps."}
 
-Allowed whiteboard types: fraction_bar, fraction_grid, fraction_wall, bar_model, hundred_square, area_model, key_info, number_line, table, column_method, equation_steps, labeled_shape, chart, coordinate_graph.
+Allowed whiteboard types: fraction_bar, fraction_grid, fraction_wall, bar_model, hundred_square, area_model, cuboid_array, key_info, number_line, table, column_method, equation_steps, labeled_shape, chart, coordinate_graph.
 `;
 }
 

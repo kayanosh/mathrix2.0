@@ -15,6 +15,7 @@ export type KS2SkillVisualFamily =
   | "division"
   | "decimals"
   | "percentages"
+  | "volume"
   | "geometry"
   | "measure_angles"
   | "word_problems"
@@ -69,6 +70,7 @@ export function detectSkillVisualFamily(
   if (/\bratio\b|proportion|scale factor/.test(t)) return "ratio";
   if (/convert(?:ing)? units?|unit conversion|metric measures?/.test(t))
     return "measures";
+  if (/\bvolume\b|\bcuboids?\b|\bcubic units?\b/.test(t)) return "volume";
   if (/order of operations|bidmas|bodmas/.test(t)) return "order_operations";
   if (
     /(?:multiply|divide)(?:ing)?\s+(?:and\s+)?(?:divide\s+)?by\s+(?:10|100|1000)|[×÷]\s*(?:10|100|1000)\b/.test(
@@ -103,6 +105,7 @@ export function detectSkillVisualFamily(
     return "rounding";
   }
   if (/\bpercent|%|hundred square/.test(q)) return "percentages";
+  if (/\bvolume\b|\bcuboids?\b|\bcubic units?\b/.test(q)) return "volume";
   if (
     (/\d+\s*\/\s*\d+|\\+frac\s*\{/i.test(q) || /\bfraction/.test(q)) &&
     /[+\-−×÷]|\b(?:add\w*|subtract\w*|multipl\w*|divid\w*|of)\b/.test(q)
@@ -206,6 +209,13 @@ export const KS2_SKILL_VISUALS: Record<
     requiredAnyOf: ["hundred_square", "bar_model", "table"],
     guidance: "Use a hundred square or bar model linked to fractions/decimals.",
   },
+  volume: {
+    family: "volume",
+    requiredAnyOf: ["cuboid_array"],
+    requiredAllOf: ["cuboid_array", "equation_steps"],
+    guidance:
+      "Show the cuboid partitioned into unit cubes, then count one layer and multiply by the number of layers.",
+  },
   geometry: {
     family: "geometry",
     requiredAnyOf: ["labeled_shape"],
@@ -291,6 +301,7 @@ export const KS2_SKILL_VISUALS: Record<
       "fraction_grid",
       "bar_model",
       "area_model",
+      "cuboid_array",
       "hundred_square",
       "chart",
       "coordinate_graph",

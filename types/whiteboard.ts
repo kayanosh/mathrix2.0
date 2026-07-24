@@ -354,6 +354,21 @@ export interface AreaModelBlock {
   caption?: string;
 }
 
+/**
+ * A cuboid partitioned into unit cubes. Unlike a generic labelled outline,
+ * this carries the three integer dimensions needed to render every visible
+ * unit boundary and explain volume as equal layers.
+ */
+export interface CuboidArrayBlock {
+  type: "cuboid_array";
+  length: number;
+  width: number;
+  height: number;
+  /** Singular unit used on the dimension labels, e.g. "cm" or "unit". */
+  unit?: string;
+  caption?: string;
+}
+
 export interface KeyInfoHighlight {
   text: string;
   kind?: "number" | "operation" | "unit" | "other";
@@ -576,6 +591,7 @@ export type VisualBlock =
   | BarModelBlock
   | HundredSquareBlock
   | AreaModelBlock
+  | CuboidArrayBlock
   | KeyInfoBlock
   | ForceDiagramBlock
   | TableBlock

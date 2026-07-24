@@ -66,6 +66,7 @@ export function buildTutorSteps(
           bar_model: "Bar model",
           hundred_square: "Hundred square",
           area_model: "Area model",
+          cuboid_array: "Unit-cube cuboid",
           key_info: "Key information",
           force_diagram: "Force diagram",
         };

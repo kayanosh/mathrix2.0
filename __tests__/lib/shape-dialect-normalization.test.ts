@@ -89,12 +89,13 @@ describe("normalizeShapeDialect", () => {
 });
 
 describe("buildCuboidVolume visual", () => {
-  it("emits a 3D cuboid with dimension labels", () => {
+  it("emits a 3D unit-cube array with dimension labels", () => {
     const built = buildCuboidVolume(5, 3, 2);
-    expect(built.block.type).toBe("labeled_shape");
-    if (built.block.type !== "labeled_shape") throw new Error("expected labeled_shape");
-    expect(built.block.shape).toBe("cuboid");
-    expect(built.block.dimensions).toEqual([5, 3, 2]);
+    expect(built.block.type).toBe("cuboid_array");
+    if (built.block.type !== "cuboid_array") throw new Error("expected cuboid_array");
+    expect(built.block).toEqual(
+      expect.objectContaining({ length: 5, width: 3, height: 2 }),
+    );
     expect(isBlockFit(built.block, "Find the volume of the cuboid.")).toBe(true);
     expect(built.answer).toBe("30");
   });

@@ -561,6 +561,25 @@ export function validateVisualBlock(
       });
     }
   }
+  if (block.type === "cuboid_array") {
+    const dimensions = [block.length, block.width, block.height];
+    const statedCubeCount = question.match(
+      /\b(\d+)\s+(?:(?:equal|small|unit)\s+)*cubes?\b/i,
+    );
+    const representedCubes = block.length * block.width * block.height;
+    if (
+      !dimensions.every(
+        (value) => Number.isInteger(value) && value > 0 && value <= 12,
+      ) ||
+      (statedCubeCount && representedCubes !== Number(statedCubeCount[1]))
+    ) {
+      issues.push({
+        code: "cuboid_array_invalid",
+        message:
+          "The unit-cube cuboid dimensions must be whole numbers and must match the cubes stated in the question.",
+      });
+    }
+  }
   if (block.type === "key_info") {
     if (
       !block.stem ||

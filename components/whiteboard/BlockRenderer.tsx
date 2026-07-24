@@ -14,6 +14,7 @@ import ColumnMethodRenderer from "./blocks/ColumnMethodRenderer";
 import ForceDiagramRenderer from "./blocks/ForceDiagramRenderer";
 import ProtractorRenderer from "./blocks/ProtractorRenderer";
 import AngleScaleRenderer from "./blocks/AngleScaleRenderer";
+import CuboidArrayRenderer from "./blocks/CuboidArrayRenderer";
 import {
   AreaModelRenderer,
   BarModelRenderer,
@@ -56,6 +57,8 @@ export default function BlockRenderer({ block, baseDelay }: Props) {
       return <HundredSquareRenderer block={block} baseDelay={baseDelay} />;
     case "area_model":
       return <AreaModelRenderer block={block} baseDelay={baseDelay} />;
+    case "cuboid_array":
+      return <CuboidArrayRenderer block={block} baseDelay={baseDelay} />;
     case "key_info":
       return <KeyInfoRenderer block={block} baseDelay={baseDelay} />;
     case "force_diagram":

@@ -266,6 +266,15 @@ export const AreaModelBlockSchema = z.object({
   caption: z.string().optional(),
 });
 
+export const CuboidArrayBlockSchema = z.object({
+  type: z.literal("cuboid_array"),
+  length: z.number().int().min(1).max(12),
+  width: z.number().int().min(1).max(12),
+  height: z.number().int().min(1).max(12),
+  unit: z.string().max(20).optional(),
+  caption: z.string().max(240).optional(),
+});
+
 export const KeyInfoBlockSchema = z.object({
   type: z.literal("key_info"),
   stem: z.string().min(1),
@@ -424,6 +433,7 @@ export const VisualBlockSchema = z.discriminatedUnion("type", [
   BarModelBlockSchema,
   HundredSquareBlockSchema,
   AreaModelBlockSchema,
+  CuboidArrayBlockSchema,
   KeyInfoBlockSchema,
   ForceDiagramBlockSchema,
   TableBlockSchema,
