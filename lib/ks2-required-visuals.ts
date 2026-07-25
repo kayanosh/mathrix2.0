@@ -77,6 +77,7 @@ Allowed block types for KS2: column_method, equation_steps, number_line, labeled
 • Common multiples → show two ordered lists starting at each base number, then apply any greater-than/between condition. The condition filters answers; it never changes where the lists start.
 • Order of operations / BIDMAS → equation_steps showing the COMPLETE expression rewritten after each operation. Never show only the first multiplication as the answer.
 • Fractions on a line → number_line
+• Equivalent fraction with a requested numerator or denominator → two fraction_bar blocks showing the same shaded amount AND equation_steps applying the same whole-number scale factor to numerator and denominator. Do not add decimals or percentages unless asked.
 • Digit value / place-value chart → table with Th…O headers and the digits of the number
 • Shapes/area/perimeter → labeled_shape
 • Perimeter of an L-shaped / rectilinear / compound shape → labeled_shape with "shape": "rectilinear" and "rectilinear": {"width": 10, "height": 8, "notchWidth": 6, "notchHeight": 5, "unit": "cm", "showMissing": true} (adjust the four numbers to your question). NEVER invent a shape name like "L-shaped rectilinear polygon" — the renderer only understands the documented shape values, and a wrong name renders a bare polygon with no labels.

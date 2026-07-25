@@ -479,7 +479,8 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     built.builderId === "multiples_number_line" ||
     built.builderId === "order_of_operations" ||
     built.builderId === "coordinate_plot" ||
-    built.builderId === "cuboid_volume"
+    built.builderId === "cuboid_volume" ||
+    built.builderId === "fraction_equivalent"
   ) {
     return {
       ...next,

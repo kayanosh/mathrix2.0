@@ -11,6 +11,17 @@ export function normalizeMathText(text: string): string {
     // wrong value (the 2 1/2 → 21/2 production bug).
     .replace(/(\d)\s*(\\+frac)/gi, "$1 $2")
     .replace(/\\+frac\s*\{\s*(-?\d+)\s*\}\s*\{\s*(\d+)\s*\}/gi, "$1/$2")
+    // Equivalent-fraction questions often use \square in one part:
+    // \frac{\square}{12} or \frac{3}{\square}. Preserve that unknown as "?"
+    // so the deterministic fraction parser can solve the requested form.
+    .replace(
+      /\\+frac\s*\{\s*(?:\\+square|□|\?|[a-z])\s*\}\s*\{\s*(\d+)\s*\}/gi,
+      "?/$1",
+    )
+    .replace(
+      /\\+frac\s*\{\s*(-?\d+)\s*\}\s*\{\s*(?:\\+square|□|\?|[a-z])\s*\}/gi,
+      "$1/?",
+    )
     .replace(/\\+times/gi, "×")
     .replace(/\\+cdot/gi, "×")
     .replace(/\\+div/gi, "÷")

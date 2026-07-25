@@ -4,10 +4,12 @@
 
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import { parseOrderOperationsQuestion } from "@/lib/methods/order-of-operations";
+import { parseEquivalentFraction } from "@/lib/methods/fraction-equivalent";
 import type { TeachingStep } from "@/lib/methods/types";
 import type { LabeledShapeBlock, VisualBlock } from "@/types/whiteboard";
 
 export type KS2SkillVisualFamily =
+  | "fraction_equivalent"
   | "fraction_simplify"
   | "fraction_compare"
   | "fraction_ops"
@@ -88,6 +90,14 @@ export function detectSkillVisualFamily(
     return "place_value_shift";
   }
   if (parseOrderOperationsQuestion(q)) return "order_operations";
+  if (
+    (Boolean(parseEquivalentFraction(q)) ||
+      /\bequivalent\s+fractions?\b|\ban?\s+equivalent\s+fraction\b/.test(q) ||
+      /\bequivalent\s+fractions?\b/.test(t)) &&
+    !/\bdecimal|\bpercent|%|\bfdp\b/.test(`${q} ${t}`)
+  ) {
+    return "fraction_equivalent";
+  }
   if (/\bsimplif(?:y|ying)\b|\blowest terms\b|\bsimplest form\b|\bcancel\b/.test(q)) {
     return "fraction_simplify";
   }
@@ -171,6 +181,13 @@ export const KS2_SKILL_VISUALS: Record<
   KS2SkillVisualFamily,
   KS2SkillVisualRequirement
 > = {
+  fraction_equivalent: {
+    family: "fraction_equivalent",
+    requiredAnyOf: ["fraction_bar"],
+    requiredAllOf: ["fraction_bar", "equation_steps"],
+    guidance:
+      "Show the starting and target fraction bars, then show the same scale factor applied to the numerator and denominator.",
+  },
   fraction_simplify: {
     family: "fraction_simplify",
     requiredAnyOf: ["fraction_bar", "fraction_grid"],

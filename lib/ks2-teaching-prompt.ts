@@ -11,6 +11,16 @@ import {
 } from "@/lib/ks2-skill-visuals";
 
 function skillPedagogyExtras(family: KS2SkillVisualFamily): string {
+  if (family === "fraction_equivalent") {
+    return `
+EQUIVALENT FRACTIONS (mandatory for this skill):
+- Stay in fraction form. Do not convert to a decimal or percentage unless the question asks.
+- Compare the given numerators or denominators to find the whole-number scale factor.
+- Multiply or divide BOTH numerator and denominator by that same factor.
+- Show two fraction bars with the same shaded proportion and different equal partitions.
+- Check that the target numerator or denominator is exactly the one requested.
+`;
+  }
   if (family === "rounding") {
     return `
 ROUNDING DECIMALS / PLACE VALUE (mandatory for this skill):

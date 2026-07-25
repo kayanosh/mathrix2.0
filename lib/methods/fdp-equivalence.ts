@@ -28,7 +28,13 @@ function gcd(a: number, b: number): number {
 export function parseFdpEquivalence(text: string): FdpProblem | null {
   const t = normalizeMathText(text);
   if (
-    !/\b(equivalent|as a (?:fraction|decimal|percentage|percent)|convert|fdp|fraction.*decimal|percent)/i.test(
+    /\bequivalent\b/i.test(t) &&
+    !/\bdecimals?\b|\bpercent(?:age)?s?\b|%|\bfdp\b/i.test(t)
+  ) {
+    return null;
+  }
+  if (
+    !/\b(as a (?:fraction|decimal|percentage|percent)|convert|fdp|fraction.*decimal|percent|equivalent[\s\S]*(?:decimal|percent)|(?:decimal|percent)[\s\S]*equivalent)/i.test(
       t,
     )
   ) {

@@ -32,6 +32,7 @@ export type MethodBuilderId =
   | "roman_numerals"
   | "rounding_number_line"
   | "fraction_ops"
+  | "fraction_equivalent"
   | "fraction_number_line"
   | "fraction_simplify"
   | "decimal_column"

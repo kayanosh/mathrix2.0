@@ -53,6 +53,10 @@ import {
   parseFractionSimplify,
 } from "@/lib/methods/fraction-simplify";
 import {
+  buildEquivalentFraction,
+  parseEquivalentFraction,
+} from "@/lib/methods/fraction-equivalent";
+import {
   buildDecimalColumn,
   parseDecimalOp,
 } from "@/lib/methods/decimal-column";
@@ -232,6 +236,16 @@ function tryFractionSimplify(text: string): MethodBuildResult | null {
   if (!parsed) return null;
   try {
     return buildFractionSimplify(parsed.n, parsed.d);
+  } catch {
+    return null;
+  }
+}
+
+function tryEquivalentFraction(text: string): MethodBuildResult | null {
+  const parsed = parseEquivalentFraction(text);
+  if (!parsed) return null;
+  try {
+    return buildEquivalentFraction(parsed);
   } catch {
     return null;
   }
@@ -433,6 +447,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   place_value_chart: tryPlaceValueChart,
   place_value_shift: tryPlaceValueShift,
   fraction_simplify: tryFractionSimplify,
+  fraction_equivalent: tryEquivalentFraction,
   fraction_number_line: tryFractionNumberLine,
   fraction_ops: tryFractionOps,
   decimal_column: tryDecimalColumn,
@@ -464,6 +479,7 @@ const DEFAULT_ORDER: MethodBuilderId[] = [
   "roman_numerals",
   "place_value_chart",
   "place_value_shift",
+  "fraction_equivalent",
   "fraction_simplify",
   "fraction_number_line",
   "fraction_ops",
@@ -515,6 +531,7 @@ export {
   buildRoundingNumberLine,
   buildDecimalRounding,
   buildFractionOps,
+  buildEquivalentFraction,
   buildFractionNumberLine,
   buildFractionSimplify,
   buildDecimalColumn,
