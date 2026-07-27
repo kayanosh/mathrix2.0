@@ -45,14 +45,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is admin (subscription_status = 'admin' or has service role)
+  // Check if user is admin, via the dedicated role column (see app/api/classes/route.ts)
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("subscription_status")
+    .select("role")
     .eq("id", user.id)
     .single();
 
-  if (profile?.subscription_status !== "admin") {
+  if (profile?.role !== "admin") {
     return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 });
   }
 

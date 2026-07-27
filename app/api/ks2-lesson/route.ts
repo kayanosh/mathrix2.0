@@ -1223,44 +1223,53 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
           BLOCKING_LESSON_ISSUES.has(issue.code),
         );
 
-        // A second full lesson generation is expensive. Retry only when the
-        // first result has a safety/content mismatch that cannot be served.
-        if (blocking.length > 0) {
+        // Each full lesson generation is expensive, so retries are capped and
+        // only happen when the result has a safety/content mismatch that
+        // cannot be served. DEF-013: some skills (e.g. "Volume of cuboids")
+        // omit a required visual block often enough that a single retry
+        // still leaves a real chunk of requests 422-ing — two retries
+        // (three attempts total) trades a modest cost increase for meaningfully
+        // fewer pupil-facing failures, without loosening what's required.
+        const MAX_QUALITY_RETRIES = 2;
+        for (
+          let attempt = 0;
+          attempt < MAX_QUALITY_RETRIES && blocking.length > 0;
+          attempt++
+        ) {
           const retry = await generateOnce();
-          if (retry) {
-            if (isMaths && retry.workedExample?.question) {
-              retry.workedExample = hardenWorkedExample(
-                retry.workedExample,
-                topic,
-                skillSubs,
-              );
-              Object.assign(retry, hardenKS2MathsPracticeAnswers(retry));
-            } else if (retry.workedExample) {
-              retry.workedExample = hardenSubjectWorkedExample(
-                retry.workedExample,
-                subjectId,
-                topic,
-                focusSkill,
-              );
-            }
-            lesson = enrichTeachingFields(
-              retry,
+          if (!retry) break;
+          if (isMaths && retry.workedExample?.question) {
+            retry.workedExample = hardenWorkedExample(
+              retry.workedExample,
               topic,
               skillSubs,
-              topicId,
+            );
+            Object.assign(retry, hardenKS2MathsPracticeAnswers(retry));
+          } else if (retry.workedExample) {
+            retry.workedExample = hardenSubjectWorkedExample(
+              retry.workedExample,
               subjectId,
-            );
-            validation = validateKS2TeachingLesson(
-              normalizeToTeachingLesson(
-                lesson as unknown as Record<string, unknown>,
-                { topic, skill: focusSkill },
-              ),
-              { subject: subjectId, requireVisual: isMaths },
-            );
-            blocking = validation.issues.filter((issue) =>
-              BLOCKING_LESSON_ISSUES.has(issue.code),
+              topic,
+              focusSkill,
             );
           }
+          lesson = enrichTeachingFields(
+            retry,
+            topic,
+            skillSubs,
+            topicId,
+            subjectId,
+          );
+          validation = validateKS2TeachingLesson(
+            normalizeToTeachingLesson(
+              lesson as unknown as Record<string, unknown>,
+              { topic, skill: focusSkill },
+            ),
+            { subject: subjectId, requireVisual: isMaths },
+          );
+          blocking = validation.issues.filter((issue) =>
+            BLOCKING_LESSON_ISSUES.has(issue.code),
+          );
         }
         if (!validation.ok) {
           qualityWarnings = validation.issues.map((issue) => issue.code);

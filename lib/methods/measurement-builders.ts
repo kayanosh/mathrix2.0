@@ -38,6 +38,21 @@ export function parseRectMeasure(
       );
       return { kind: "volume", l, w, h };
     }
+    // Natural-language dimension labels, in any order/separator: "4cm long,
+    // 3cm wide and 2cm high" never matches the by/×/cubes patterns above, so
+    // without this a cuboid question phrased this way (a common model
+    // output) can only ever get a correct visual by LLM luck (DEF-013).
+    const long = t.match(/(\d+)\s*(?:cm|m|mm)?\s*long\b/i);
+    const wide = t.match(/(\d+)\s*(?:cm|m|mm)?\s*wide\b/i);
+    const high = t.match(/(\d+)\s*(?:cm|m|mm)?\s*(?:high|tall)\b/i);
+    if (long && wide && high) {
+      return {
+        kind: "volume",
+        l: parseInt(long[1], 10),
+        w: parseInt(wide[1], 10),
+        h: parseInt(high[1], 10),
+      };
+    }
   }
   const dims = t.match(
     /(\d+)\s*(?:cm|m|mm)?\s*(?:by|[×x*])\s*(\d+)\s*(?:cm|m|mm)?/i,

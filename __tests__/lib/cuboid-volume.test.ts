@@ -13,6 +13,21 @@ import { validateVisualBlock } from "@/lib/ks2-lesson-validator";
 import { CuboidArrayBlockSchema } from "@/lib/schemas";
 
 describe("deterministic KS2 cuboid volume teaching", () => {
+  it("parses natural-language 'long/wide/high' dimension phrasing (DEF-013 regression)", () => {
+    // Without this, a question phrased this way (a common model output) never
+    // matched any pattern in parseRectMeasure, so the required equation_steps
+    // visual could only appear by LLM luck rather than deterministic repair —
+    // reproducibly (~1 in 5 in live testing) producing a 422 for pupils.
+    expect(
+      parseRectMeasure(
+        "A cuboid is $4\\text{ cm}$ long, $3\\text{ cm}$ wide and $2\\text{ cm}$ high. What is its volume?",
+      ),
+    ).toEqual({ kind: "volume", l: 4, w: 3, h: 2 });
+    expect(
+      parseRectMeasure("A cuboid is 5m long, 6m wide and 2m tall. Find its volume."),
+    ).toEqual({ kind: "volume", l: 5, w: 6, h: 2 });
+  });
+
   it("turns a stated number of equal cubes into a compact whole-number cuboid", () => {
     expect(cuboidDimensionsForUnitCubes(12)).toEqual([3, 2, 2]);
     expect(cuboidDimensionsForUnitCubes(24)).toEqual([4, 3, 2]);

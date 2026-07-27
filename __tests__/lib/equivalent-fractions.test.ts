@@ -90,7 +90,7 @@ describe("deterministic equivalent-fraction teaching", () => {
               type: "number_line",
               range: [0, 1],
               tickInterval: 0.1,
-              markers: [{ value: 0.5, label: "1/2" }],
+              markers: [{ value: 0.5, label: "1/2", style: "filled" }],
             },
           ],
           conclusion: "1/2 = 0.5 = 50%",

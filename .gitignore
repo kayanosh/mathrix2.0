@@ -42,3 +42,4 @@ next-env.d.ts
 
 # generated KS2 audit / regen logs
 /scripts/output/
+*.log

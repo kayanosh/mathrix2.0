@@ -55,6 +55,22 @@ function sampleQuestion(tax: KS2TaxonomyNode): string {
     }
     return "Round 57,892 to the nearest 10,000";
   }
+  // DEF-008/DEF-009: comma-formatted numbers >= 1,000 are exactly the case
+  // that exposed a real production bug (a shared operand parser silently
+  // truncated them), and this harness could not have caught it while every
+  // sample question here was either a decimal or a plain skill-name string —
+  // never a realistic large-number question. Cover the two skills directly
+  // implicated (see MATHRIX_DEFECT_REGISTER.csv DEF-008).
+  if (/more than 4 digits/i.test(tax.skill)) {
+    return /subtract/i.test(tax.skill)
+      ? "62,403 - 27,568"
+      : "47,586 + 28,749";
+  }
+  // Any other maths skill reaching here is tested against its own name, not
+  // a real question — this makes that gap visible instead of a silent pass.
+  console.warn(
+    `[validate-ks2-lessons] no realistic sample question for maths skill "${tax.skill}" (topic ${tax.topic}) — testing against the skill name as a placeholder question, which cannot catch a wrong-answer defect for this skill. See DEF-009.`,
+  );
   return tax.skill;
 }
 
