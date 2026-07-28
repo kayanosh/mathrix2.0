@@ -1,6 +1,6 @@
-# Mathrix Accessibility Report (WCAG 2.2 AA) — Live automated sweep complete; manual/screen-reader testing not done
+# Mathrix Accessibility Report (WCAG 2.2 AA) — Live automated sweep complete; critical finding fixed; manual/screen-reader testing not done
 
-**Status: partial.** This session ran a live, automated `@axe-core/playwright` sweep against 13 public routes at two viewports (desktop 1440×900, tablet 768×1024 — 26 route/viewport combinations total), using a real running dev server (not a static/theoretical read of the code). This finds real, verified WCAG rule violations. It does **not** replace manual testing (keyboard-only traversal, screen-reader announcement quality, reduced-motion behaviour) or a full sweep of every authenticated pupil/teacher route — see "Not covered" below.
+**Status: partial, critical finding remediated.** This session ran a live, automated `@axe-core/playwright` sweep against 13 public routes at two viewports (desktop 1440×900, tablet 768×1024 — 26 route/viewport combinations total), using a real running dev server (not a static/theoretical read of the code). This finds real, verified WCAG rule violations. It does **not** replace manual testing (keyboard-only traversal, screen-reader announcement quality, reduced-motion behaviour) or a full sweep of every authenticated pupil/teacher route — see "Not covered" below. **Update, same session: the critical-impact `button-name` finding (DEF-015) has been fixed and re-verified live** — see below.
 
 ## Method
 
@@ -10,17 +10,19 @@ Routes swept (all public, no authentication required — confirmed via the Next.
 
 ## Findings (real, reproduced — see `audit/evidence/a11y-render-results.json` for exact node counts and CSS selectors)
 
-**28 total axe violations across the 26 route/viewport combinations swept** (violation counts were consistent between the two viewports for every route this session — no viewport-specific issue was found). By rule, most-to-least severe:
+**28 total axe violations across the 26 route/viewport combinations swept, as originally found** (violation counts were consistent between the two viewports for every route this session — no viewport-specific issue was found). By rule, most-to-least severe:
 
-| axe rule | impact | Routes affected | Node count (desktop) | Defect ID |
-|---|---|---|---|---|
-| `button-name` | critical | `/` (1), `/algebra` (9) | 10 | DEF-015 |
-| `color-contrast` | serious | `/` (6), `/subjects` (13), `/syllabus` (8), `/revision` (8), `/algebra` (4), `/privacy` (1), `/terms` (1), `/contact` (1) | 42 | DEF-016 |
-| `nested-interactive` | serious | `/revision` (6) | 6 | DEF-014 |
-| `target-size` | serious | `/algebra` (8) | 8 | DEF-017 |
-| `link-in-text-block` | serious | `/privacy` (4), `/terms` (3) | 7 | DEF-018 |
+| axe rule | impact | Routes affected | Node count (desktop) | Defect ID | Status |
+|---|---|---|---|---|---|
+| `button-name` | critical | `/` (1), `/algebra` (9) | 10 | DEF-015 | **FIXED** (see below) |
+| `color-contrast` | serious | `/` (6), `/subjects` (13), `/syllabus` (8), `/revision` (8), `/algebra` (4), `/privacy` (1), `/terms` (1), `/contact` (1) | 42 | DEF-016 | Not fixed |
+| `nested-interactive` | serious | `/revision` (6) | 6 | DEF-014 | Not fixed |
+| `target-size` | serious | `/algebra` (8) | 8 | DEF-017 | Not fixed |
+| `link-in-text-block` | serious | `/privacy` (4), `/terms` (3) | 7 | DEF-018 | Not fixed |
 
 Full detail, reproduction steps, and recommended fixes for each are in `MATHRIX_DEFECT_REGISTER.csv` (DEF-014 through DEF-018).
+
+**DEF-015 fixed and verified live, same session.** Root cause: 3 icon-only buttons with no accessible name — the send-message button in `components/ChatInterface.tsx` (both its desktop and mobile-layout variants, lines ~1187-1204 and ~1408-1419), the 8 step-dot buttons in `components/SvgDiagramPlayer.tsx` (lines ~212-228), and that same component's replay button (lines ~231-236). Added `aria-label` to each ("Send message"; "Go to step N of M" plus `aria-current` on the active dot; "Replay this step"). Re-ran the identical live axe-core sweep afterward: **zero `button-name` violations remain across all 13 routes and both viewports** (confirmed in `audit/evidence/a11y-render-results.json`, regenerated after the fix). `npx tsc --noEmit` clean; full test suite 738/738 passing, no regressions.
 
 **A second, independent finding on `/revision` (not from axe):** the same nested-`<button>` markup that axe flags as `nested-interactive` also throws a real React hydration-mismatch error in the browser console (`In HTML, <button> cannot be a descendant of <button>... Hydration failed...`). This means every visit to `/revision` forces a client-side re-render of the topic-card subtree, since the browser auto-corrects the invalid nested markup on the client, producing a DOM that doesn't match what the server sent. This is the same defect as DEF-014's axe finding, with a second, independent line of evidence.
 

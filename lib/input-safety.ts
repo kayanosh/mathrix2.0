@@ -110,8 +110,11 @@ const OFF_TOPIC = new RegExp(
 const HARMFUL = new RegExp(
   [
     "\\b(kill myself|suicide|self.?harm|hurt myself|end my life",
-    "how to make a (bomb|weapon|gun)|build a bomb",
     "porn|explicit sex|nude)\\b",
+    // Covers paraphrasings like "how do I make a bomb", "how can I build a
+    // weapon", not just the literal "how to make a bomb" (see DEF-019).
+    "\\bhow\\s+(to|do|can|would)\\s+(i|you)?\\s*(make|build|create)\\s+(a|an)?\\s*(bomb|weapon|gun|explosive)s?\\b",
+    "\\bbuild\\s+(a|an)\\s+(bomb|weapon|gun|explosive)s?\\b",
   ].join("|"),
   "i",
 );

@@ -1187,6 +1187,7 @@ function HeroLanding(props: InputProps) {
             <button
               onClick={() => sendMessage()}
               disabled={(!input.trim() && !pendingImage) || loading}
+              aria-label="Send message"
               className="w-9 h-9 rounded-full flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
               style={{
                 background: (input.trim() || pendingImage) ? "#22c55e" : "#d1d5db",
@@ -1408,6 +1409,7 @@ function ChatInputBar(props: InputProps) {
           <button
             onClick={() => sendMessage()}
             disabled={(!input.trim() && !pendingImage) || loading}
+            aria-label="Send message"
             className="flex-shrink-0 mb-2 mr-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
             style={{
               background: (input.trim() || pendingImage) ? "#22c55e" : "#10b981",

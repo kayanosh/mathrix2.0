@@ -7,18 +7,6 @@
     "pageErrors": [],
     "axeViolations": [
       {
-        "id": "button-name",
-        "impact": "critical",
-        "description": "Ensure buttons have discernible text",
-        "help": "Buttons must have discernible text",
-        "nodes": 1,
-        "targets": [
-          [
-            ".disabled\\:cursor-not-allowed"
-          ]
-        ]
-      },
-      {
         "id": "color-contrast",
         "impact": "serious",
         "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
@@ -47,7 +35,7 @@
       }
     ],
     "screenshot": "___desktop.png",
-    "loadTimeMs": 619
+    "loadTimeMs": 600
   },
   {
     "route": "/ks2",
@@ -57,7 +45,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2__desktop.png",
-    "loadTimeMs": 787
+    "loadTimeMs": 596
   },
   {
     "route": "/ks2/curriculum",
@@ -67,7 +55,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_curriculum__desktop.png",
-    "loadTimeMs": 845
+    "loadTimeMs": 598
   },
   {
     "route": "/ks2/sats",
@@ -77,7 +65,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_sats__desktop.png",
-    "loadTimeMs": 756
+    "loadTimeMs": 592
   },
   {
     "route": "/ks2/eleven-plus",
@@ -87,7 +75,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_eleven-plus__desktop.png",
-    "loadTimeMs": 756
+    "loadTimeMs": 593
   },
   {
     "route": "/ks2/school",
@@ -156,7 +144,7 @@
       }
     ],
     "screenshot": "_subjects__desktop.png",
-    "loadTimeMs": 833
+    "loadTimeMs": 565
   },
   {
     "route": "/syllabus",
@@ -200,7 +188,7 @@
       }
     ],
     "screenshot": "_syllabus__desktop.png",
-    "loadTimeMs": 697
+    "loadTimeMs": 555
   },
   {
     "route": "/revision",
@@ -275,7 +263,7 @@
       }
     ],
     "screenshot": "_revision__desktop.png",
-    "loadTimeMs": 772
+    "loadTimeMs": 598
   },
   {
     "route": "/algebra",
@@ -284,42 +272,6 @@
     "consoleErrors": [],
     "pageErrors": [],
     "axeViolations": [
-      {
-        "id": "button-name",
-        "impact": "critical",
-        "description": "Ensure buttons have discernible text",
-        "help": "Buttons must have discernible text",
-        "nodes": 9,
-        "targets": [
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(1)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(2)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(3)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(4)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(5)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(6)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(7)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(8)"
-          ],
-          [
-            ".hover\\:text-indigo-400"
-          ]
-        ]
-      },
       {
         "id": "color-contrast",
         "impact": "serious",
@@ -349,34 +301,34 @@
         "nodes": 8,
         "targets": [
           [
-            ".rounded-full.duration-300.transition-all:nth-child(1)"
+            "button[aria-label=\"Go to step 1 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(2)"
+            "button[aria-label=\"Go to step 2 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(3)"
+            "button[aria-label=\"Go to step 3 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(4)"
+            "button[aria-label=\"Go to step 4 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(5)"
+            "button[aria-label=\"Go to step 5 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(6)"
+            "button[aria-label=\"Go to step 6 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(7)"
+            "button[aria-label=\"Go to step 7 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(8)"
+            "button[aria-label=\"Go to step 8 of 8\"]"
           ]
         ]
       }
     ],
     "screenshot": "_algebra__desktop.png",
-    "loadTimeMs": 738
+    "loadTimeMs": 623
   },
   {
     "route": "/privacy",
@@ -420,7 +372,7 @@
       }
     ],
     "screenshot": "_privacy__desktop.png",
-    "loadTimeMs": 684
+    "loadTimeMs": 560
   },
   {
     "route": "/terms",
@@ -461,7 +413,7 @@
       }
     ],
     "screenshot": "_terms__desktop.png",
-    "loadTimeMs": 689
+    "loadTimeMs": 561
   },
   {
     "route": "/contact",
@@ -484,7 +436,7 @@
       }
     ],
     "screenshot": "_contact__desktop.png",
-    "loadTimeMs": 686
+    "loadTimeMs": 563
   },
   {
     "route": "/",
@@ -493,18 +445,6 @@
     "consoleErrors": [],
     "pageErrors": [],
     "axeViolations": [
-      {
-        "id": "button-name",
-        "impact": "critical",
-        "description": "Ensure buttons have discernible text",
-        "help": "Buttons must have discernible text",
-        "nodes": 1,
-        "targets": [
-          [
-            ".disabled\\:cursor-not-allowed"
-          ]
-        ]
-      },
       {
         "id": "color-contrast",
         "impact": "serious",
@@ -534,7 +474,7 @@
       }
     ],
     "screenshot": "___tablet-ipad.png",
-    "loadTimeMs": 596
+    "loadTimeMs": 598
   },
   {
     "route": "/ks2",
@@ -544,7 +484,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2__tablet-ipad.png",
-    "loadTimeMs": 595
+    "loadTimeMs": 603
   },
   {
     "route": "/ks2/curriculum",
@@ -554,7 +494,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_curriculum__tablet-ipad.png",
-    "loadTimeMs": 597
+    "loadTimeMs": 588
   },
   {
     "route": "/ks2/sats",
@@ -564,7 +504,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_sats__tablet-ipad.png",
-    "loadTimeMs": 587
+    "loadTimeMs": 588
   },
   {
     "route": "/ks2/eleven-plus",
@@ -574,7 +514,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_eleven-plus__tablet-ipad.png",
-    "loadTimeMs": 592
+    "loadTimeMs": 585
   },
   {
     "route": "/ks2/school",
@@ -584,7 +524,7 @@
     "pageErrors": [],
     "axeViolations": [],
     "screenshot": "_ks2_school__tablet-ipad.png",
-    "loadTimeMs": 563
+    "loadTimeMs": 567
   },
   {
     "route": "/subjects",
@@ -643,7 +583,7 @@
       }
     ],
     "screenshot": "_subjects__tablet-ipad.png",
-    "loadTimeMs": 561
+    "loadTimeMs": 560
   },
   {
     "route": "/syllabus",
@@ -687,7 +627,7 @@
       }
     ],
     "screenshot": "_syllabus__tablet-ipad.png",
-    "loadTimeMs": 550
+    "loadTimeMs": 556
   },
   {
     "route": "/revision",
@@ -762,7 +702,7 @@
       }
     ],
     "screenshot": "_revision__tablet-ipad.png",
-    "loadTimeMs": 590
+    "loadTimeMs": 593
   },
   {
     "route": "/algebra",
@@ -771,42 +711,6 @@
     "consoleErrors": [],
     "pageErrors": [],
     "axeViolations": [
-      {
-        "id": "button-name",
-        "impact": "critical",
-        "description": "Ensure buttons have discernible text",
-        "help": "Buttons must have discernible text",
-        "nodes": 9,
-        "targets": [
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(1)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(2)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(3)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(4)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(5)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(6)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(7)"
-          ],
-          [
-            ".rounded-full.duration-300.transition-all:nth-child(8)"
-          ],
-          [
-            ".hover\\:text-indigo-400"
-          ]
-        ]
-      },
       {
         "id": "color-contrast",
         "impact": "serious",
@@ -836,34 +740,34 @@
         "nodes": 8,
         "targets": [
           [
-            ".rounded-full.duration-300.transition-all:nth-child(1)"
+            "button[aria-label=\"Go to step 1 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(2)"
+            "button[aria-label=\"Go to step 2 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(3)"
+            "button[aria-label=\"Go to step 3 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(4)"
+            "button[aria-label=\"Go to step 4 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(5)"
+            "button[aria-label=\"Go to step 5 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(6)"
+            "button[aria-label=\"Go to step 6 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(7)"
+            "button[aria-label=\"Go to step 7 of 8\"]"
           ],
           [
-            ".rounded-full.duration-300.transition-all:nth-child(8)"
+            "button[aria-label=\"Go to step 8 of 8\"]"
           ]
         ]
       }
     ],
     "screenshot": "_algebra__tablet-ipad.png",
-    "loadTimeMs": 564
+    "loadTimeMs": 565
   },
   {
     "route": "/privacy",
@@ -907,7 +811,7 @@
       }
     ],
     "screenshot": "_privacy__tablet-ipad.png",
-    "loadTimeMs": 558
+    "loadTimeMs": 563
   },
   {
     "route": "/terms",
@@ -945,7 +849,7 @@
       }
     ],
     "screenshot": "_terms__tablet-ipad.png",
-    "loadTimeMs": 554
+    "loadTimeMs": 553
   },
   {
     "route": "/contact",
@@ -968,6 +872,6 @@
       }
     ],
     "screenshot": "_contact__tablet-ipad.png",
-    "loadTimeMs": 563
+    "loadTimeMs": 573
   }
 ]

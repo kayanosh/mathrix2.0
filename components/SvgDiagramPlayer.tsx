@@ -213,6 +213,8 @@ export default function SvgDiagramPlayer({ data, equation }: Props) {
             <button
               key={i}
               onClick={() => goTo(i)}
+              aria-label={`Go to step ${i + 1} of ${data.steps.length}`}
+              aria-current={i === current ? "step" : undefined}
               className="rounded-full transition-all duration-300"
               style={{
                 width: i === current ? 20 : 7,
@@ -230,6 +232,7 @@ export default function SvgDiagramPlayer({ data, equation }: Props) {
 
         <button
           onClick={replay}
+          aria-label="Replay this step"
           className="text-gray-600 hover:text-indigo-400 transition-colors p-1.5 rounded-lg hover:bg-white/5"
         >
           <RotateCcw size={14} />
