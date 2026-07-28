@@ -39,7 +39,7 @@ export default function PrivacyPage() {
               {COMPANY.name} is the data controller responsible for your personal data. We are
               registered in {COMPANY.country} under company registration number{" "}
               {COMPANY.registrationNumber}. You can contact us at any time at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>
               .
@@ -112,7 +112,7 @@ export default function PrivacyPage() {
             </ul>
             <p>
               To exercise any of these rights, please contact us at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>
               . You also have the right to lodge a complaint with the Information Commissioner&rsquo;s
@@ -121,7 +121,7 @@ export default function PrivacyPage() {
                 href="https://ico.org.uk"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-indigo-600 hover:text-indigo-800"
+                className="text-indigo-600 hover:text-indigo-800 underline"
               >
                 ico.org.uk
               </a>
@@ -152,7 +152,7 @@ export default function PrivacyPage() {
             <p>
               If you have any questions about this Privacy Policy or how we handle your data, please
               contact us at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>
               .

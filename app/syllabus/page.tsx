@@ -72,7 +72,7 @@ export default function SyllabusPage() {
       <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-10">
-          <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium mb-3">
+          <div className="flex items-center gap-2 text-indigo-600 text-sm font-medium mb-3">
             <GraduationCap size={16} />
             GCSE Mathematics
           </div>
@@ -140,7 +140,7 @@ export default function SyllabusPage() {
           >
             {tier === "higher" ? "Higher Tier" : "Foundation Tier"}
           </span>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-600">
             {tier === "higher"
               ? "All topics including Higher-only content"
               : "Foundation topics only (Higher-only content hidden)"}
@@ -171,7 +171,7 @@ export default function SyllabusPage() {
                       <h3 className="font-semibold text-gray-900 text-sm">
                         {topic.name}
                       </h3>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-600">
                         {subtopics.length} subtopics
                       </span>
                     </div>

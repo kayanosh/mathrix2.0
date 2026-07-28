@@ -1037,19 +1037,19 @@ function ModeToggle({
     <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 text-[11px]">
       <button
         onClick={() => { setHintMode(false); setTeachMode(false); }}
-        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${solveActive ? "bg-white text-gray-800 shadow-sm" : "text-gray-400"}`}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${solveActive ? "bg-white text-gray-800 shadow-sm" : "text-gray-600"}`}
       >
         Solve it
       </button>
       <button
         onClick={() => { setHintMode(true); setTeachMode(false); }}
-        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode && !teachMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-400"}`}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${hintMode && !teachMode ? "bg-white text-amber-700 shadow-sm" : "text-gray-600"}`}
       >
         Hint only
       </button>
       <button
         onClick={() => { setTeachMode(true); setHintMode(false); }}
-        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${teachMode ? "bg-white text-indigo-700 shadow-sm" : "text-gray-400"}`}
+        className={`px-2.5 py-1 rounded-md font-semibold transition-all duration-150 ${teachMode ? "bg-white text-indigo-700 shadow-sm" : "text-gray-600"}`}
       >
         Teach me a topic
       </button>

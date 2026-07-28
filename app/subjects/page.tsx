@@ -174,7 +174,7 @@ export default function PracticeHub() {
       <div className="max-w-4xl mx-auto px-6 py-10">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium mb-2">
+          <div className="flex items-center gap-2 text-indigo-600 text-sm font-medium mb-2">
             <BookOpen size={16} />
             Practice Hub
           </div>
@@ -189,7 +189,7 @@ export default function PracticeHub() {
           {(["unseen", "learning", "practiced", "confident", "mastered"] as MasteryLevel[]).map((m) => (
             <div key={m} className="flex items-center gap-1.5">
               <div className={`w-2.5 h-2.5 rounded-full ${MASTERY_COLOR[m]}`} />
-              <span className="text-[11px] text-gray-400 capitalize">{m}</span>
+              <span className="text-[11px] text-gray-600 capitalize">{m}</span>
             </div>
           ))}
         </div>
@@ -228,7 +228,7 @@ export default function PracticeHub() {
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${MASTERY_COLOR[avgMastery]}`} />
                     <span className="font-semibold text-gray-900">{topic.name}</span>
-                    <span className="text-xs text-gray-400">{totalQs} questions</span>
+                    <span className="text-xs text-gray-600">{totalQs} questions</span>
                   </div>
                   {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                 </button>
@@ -300,7 +300,7 @@ export default function PracticeHub() {
                             <InlineMath text={questionText} />
                           </div>
                           {currentQ?.hintText && !showAnswer && (
-                            <p className="mt-3 text-xs text-indigo-400 italic">
+                            <p className="mt-3 text-xs text-indigo-600 italic">
                               Hint: <InlineMath text={currentQ.hintText} />
                             </p>
                           )}
@@ -324,7 +324,7 @@ export default function PracticeHub() {
                       {/* AI-generated question answer note */}
                       {showAnswer && aiQuestion && !answerText && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-gray-600">
                             AI-generated question — use &quot;Need Help&quot; for a full worked solution.
                           </p>
                         </div>

@@ -39,7 +39,7 @@ export default function TierSelector({ value, onChange }: Props) {
             className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-150 whitespace-nowrap ${
               value === t.value
                 ? "bg-white text-indigo-700 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-gray-600 hover:text-gray-700"
             }`}
           >
             {t.label}

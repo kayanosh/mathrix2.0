@@ -207,26 +207,32 @@ export default function SvgDiagramPlayer({ data, equation }: Props) {
           )}
         </div>
 
-        {/* Step dots */}
-        <div className="flex items-center gap-1.5">
+        {/* Step dots — the button is a 24x24 hit area (WCAG 2.2 target-size);
+            the visible dot is a smaller span centered inside it (DEF-017). */}
+        <div className="flex items-center">
           {data.steps.map((_, i) => (
             <button
               key={i}
               onClick={() => goTo(i)}
               aria-label={`Go to step ${i + 1} of ${data.steps.length}`}
               aria-current={i === current ? "step" : undefined}
-              className="rounded-full transition-all duration-300"
-              style={{
-                width: i === current ? 20 : 7,
-                height: 7,
-                background:
-                  i === current
-                    ? "#818cf8"
-                    : i < current
-                    ? "rgba(129,140,248,0.4)"
-                    : "rgba(255,255,255,0.15)",
-              }}
-            />
+              className="flex items-center justify-center"
+              style={{ width: 24, height: 24 }}
+            >
+              <span
+                className="rounded-full transition-all duration-300"
+                style={{
+                  width: i === current ? 20 : 7,
+                  height: 7,
+                  background:
+                    i === current
+                      ? "#818cf8"
+                      : i < current
+                      ? "rgba(129,140,248,0.4)"
+                      : "rgba(255,255,255,0.15)",
+                }}
+              />
+            </button>
           ))}
         </div>
 
@@ -292,7 +298,7 @@ export default function SvgDiagramPlayer({ data, equation }: Props) {
           <ChevronLeft size={16} /> Back
         </button>
 
-        <span className="text-xs text-gray-600 tabular-nums">
+        <span className="text-xs text-gray-400 tabular-nums">
           {current + 1} / {total}
         </span>
 

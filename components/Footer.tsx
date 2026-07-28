@@ -49,7 +49,7 @@ export default function Footer() {
           </nav>
         </div>
 
-        <p className="mt-6 text-xs text-gray-400">
+        <p className="mt-6 text-xs text-gray-600">
           © {year} {COMPANY.name}. All rights reserved.
         </p>
       </div>

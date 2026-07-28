@@ -38,7 +38,7 @@ export default function TermsPage() {
             <p>
               {COMPANY.name} is a company registered in {COMPANY.country} under company registration
               number {COMPANY.registrationNumber}. You can contact us at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>
               .
@@ -72,7 +72,7 @@ export default function TermsPage() {
               If you are a consumer in the UK, you may have a statutory right to cancel within 14 days
               of purchase. By starting to use a digital subscription within this period you may waive
               your right to a refund for the portion used. Please contact us at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>{" "}
               with any refund requests.
@@ -130,7 +130,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold pt-4 text-gray-900">13. Contact</h2>
             <p>
               For any questions about these Terms, please contact us at{" "}
-              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800">
+              <a href={`mailto:${COMPANY.email}`} className="text-indigo-600 hover:text-indigo-800 underline">
                 {COMPANY.email}
               </a>
               .

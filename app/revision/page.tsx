@@ -110,7 +110,7 @@ export default function RevisionPage() {
           </button>
           <div className="text-center flex-1 min-w-0 mx-4">
             <h2 className="text-sm font-semibold text-gray-900 truncate">{title}</h2>
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[11px] text-gray-600">
               {notes.length} {notes.length === 1 ? "section" : "sections"}
             </p>
           </div>
@@ -226,7 +226,7 @@ export default function RevisionPage() {
             <p className="text-sm font-medium text-gray-900">
               {expandedTopics.size === REVISION_TOPICS.length ? "Collapse All Topics" : "Expand All Topics"}
             </p>
-            <p className="text-xs text-gray-400">{REVISION_TOPICS.reduce((sum, t) => sum + t.subtopics.length, 0)} subtopics across {REVISION_TOPICS.length} topics</p>
+            <p className="text-xs text-gray-600">{REVISION_TOPICS.reduce((sum, t) => sum + t.subtopics.length, 0)} subtopics across {REVISION_TOPICS.length} topics</p>
           </div>
           <ChevronRight size={16} className="text-gray-400 group-hover:text-indigo-500 transition-colors" />
         </button>
@@ -252,7 +252,7 @@ export default function RevisionPage() {
                 style={{ width: `${checklist.pct}%` }}
               />
             </div>
-            <p className="text-[11px] text-gray-400 mt-1.5 text-left">
+            <p className="text-[11px] text-gray-600 mt-1.5 text-left">
               {checklist.done} of {checklist.total} subtopics revised &middot; {showChecklist ? "Hide" : "Show"} checklist
             </p>
           </button>
@@ -277,7 +277,7 @@ export default function RevisionPage() {
                           ) : (
                             <Circle size={16} className="text-gray-300 group-hover:text-indigo-400 shrink-0" />
                           )}
-                          <span className={`text-sm ${done ? "text-gray-400 line-through" : "text-gray-700"}`}>
+                          <span className={`text-sm ${done ? "text-gray-600 line-through" : "text-gray-700"}`}>
                             {sub.name}
                           </span>
                           {sub.higherOnly && (
@@ -329,35 +329,48 @@ function TopicCard({
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-      {/* Topic header */}
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors"
-      >
-        <span className="text-2xl" role="img" aria-label={topic.name}>
-          {topic.icon}
-        </span>
-        <div className="flex-1 text-left">
-          <h3 className="text-base font-semibold text-gray-900">{topic.name}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {topic.subtopics.length} subtopics
-          </p>
+      {/* Topic header. The toggle control and the "View all" button are kept
+          as SIBLINGS, not nested — a <button> inside a <button> is invalid
+          HTML (caused a real hydration mismatch), and even a div[role=button]
+          wrapping a real <button> is flagged by axe's nested-interactive rule
+          because assistive tech can't reliably announce nested controls
+          (see DEF-014). */}
+      <div className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onToggle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onToggle();
+            }
+          }}
+          aria-expanded={expanded}
+          className="flex items-center gap-4 flex-1 cursor-pointer"
+        >
+          <span className="text-2xl" role="img" aria-label={topic.name}>
+            {topic.icon}
+          </span>
+          <div className="flex-1 text-left">
+            <h3 className="text-base font-semibold text-gray-900">{topic.name}</h3>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {topic.subtopics.length} subtopics
+            </p>
+          </div>
+          {expanded ? (
+            <ChevronDown size={18} className="text-gray-500" />
+          ) : (
+            <ChevronRight size={18} className="text-gray-500" />
+          )}
         </div>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen(topic.id, topic.name);
-          }}
+          onClick={() => onOpen(topic.id, topic.name)}
           className="text-xs text-indigo-600 hover:text-indigo-500 font-medium px-3 py-1.5 rounded-lg border border-indigo-200 hover:border-indigo-400 transition-colors hidden sm:block"
         >
           View all
         </button>
-        {expanded ? (
-          <ChevronDown size={18} className="text-gray-500" />
-        ) : (
-          <ChevronRight size={18} className="text-gray-500" />
-        )}
-      </button>
+      </div>
 
       {/* Subtopics list */}
       {expanded && (

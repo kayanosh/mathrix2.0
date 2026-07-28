@@ -35,7 +35,7 @@ export default function AlgebraPage() {
       >
         <Link
           href="/"
-          className="flex items-center gap-2 text-gray-500 hover:text-gray-200 transition-colors text-sm"
+          className="flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors text-sm"
         >
           <ArrowLeft size={15} />
           Back
@@ -61,7 +61,7 @@ export default function AlgebraPage() {
 
       {/* Label */}
       <div className="text-center pt-4 pb-2 flex-shrink-0">
-        <p className="text-xs text-gray-600 uppercase tracking-widest mb-1">
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
           Worked example
         </p>
         <h1
@@ -74,7 +74,7 @@ export default function AlgebraPage() {
         >
           Solve: 3x + 7 = 19
         </h1>
-        <p className="text-xs text-gray-600 mt-1">
+        <p className="text-xs text-gray-400 mt-1">
           Use ← → keys or tap Next to step through
         </p>
       </div>
