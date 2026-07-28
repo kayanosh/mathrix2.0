@@ -6,6 +6,7 @@ import {
   validateCurriculum,
 } from "@/lib/curriculum";
 import { MIN_TOPIC_COUNTS } from "@/lib/curriculum/validate";
+import { getBoardsFor } from "@/lib/curriculum/stages";
 
 describe("curriculum registry", () => {
   it("passes validation with minimum topic counts", () => {
@@ -68,5 +69,16 @@ describe("curriculum registry", () => {
   it("imports GCSE maths from syllabus with board variants", () => {
     expect(topicCount("gcse", "maths", { board: "AQA" })).toBe(6);
     expect(topicCount("gcse", "maths", { board: "OCR" })).toBe(6);
+  });
+
+  it("only exposes GCSE maths boards that have authored syllabus content (DEF-005)", () => {
+    // WJEC was previously offered in the board selector with zero backing
+    // content in lib/syllabus.ts, so picking it produced ungrounded
+    // AI-generated claims about a specification this product doesn't model.
+    const boards = getBoardsFor("gcse", "maths");
+    expect(boards).toEqual(["AQA", "Edexcel", "OCR"]);
+    for (const board of boards) {
+      expect(topicCount("gcse", "maths", { board })).toBeGreaterThan(0);
+    }
   });
 });

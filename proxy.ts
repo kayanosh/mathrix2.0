@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -33,6 +34,11 @@ export async function proxy(request: NextRequest) {
     await supabase.auth.getUser();
   } catch (error) {
     console.error("proxy: Supabase session refresh failed, continuing logged-out", error);
+    // Request URL/method only — no cookies, headers, or body. This is a
+    // fail-safe already; Sentry here is for noticing the outage exists.
+    Sentry.captureException(error, {
+      tags: { component: "proxy", route: request.nextUrl.pathname },
+    });
   }
 
   return supabaseResponse;

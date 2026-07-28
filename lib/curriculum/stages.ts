@@ -18,8 +18,14 @@ export const SUBJECTS: CurriculumSubject[] = [
   { id: "science", name: "Science", emoji: "🔬", color: "emerald" },
 ];
 
+// GCSE maths is only actually authored for AQA/Edexcel/OCR (see
+// lib/syllabus.ts) — WJEC was previously listed as a selectable board with
+// zero backing content, so choosing it produced ungrounded AI-generated
+// claims about a specification this product doesn't actually model
+// (DEF-005). English/science board lists are unaffected — this scoping
+// decision is maths-specific.
 const GCSE_BOARDS: Record<CurriculumSubjectId, ExamBoardId[]> = {
-  maths: ["AQA", "Edexcel", "OCR", "WJEC"],
+  maths: ["AQA", "Edexcel", "OCR"],
   english: ["AQA", "Edexcel", "OCR", "Eduqas"],
   science: ["AQA", "Edexcel", "OCR"],
 };

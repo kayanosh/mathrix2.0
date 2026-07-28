@@ -1,4 +1,7 @@
+import { createHash } from "crypto";
+import * as Sentry from "@sentry/nextjs";
 import { getOpenAI } from "@/lib/openai";
+import { KS2_PROMPT_VERSION } from "@/lib/ks2-lesson-version";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 import { scienceLessonExtra } from "@/lib/ks2-science";
@@ -1040,6 +1043,7 @@ Return ONLY valid JSON in exactly this shape (no markdown fences):
 }
 Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example steps, and 2-4 key points.`;
 
+    let lastUsedModel: string | undefined;
     async function generateOnce(): Promise<KS2Lesson | null> {
       const completion = await withOpenAIModelFallback(
         LESSON_MODEL,
@@ -1056,6 +1060,9 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
           temperature: 0.7,
         }),
       );
+      // DEF-003: record which model actually served this generation (may be
+      // the fallback, not LESSON_MODEL) for the lesson's modelVersion field.
+      lastUsedModel = completion.model;
 
       const raw = completion.choices[0]?.message?.content || "{}";
       try {
@@ -1315,6 +1322,22 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
       }
     }
 
+    // DEF-003: descriptive versioning/provenance metadata only — nothing
+    // downstream reads or gates on these fields yet (see
+    // types/ks2-lesson.ts for why). Stamped here so it's captured once and
+    // persists through the cache rather than being recomputed per serve.
+    (lesson as CachedKS2Lesson).lessonId = createHash("sha256")
+      .update(`${topicId}|${target}|${tier}|${kind}|${(focusSkill || "").trim().toLowerCase()}`)
+      .digest("hex")
+      .slice(0, 16);
+    (lesson as CachedKS2Lesson).contentVersion = createHash("sha256")
+      .update(JSON.stringify(lesson))
+      .digest("hex")
+      .slice(0, 16);
+    (lesson as CachedKS2Lesson).modelVersion = lastUsedModel;
+    (lesson as CachedKS2Lesson).promptVersion = KS2_PROMPT_VERSION;
+    (lesson as CachedKS2Lesson).reviewStatus = "unreviewed";
+
     if (topicId && cacheable) {
       await writeKS2LessonCache({
         cacheKey: ks2LessonCacheKey(topicId, target, tier, kind, focusSkill),
@@ -1336,6 +1359,10 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
     });
   } catch (err) {
     console.error("ks2-lesson error:", err);
+    // Tags only — no request body (topic/skill text is fine, but a pupil's
+    // in-progress answer could be present elsewhere in the payload shape,
+    // and this route is reused for several kinds of requests).
+    Sentry.captureException(err, { tags: { route: "api/ks2-lesson" } });
     return NextResponse.json({ error: "Failed to generate lesson" }, { status: 500 });
   }
 }

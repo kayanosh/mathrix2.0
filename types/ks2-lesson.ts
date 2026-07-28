@@ -89,6 +89,34 @@ export interface KS2TeachingLesson {
   workedExample: KS2WorkedExample;
   keyPoints: string[];
   tryThis?: { question: string; answer: string };
+
+  // ── Versioning / provenance (DEF-003) ─────────────────────────────────────
+  // Descriptive metadata only — nothing in the serving path reads or gates on
+  // these yet. Adding fields is a small, contained step; enforcing a review
+  // workflow against them (rejecting an unreviewed lesson, invalidating the
+  // cache on a content change) is a separate, larger decision for whoever
+  // builds that workflow, since none of the ~437 currently-cached lessons
+  // have ever been reviewed.
+  /** Stable identity for this lesson instance, independent of the cache key's shape. */
+  lessonId?: string;
+  /** Content hash of the generated lesson. Deliberately NOT part of the cache
+   *  key (see lib/ks2-lesson-cache.ts ks2LessonCacheKey) — including it there
+   *  would mean every regeneration invalidates the whole cache by definition. */
+  contentVersion?: string;
+  /** Links this lesson to an official curriculum objective. Unpopulated until
+   *  Phase 2 curriculum traceability (MATHRIX_CURRICULUM_COVERAGE.csv) exists. */
+  curriculumObjectiveId?: string;
+  /** The actual OpenAI model that generated this lesson's content. */
+  modelVersion?: string;
+  /** Bump KS2_PROMPT_VERSION (lib/ks2-lesson-version.ts) when the generation
+   *  prompt materially changes, so a regression can be traced to a prompt edit. */
+  promptVersion?: string;
+  /** 'unreviewed' | 'approved' | 'rejected'. Always 'unreviewed' today — no
+   *  teacher review workflow exists yet, and nothing should treat this as a
+   *  gate until one does. */
+  reviewStatus?: "unreviewed" | "approved" | "rejected";
+  teacherReviewer?: string;
+  sourceReferences?: string[];
 }
 
 export const KS2_TEACHING_BLOCK_TYPES: KS2TeachingBlockType[] = [

@@ -4,11 +4,19 @@ import { useCallback, useEffect, useRef } from "react";
 import {
   countWords,
   wordIndexAtProgress,
+  wordIndexAtProgressWithSegments,
+  type TranscriptSegment,
 } from "@/components/whiteboard/tutor/SpeechHighlighter";
 
 const audioBlobCache = new Map<string, Blob>();
 const pendingAudio = new Map<string, Promise<Blob>>();
 const MAX_AUDIO_CACHE = 100;
+
+// DEF-002: real per-sentence timestamps, fetched alongside (never blocking)
+// the audio itself. A miss/error just means the linear-estimate fallback in
+// wordIndexAtProgressWithSegments keeps doing what this hook always did.
+const segmentsCache = new Map<string, TranscriptSegment[]>();
+const pendingSegments = new Map<string, Promise<TranscriptSegment[]>>();
 
 function audioKey(text: string, rate: number): string {
   return `${rate}|${text}`;
@@ -44,21 +52,62 @@ export function useWhiteboardSpeech() {
       durationMs: number,
       generation: number,
       onWord: (idx: number) => void,
+      options?: {
+        // Reads true elapsed ms from an actual <audio> element's
+        // currentTime when one exists, instead of an independent JS timer —
+        // removes drift from setInterval throttling (e.g. a backgrounded
+        // tab) as well as from linear word-position estimation.
+        getElapsedMs?: () => number;
+        segments?: TranscriptSegment[] | null;
+      },
     ) => {
       clearProgress();
       const start = performance.now();
+      const getElapsed = options?.getElapsedMs ?? (() => performance.now() - start);
+      const segments = options?.segments ?? null;
       progressTimer.current = setInterval(() => {
         if (generation !== generationRef.current) {
           clearProgress();
           return;
         }
-        const elapsed = performance.now() - start;
-        onWord(wordIndexAtProgress(text, elapsed, durationMs));
+        const elapsed = getElapsed();
+        onWord(
+          segments
+            ? wordIndexAtProgressWithSegments(text, elapsed, durationMs, segments)
+            : wordIndexAtProgress(text, elapsed, durationMs),
+        );
         if (elapsed >= durationMs) clearProgress();
       }, 80);
     },
     [clearProgress],
   );
+
+  const loadTiming = useCallback(async (text: string, rate: number) => {
+    const key = audioKey(text, rate);
+    const cached = segmentsCache.get(key);
+    if (cached) return cached;
+
+    const existing = pendingSegments.get(key);
+    if (existing) return existing;
+
+    const request = fetch("/api/tts-timing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, speed: rate * 1.1 }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return [];
+        const data = (await res.json()) as { segments?: TranscriptSegment[] };
+        const segments = data.segments || [];
+        segmentsCache.set(key, segments);
+        return segments;
+      })
+      .catch(() => [])
+      .finally(() => pendingSegments.delete(key));
+
+    pendingSegments.set(key, request);
+    return request;
+  }, []);
 
   const loadCloudAudio = useCallback(async (text: string, rate: number) => {
     const key = audioKey(text, rate);
@@ -94,11 +143,14 @@ export function useWhiteboardSpeech() {
       if (!text.trim()) return;
       try {
         await loadCloudAudio(text, rate);
+        // Best-effort: timing isn't required for playback to start, only for
+        // the improved (segment-aware) sync once it's ready.
+        void loadTiming(text, rate);
       } catch {
         // The live speak call will use the browser voice if cloud TTS is down.
       }
     },
-    [loadCloudAudio],
+    [loadCloudAudio, loadTiming],
   );
 
   const speakBrowser = useCallback(
@@ -210,7 +262,20 @@ export function useWhiteboardSpeech() {
               ? audio.duration * 1000
               : Math.max(1400, countWords(text) * 300) / rate;
 
-          startWordProgress(text, durationMs, generation, onWord);
+          const getElapsedMs = () => audio.currentTime * 1000;
+          startWordProgress(text, durationMs, generation, onWord, { getElapsedMs });
+          // Segments usually arrive well before this (prepare() fetches them
+          // ahead of time for the current AND next step); when they land,
+          // swap to segment-aware tracking without losing playback position —
+          // getElapsedMs reads the real <audio> position, not a restarted timer.
+          void loadTiming(text, rate).then((segments) => {
+            if (generation !== generationRef.current || !segments.length) return;
+            startWordProgress(text, durationMs, generation, onWord, {
+              getElapsedMs,
+              segments,
+            });
+          });
+
           audio.onended = () => {
             if (generation !== generationRef.current) return;
             clearProgress();
@@ -228,7 +293,7 @@ export function useWhiteboardSpeech() {
         }
       })();
     },
-    [clearProgress, getAudio, loadCloudAudio, speakBrowser, startWordProgress],
+    [clearProgress, getAudio, loadCloudAudio, loadTiming, speakBrowser, startWordProgress],
   );
 
   const cancel = useCallback(() => {

@@ -71,10 +71,15 @@ describe("WhiteboardTutor playback", () => {
     });
     Object.defineProperty(globalThis, "fetch", {
       configurable: true,
-      value: jest.fn(async () => ({
-        ok: true,
-        blob: async () => new Blob(["audio"], { type: "audio/mpeg" }),
-      })),
+      value: jest.fn(async (url: string) => {
+        if (typeof url === "string" && url.includes("/api/tts-timing")) {
+          return { ok: true, json: async () => ({ segments: [] }) };
+        }
+        return {
+          ok: true,
+          blob: async () => new Blob(["audio"], { type: "audio/mpeg" }),
+        };
+      }),
     });
     Object.defineProperty(window, "matchMedia", {
       configurable: true,
@@ -94,9 +99,17 @@ describe("WhiteboardTutor playback", () => {
   it("moves through focus, pointer, writing, explanation, check, and pupil pause", async () => {
     render(React.createElement(WhiteboardTutor, { data, onClose: jest.fn() }));
 
+    // Only the narration-audio fetches are what this test cares about (the
+    // prefetch/de-dup behaviour of loadCloudAudio) — /api/tts-timing calls
+    // (DEF-002 segment sync) are a separate, independently-cached concern.
+    const audioFetchCount = () =>
+      (globalThis.fetch as jest.Mock).mock.calls.filter(
+        ([url]) => typeof url === "string" && url.includes("/api/tts") && !url.includes("timing"),
+      ).length;
+
     fireEvent.click(screen.getByLabelText("Next step"));
     const activeCard = screen.getByText("Add the ones").closest("article");
-    const preparedRequests = (globalThis.fetch as jest.Mock).mock.calls.length;
+    const preparedRequests = audioFetchCount();
     expect(screen.getByRole("dialog")).toHaveAttribute(
       "data-playback-phase",
       "focus",
@@ -138,7 +151,7 @@ describe("WhiteboardTutor playback", () => {
     );
     expect(screen.getByText("Add the ones").closest("article")).toBe(activeCard);
     expect(screen.getByText("Your thinking time")).toBeInTheDocument();
-    expect(globalThis.fetch).toHaveBeenCalledTimes(preparedRequests);
+    expect(audioFetchCount()).toBe(preparedRequests);
   });
 
   it("holds the current phase while paused", async () => {

@@ -42,6 +42,17 @@ export interface CachedKS2Lesson {
   strand?: string;
   skill?: string;
   method?: string;
+
+  // ── Versioning / provenance (DEF-003) — descriptive only, see
+  // types/ks2-lesson.ts for the full rationale on each field. ─────────────
+  lessonId?: string;
+  contentVersion?: string;
+  curriculumObjectiveId?: string;
+  modelVersion?: string;
+  promptVersion?: string;
+  reviewStatus?: "unreviewed" | "approved" | "rejected";
+  teacherReviewer?: string;
+  sourceReferences?: string[];
 }
 
 /** Stable cache key. v18 = multi-subject teaching engine (English/Science/Computing/Arabic). */
