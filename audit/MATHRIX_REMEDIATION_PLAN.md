@@ -1,6 +1,6 @@
 # Mathrix Remediation Plan — Prioritised
 
-Ordered by severity first, then by effort/blast-radius ratio within a severity tier. Effort estimates are from the defect register. Status markers added after two remediation passes this session — see `MATHRIX_DEFECT_REGISTER.csv`'s `status` column for full verification detail on each.
+Ordered by severity first, then by effort/blast-radius ratio within a severity tier. Effort estimates are from the defect register. Status markers added after two remediation passes this session — see `MATHRIX_DEFECT_REGISTER.csv`'s `status` column for full verification detail on each. **DEF-014 through DEF-019 were added in a later pass this session (running the remaining audit phases) and are NOT yet fixed — see the new "P1/P2 — found in the remaining-phases pass, not yet remediated" section below.**
 
 ## Do immediately (independent of this audit)
 
@@ -31,6 +31,17 @@ Ordered by severity first, then by effort/blast-radius ratio within a severity t
 13. **[ DONE ] DEF-012** — added the missing `style` field to the test fixture; `tsc --noEmit` clean.
 14. **[ DONE ] DEF-007** — `last-dev.log` untracked via `git rm --cached`; `*.log` added to `.gitignore`.
 
+## P1/P2 — found in the remaining-phases pass, not yet remediated
+
+These six defects were found by actually running Phases 2, 5/6, 8, 9, 10, 11, 12 this session (see `MATHRIX_EXECUTIVE_AUDIT.md`'s "Remaining-phases findings" section for the full narrative, and `MATHRIX_DEFECT_REGISTER.csv` for reproduction steps). None have been fixed — this was an audit pass, not a remediation pass.
+
+15. **[ NOT FIXED ] DEF-015 — critical-impact `button-name` accessibility failure.** 10 buttons across `/` and `/algebra` have no accessible name (axe-core `button-name`, impact: critical — the highest axe severity tag). A screen-reader user cannot tell what these controls do. Root cause not isolated to specific source lines this session; the exact DOM selectors are in `audit/evidence/a11y-render-results.json`. Recommend fixing first among the accessibility findings given the critical impact tag.
+16. **[ NOT FIXED ] DEF-019 — child-safety defense-in-depth gap.** `lib/input-safety.ts`'s harmful-content regex only matches "how **to** make a bomb"/"build a bomb," missing common phrasings like "how **do I** make a bomb." Verified live: this exact phrasing bypassed the intended pre-LLM safeguarding redirect and went to the full LLM pipeline instead (which itself redirected safely as a fallback — no harmful content reached the pupil in this test, but the intended, more deliberate safeguarding copy did not fire). Small, well-scoped regex fix; recommend pairing with a small test suite of paraphrased harmful queries so future phrasing gaps are caught automatically rather than found one string at a time.
+17. **[ NOT FIXED ] DEF-014 — nested `<button>` causing a real React hydration-mismatch bug on `/revision`.** `app/revision/page.tsx`'s `TopicCard` renders a `<button>` inside another `<button>`, which is invalid HTML; browsers auto-correct it on the client, so the server-rendered HTML doesn't match what the client ends up with, forcing a client-side re-render on every page load. Also flagged by axe-core as `nested-interactive` (serious). Two independent lines of evidence for the same root cause.
+18. **[ NOT FIXED ] DEF-016 — `color-contrast` violations across 8 of 13 routes swept (serious impact, 42 nodes total).** The single most widespread accessibility finding this session. Likely a small number of shared low-contrast text-colour utility classes reused broadly, given the spread — recommend checking shared colour tokens before treating each route as an independent fix.
+19. **[ NOT FIXED ] DEF-017 — `target-size` violations on `/algebra` (serious, 8 nodes).** Touch targets below the WCAG 2.2 AA 24×24px minimum — directly relevant for KS2/GCSE pupils on tablets.
+20. **[ NOT FIXED ] DEF-018 — `link-in-text-block` violations on `/privacy` and `/terms` (serious, 7 nodes total).** In-text links distinguishable by colour alone; add an underline or other non-colour styling. Trivial effort.
+
 ## What this plan does not yet cover
 
-Phases 2, 8, 9, 10 (curriculum traceability, student-interaction edge cases, accessibility, and most of security/privacy) still have not been run, so this plan still cannot include remediation items for whatever they'd find. Treat this as a living document.
+Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.

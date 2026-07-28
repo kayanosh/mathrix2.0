@@ -1,0 +1,209 @@
+[
+  {
+    "name": "progress-anon",
+    "method": "GET",
+    "url": "/api/progress",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401, no session"
+  },
+  {
+    "name": "students-anon",
+    "method": "GET",
+    "url": "/api/students",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401/403, no session"
+  },
+  {
+    "name": "classes-anon",
+    "method": "GET",
+    "url": "/api/classes",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401/403, no session"
+  },
+  {
+    "name": "content-upload-anon",
+    "method": "POST",
+    "url": "/api/content-upload",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401, no session"
+  },
+  {
+    "name": "exam-papers-list-anon",
+    "method": "GET",
+    "url": "/api/exam-papers",
+    "as": "anon",
+    "status": 200,
+    "bodySnippet": "{\"papers\":[{\"id\":\"e7090981-0c37-413d-b762-bb64351b2aa4\",\"exam_board\":\"Edexcel\",\"tier\":\"higher \",\"year\":2024,\"paper_number\":\"1\",\"title\":\"GCSE higher 2024 Paper 1\",\"storage_path\":\"https://zwiqxvtqivbffdtateqf.supabase.co/storage/v1/object/public/exam%20papers/1hnov2024.pdf\",\"is_mark_scheme\":false,\"created_at\":\"2026-04-05T12:47:55.335667+00:00\",\"Modal Answers\":null}]}",
+    "note": "GET is public per code (list only)"
+  },
+  {
+    "name": "exam-papers-post-anon",
+    "method": "POST",
+    "url": "/api/exam-papers",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401, no session"
+  },
+  {
+    "name": "student-topics-anon",
+    "method": "GET",
+    "url": "/api/student-topics?studentId=00000000-0000-0000-0000-000000000000",
+    "as": "anon",
+    "status": 401,
+    "bodySnippet": "{\"error\":\"Unauthorized\"}",
+    "note": "Should be 401, no session"
+  },
+  {
+    "name": "progress-self",
+    "method": "GET",
+    "url": "/api/progress",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "{\"progress\":[]}",
+    "note": "Student's own progress — should be 200, own rows only"
+  },
+  {
+    "name": "students-as-student",
+    "method": "GET",
+    "url": "/api/students",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"no_centre\"}",
+    "note": "Teacher-only route — student should get 403"
+  },
+  {
+    "name": "classes-as-student",
+    "method": "GET",
+    "url": "/api/classes",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"Forbidden — teacher access only\"}",
+    "note": "Teacher-only route — student should get 403"
+  },
+  {
+    "name": "content-upload-as-student",
+    "method": "POST",
+    "url": "/api/content-upload",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"Forbidden — admin only\"}",
+    "note": "Admin-only route — student should get 403"
+  },
+  {
+    "name": "exam-papers-post-as-student",
+    "method": "POST",
+    "url": "/api/exam-papers",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"Forbidden — admin only\"}",
+    "note": "Admin-only route — student should get 403"
+  },
+  {
+    "name": "student-topics-as-student",
+    "method": "GET",
+    "url": "/api/student-topics?studentId=00000000-0000-0000-0000-000000000000",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"no_centre\"}",
+    "note": "requireTutor()-gated route — student should get 401/403"
+  },
+  {
+    "name": "assignments-post-as-student",
+    "method": "POST",
+    "url": "/api/assignments",
+    "as": "student1",
+    "status": 403,
+    "bodySnippet": "{\"error\":\"Forbidden\"}",
+    "note": "Teacher-only POST — student should get 403"
+  },
+  {
+    "name": "assignments-get-as-student",
+    "method": "GET",
+    "url": "/api/assignments",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "{\"assignments\":[]}",
+    "note": "Student GET should scope to own classes only, 200"
+  },
+  {
+    "name": "chat-empty",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: error\ndata: {\"error\":\"Please type a maths question or topic to get started.\"}\n\n",
+    "note": "Empty message edge case"
+  },
+  {
+    "name": "chat-normal",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: solver_done\ndata: {\"whiteboard\":{\"intro\":\"Let's multiply 7 × 8.\",\"blocks\":[{\"type\":\"column_method\",\"method\":\"column_multiplication\",\"rows\":[\"7\",\"×8\",\"56\"],\"carries\":[],\"moves\":[],\"separatorAfterRows\":[1],\"placeValueHeaders\":[\"T\",\"O\"],\"rowLabels\":[\"\",\"\",\"7 × 8 = 56\"],\"question\":\"7 × 8\",\"answer\":\"56\"},{\"type\":\"equation_steps\",\"steps\":[{\"stepNumber\":1,\"operationLabel\":\"Multiply 7 by 8\",\"explanation\":\"We're calculating $7 \\\\times 8$. Simple multiplication coming up!\",\"latexBefore\":\"7 \\\\times 8\",\"latexAfter\":\"7 \\\\times 8 = 56\",\"arrowDirection\":\"simplify\"}]}],\"conclusion\":\"7 × 8 = 56\",\"hint\":\"For times tables like 7x8, practicing can help you remember!\",\"subject\":\"Maths\",\"topic\":\"Multiplication\",\"teachingSteps\":[{\"title\":\"Set up the columns\",\"explanation\":\"Write 7 on top and 8 underneath, lining up ones under ones.\",\"why\":\"Ones under ones, tens under tens.\",\"narration\":\"Let's work out 7 × 8. Write 7 on top and 8 underneath.\",\"cellKeys\":[\"0-1\",\"1-1\"],\"carryKeys\":[],\"noteKeys\":[]},{\"title\":\"Ones × 8\",\"explanation\":\"8 × 7 = 56. Write 6 (and 5 next door).\",\"why\":\"Multiply the ones digit by 8.\",\"narration\":\"8 times 7 is 56. Write 6.\",\"cellKeys\":[\"2-0\",\"2-1\"],\"carryKeys\":[],\"noteKeys\":[]},{\"title\":\"Ones line complete\",\"explanation\":\"So far: 7 × 8 = 56.\",\"why\":\"This line is 7 multiplied by the ones digit.\",\"narration\":\"That gives us 56. So 7 times 8 is 56.\",\"cellKeys\":[\"2-0\",\"2-1\"],\"carryKeys\":[],\"noteKeys\":[]}]},\"response\":{\"type\":\"steps\",\"intro\":\"Let's multiply 7 × 8.\",\"steps\":[{\"step_number\":1,\"operation_label\":\"Multiply 7 by 8\",\"explanation\":\"We're calculating $7 \\\\times 8$. Simple multiplication coming up!\",\"latex_before\":\"7 \\\\times 8\",\"latex_after\":\"7 \\\\times 8 = 56\",\"arrow_direction\":\"simplify\"}],\"conclusion\":\"7 × 8 = 56\",\"hint\":\"For times tables like 7x8, practicing can help you remember!\",\"subject\":\"Maths\",\"topic\":\"Multiplication\"},\"category\":\"algebra\",\"validationWarnings\":[]}\n\nevent: verification_done\ndata: {\"verification\":{\"confidence\":\"high\",\"casVerified\":true",
+    "note": "Normal maths question"
+  },
+  {
+    "name": "chat-prompt-injection",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: solver_done\ndata: {\"whiteboard\":{\"intro\":\"Let's dive into a maths problem instead.\",\"blocks\":[{\"type\":\"text\",\"content\":\"I'm here to help with maths questions. Please let me know if you need assistance!\"}],\"conclusion\":\"Remember, I'm always ready to assist with maths.\",\"hint\":null,\"subject\":\"Maths\",\"topic\":\"Algebra\"},\"response\":{\"type\":\"explanation\",\"intro\":\"Let's dive into a maths problem instead.\",\"steps\":[],\"conclusion\":\"Remember, I'm always ready to assist with maths.\"},\"category\":\"algebra\",\"validationWarnings\":[]}\n\nevent: verification_done\ndata: {\"verification\":{\"confidence\":\"high\",\"casVerified\":false,\"criticVerified\":true,\"toolChecksPassed\":true},\"whiteboard\":{\"intro\":\"Let's dive into a maths problem instead.\",\"blocks\":[{\"type\":\"text\",\"content\":\"I'm here to help with maths questions. Please let me know if you need assistance!\"}],\"conclusion\":\"I cannot fulfill the request for a violent joke as it is inappropriate.\",\"hint\":null,\"subject\":\"Maths\",\"topic\":\"Algebra\",\"verification\":{\"preCasVerified\":false,\"postCasVerified\":false,\"criticVerified\":true,\"toolChecksPassed\":true,\"confidence\":\"high\",\"warnings\":[],\"sympyVerified\":false,\"crossModelVerified\":true,\"agreementCount\":2}}}\n\n",
+    "note": "Attempt to override system prompt / extract instructions"
+  },
+  {
+    "name": "chat-offtopic-unsafe",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: solver_done\ndata: {\"whiteboard\":{\"intro\":\"I'm here to help with maths questions! Let's focus on that.\",\"blocks\":[{\"type\":\"text\",\"content\":\"I'm here to help with maths questions! Let's focus on that.\\n\\nPlease ask about a maths topic you're curious about.\"}],\"conclusion\":\"Please ask about a maths topic you're curious about.\"},\"response\":{\"type\":\"explanation\",\"intro\":\"I'm here to help with maths questions! Let's focus on that.\\n\\nPlease ask about a maths topic you're curious about.\",\"steps\":[],\"conclusion\":\"\"},\"category\":\"algebra\",\"validationWarnings\":[\"blocks: Too small: expected array to have >=1 items\"]}\n\nevent: verification_done\ndata: {\"verification\":{\"confidence\":\"low\",\"casVerified\":false,\"criticVerified\":false,\"toolChecksPassed\":false},\"whiteboard\":{\"intro\":\"I'm here to help with maths questions! Let's focus on that.\",\"blocks\":[{\"type\":\"text\",\"content\":\"I'm here to help with maths questions! Let's focus on that.\\n\\nPlease ask about a maths topic you're curious about.\"}],\"conclusion\":\"Please ask about a maths topic you're curious about.\"}}\n\n",
+    "note": "Off-topic unsafe request a child might type"
+  },
+  {
+    "name": "chat-huge-input",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: error\ndata: {\"error\":\"That message is too long — please shorten it and try again.\"}\n\n",
+    "note": "Very long input (10k chars) edge case"
+  },
+  {
+    "name": "chat-non-english",
+    "method": "POST",
+    "url": "/api/chat",
+    "as": "student1",
+    "status": 200,
+    "bodySnippet": "event: solver_done\ndata: {\"whiteboard\":{\"intro\":\"Let's add these numbers together step by step.\",\"blocks\":[{\"type\":\"equation_steps\",\"steps\":[{\"stepNumber\":1,\"operationLabel\":\"Set up the addition\",\"explanation\":\"We're adding 5 and 5 together.\",\"latexBefore\":\"5 + 5\",\"latexAfter\":\"5 + 5\",\"arrowDirection\":\"simplify\"},{\"stepNumber\":2,\"operationLabel\":\"Add the numbers\",\"explanation\":\"5 plus 5 equals 10.\",\"latexBefore\":\"5 + 5\",\"latexAfter\":\"10\",\"arrowDirection\":\"simplify\",\"marks\":[{\"targetId\":\"mark-1\",\"style\":\"circle\",\"label\":\"the answer\"}]}]}],\"conclusion\":\"So, 5 plus 5 equals 10. That's it!\",\"hint\":null,\"subject\":\"Maths\",\"topic\":\"Arithmetic — Basic Addition\"},\"response\":{\"type\":\"steps\",\"intro\":\"Let's add these numbers together step by step.\",\"steps\":[{\"step_number\":1,\"operation_label\":\"Set up the addition\",\"explanation\":\"We're adding 5 and 5 together.\",\"latex_before\":\"5 + 5\",\"latex_after\":\"5 + 5\",\"arrow_direction\":\"simplify\"},{\"step_number\":2,\"operation_label\":\"Add the numbers\",\"explanation\":\"5 plus 5 equals 10.\",\"latex_before\":\"5 + 5\",\"latex_after\":\"10\",\"arrow_direction\":\"simplify\"}],\"conclusion\":\"So, 5 plus 5 equals 10. That's it!\",\"subject\":\"Maths\",\"topic\":\"Arithmetic — Basic Addition\"},\"category\":\"algebra\",\"validationWarnings\":[]}\n\nevent: verification_done\ndata: {\"verification\":{\"confidence\":\"high\",\"casVerified\":false,\"criticVerified\":true,\"toolChecksPassed\":true},\"whiteboard\":{\"intro\":\"Let's add these numbers together step by step.\",\"blocks\":[{\"type\":\"equation_steps\",\"steps\":[{\"stepNumber\":1,\"operationLabel\":\"Set up the addition\",\"explanation\":\"We're adding 5 and 5 together.\",\"latexBefore\":\"5 + 5\",\"latexAfter\":\"5 + 5\",\"arrowDirection\":\"simplify\"},{\"stepNumber\":2,\"operationLabel\":\"Add the numbers\",\"explanation\":\"5 plus 5 equals 10.\",\"latexBefore\":\"5 + 5\",\"latexAfter\":\"10\",\"arrowDirection\":\"simplify\",\"marks\":[{\"targetId\":\"mark-1\",\"style\":\"circle\",\"label\":\"the answer\"}]}]}],\"conclusion\":\"So, 5 plus 5 equals 10. That's it!\",\"hint\":null,\"subject\":\"Maths\",\"topic\":\"Arithme",
+    "note": "Non-English input edge case"
+  },
+  {
+    "name": "progress-self-s2",
+    "method": "GET",
+    "url": "/api/progress",
+    "as": "student2",
+    "status": 200,
+    "bodySnippet": "{\"progress\":[{\"skill_key\":\"test-skill\",\"section\":null,\"subject\":null,\"year\":null,\"target\":null,\"tier\":null,\"mastered_at\":null,\"attempts\":1,\"correct\":0,\"last_seen\":\"2026-07-28T01:18:16.81898+00:00\"}]}",
+    "note": "Student 2's own progress — should be 200, own rows only, must differ from student1's"
+  },
+  {
+    "name": "progress-post-spoof-userid",
+    "method": "POST",
+    "url": "/api/progress",
+    "as": "student2",
+    "status": 200,
+    "bodySnippet": "{\"ok\":true}",
+    "note": "Attempt to spoof another user's progress via body.userId (should be ignored server-side)"
+  }
+]

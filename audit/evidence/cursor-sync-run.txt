@@ -1,0 +1,32 @@
+Navigating to /ks2 to establish school context...
+School-selection gate found, clicking Continue...
+Navigating to /ks2/topic/y5m-add-subtract ...
+Landed at: http://localhost:3000/ks2/topic/y5m-add-subtract
+Selecting skill: Column addition of numbers with more than 4 digits
+Expanding 'Guided' section...
+Waiting for lesson generation to finish (up to 45s)...
+Clicked 'Watch me solve it'. Sampling pointer position for 8s...
+
+--- Samples ---
+t=1ms pointer=(448,274) opacity=1 inside=true
+t=405ms pointer=(448,277) opacity=1 inside=true
+t=809ms pointer=(448,278) opacity=1 inside=true
+t=1212ms pointer=(448,278) opacity=1 inside=true
+t=1615ms pointer=(448,278) opacity=1 inside=true
+t=2018ms pointer=(448,278) opacity=1 inside=true
+t=2420ms pointer=(448,278) opacity=1 inside=true
+t=2822ms pointer=(483,278) opacity=1 inside=true
+t=3225ms pointer=(554,278) opacity=1 inside=true
+t=3627ms pointer=(625,278) opacity=1 inside=true
+t=4029ms pointer=(694,278) opacity=1 inside=true
+t=4431ms pointer=(804,303) opacity=1 inside=true
+t=4834ms pointer=(789,319) opacity=1 inside=true
+t=5236ms pointer=(701,319) opacity=1 inside=true
+t=5637ms pointer=(631,319) opacity=1 inside=true
+t=6039ms pointer=(555,319) opacity=1 inside=true
+t=6441ms pointer=(451,319) opacity=1 inside=true
+t=6846ms pointer=(448,319) opacity=1 inside=true
+t=7250ms pointer=(448,319) opacity=1 inside=true
+t=7654ms pointer=(448,319) opacity=1 inside=true
+
+Visible samples: 20, inside target rect: 20, outside: 0

@@ -1,0 +1,973 @@
+[
+  {
+    "route": "/",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "description": "Ensure buttons have discernible text",
+        "help": "Buttons must have discernible text",
+        "nodes": 1,
+        "targets": [
+          [
+            ".disabled\\:cursor-not-allowed"
+          ]
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 6,
+        "targets": [
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(1)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(2)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(3)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(5)"
+          ],
+          [
+            ".mt-4.gap-3.flex > .bg-gray-100.p-0\\.5.gap-1 > .py-1.rounded-md.duration-150:nth-child(2)"
+          ],
+          [
+            ".mt-4.gap-3.flex > .bg-gray-100.p-0\\.5.gap-1 > .py-1.rounded-md.duration-150:nth-child(3)"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "___desktop.png",
+    "loadTimeMs": 619
+  },
+  {
+    "route": "/ks2",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2__desktop.png",
+    "loadTimeMs": 787
+  },
+  {
+    "route": "/ks2/curriculum",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_curriculum__desktop.png",
+    "loadTimeMs": 845
+  },
+  {
+    "route": "/ks2/sats",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_sats__desktop.png",
+    "loadTimeMs": 756
+  },
+  {
+    "route": "/ks2/eleven-plus",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_eleven-plus__desktop.png",
+    "loadTimeMs": 756
+  },
+  {
+    "route": "/ks2/school",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_school__desktop.png",
+    "loadTimeMs": 564
+  },
+  {
+    "route": "/subjects",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 13,
+        "targets": [
+          [
+            ".text-indigo-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(1) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(2) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(3) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(4) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(5) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(1) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(2) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(3) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(4) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(5) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(6) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(7) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_subjects__desktop.png",
+    "loadTimeMs": 833
+  },
+  {
+    "route": "/syllabus",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 8,
+        "targets": [
+          [
+            ".text-indigo-400"
+          ],
+          [
+            ".mb-6 > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(1) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(2) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(3) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(4) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(5) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(6) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_syllabus__desktop.png",
+    "loadTimeMs": 697
+  },
+  {
+    "route": "/revision",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [
+      "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <button> button \n\n  ...\n    <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>\n      <LoadingBoundary name=\"revision/\" loading={null}>\n        <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/revision\" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} ...>\n                <SegmentViewNode type=\"page\" pagePath=\"revision/p...\">\n                  <SegmentTrieNode>\n                  <ClientPageRoot Component={function RevisionPage} serverProvidedParams={{...}}>\n                    <RevisionPage params={Promise} searchParams={Promise}>\n                      <div className=\"min-h-scre...\">\n                        <nav>\n                        <div>\n                        <div>\n                        <div className=\"max-w-4xl ...\">\n                          <TopicCard topic={{id:\"number\", ...}} expanded={false} onToggle={function onToggle} ...>\n                            <div className=\"rounded-xl...\">\n>                             <button\n>                               onClick={function onToggle}\n>                               className=\"w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors\"\n>                             >\n                                <span>\n                                <div>\n>                               <button\n>                                 onClick={function onClick}\n>                                 className=\"text-xs text-indigo-600 hover:text-indigo-500 font-medium px-3 py-1.5 rou...\"\n>                               >\n                                ...\n                          ...\n                ...\n              ...\n"
+    ],
+    "pageErrors": [
+      "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch"
+    ],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 8,
+        "targets": [
+          [
+            ".hover\\:border-indigo-300 > .flex-1.text-left > .text-gray-400"
+          ],
+          [
+            ".text-\\[11px\\]"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(1) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(2) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(3) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(4) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(5) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(6) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ]
+        ]
+      },
+      {
+        "id": "nested-interactive",
+        "impact": "serious",
+        "description": "Ensure interactive controls are not nested as they are not always announced by screen readers or can cause focus problems for assistive technologies",
+        "help": "Interactive controls must not be nested",
+        "nodes": 6,
+        "targets": [
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(1) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(2) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(3) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(4) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(5) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(6) > .gap-4.px-5.hover\\:bg-gray-50"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_revision__desktop.png",
+    "loadTimeMs": 772
+  },
+  {
+    "route": "/algebra",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "description": "Ensure buttons have discernible text",
+        "help": "Buttons must have discernible text",
+        "nodes": 9,
+        "targets": [
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(1)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(2)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(3)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(4)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(5)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(6)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(7)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(8)"
+          ],
+          [
+            ".hover\\:text-indigo-400"
+          ]
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 4,
+        "targets": [
+          [
+            ".text-gray-500"
+          ],
+          [
+            ".uppercase"
+          ],
+          [
+            ".mt-1"
+          ],
+          [
+            ".tabular-nums"
+          ]
+        ]
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "description": "Ensure touch targets have sufficient size and space",
+        "help": "All touch targets must be 24px large, or leave sufficient space",
+        "nodes": 8,
+        "targets": [
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(1)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(2)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(3)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(4)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(5)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(6)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(7)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(8)"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_algebra__desktop.png",
+    "loadTimeMs": 738
+  },
+  {
+    "route": "/privacy",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "description": "Ensure links are distinguished from surrounding text in a way that does not rely on color",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 4,
+        "targets": [
+          [
+            "p:nth-child(3) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "p:nth-child(19) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "a[href$=\"ico.org.uk\"]"
+          ],
+          [
+            "p:nth-child(27) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_privacy__desktop.png",
+    "loadTimeMs": 684
+  },
+  {
+    "route": "/terms",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "description": "Ensure links are distinguished from surrounding text in a way that does not rely on color",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 3,
+        "targets": [
+          [
+            "p:nth-child(3) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "p:nth-child(11) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "p:nth-child(28) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_terms__desktop.png",
+    "loadTimeMs": 689
+  },
+  {
+    "route": "/contact",
+    "viewport": "desktop",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_contact__desktop.png",
+    "loadTimeMs": 686
+  },
+  {
+    "route": "/",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "description": "Ensure buttons have discernible text",
+        "help": "Buttons must have discernible text",
+        "nodes": 1,
+        "targets": [
+          [
+            ".disabled\\:cursor-not-allowed"
+          ]
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 6,
+        "targets": [
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(1)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(2)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(3)"
+          ],
+          [
+            ".hover\\:text-gray-700.whitespace-nowrap.text-gray-500:nth-child(5)"
+          ],
+          [
+            ".mt-4.gap-3.flex > .bg-gray-100.p-0\\.5.gap-1 > .py-1.rounded-md.duration-150:nth-child(2)"
+          ],
+          [
+            ".mt-4.gap-3.flex > .bg-gray-100.p-0\\.5.gap-1 > .py-1.rounded-md.duration-150:nth-child(3)"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "___tablet-ipad.png",
+    "loadTimeMs": 596
+  },
+  {
+    "route": "/ks2",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2__tablet-ipad.png",
+    "loadTimeMs": 595
+  },
+  {
+    "route": "/ks2/curriculum",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_curriculum__tablet-ipad.png",
+    "loadTimeMs": 597
+  },
+  {
+    "route": "/ks2/sats",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_sats__tablet-ipad.png",
+    "loadTimeMs": 587
+  },
+  {
+    "route": "/ks2/eleven-plus",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_eleven-plus__tablet-ipad.png",
+    "loadTimeMs": 592
+  },
+  {
+    "route": "/ks2/school",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [],
+    "screenshot": "_ks2_school__tablet-ipad.png",
+    "loadTimeMs": 563
+  },
+  {
+    "route": "/subjects",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 13,
+        "targets": [
+          [
+            ".text-indigo-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(1) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(2) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(3) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(4) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".gap-1\\.5.flex.items-center:nth-child(5) > .text-\\[11px\\].capitalize.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(1) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(2) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(3) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(4) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(5) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(6) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ],
+          [
+            ".rounded-2xl.border.overflow-hidden:nth-child(7) > .w-full.px-5.bg-gray-50 > .gap-3.flex.items-center > .text-xs.text-gray-400"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_subjects__tablet-ipad.png",
+    "loadTimeMs": 561
+  },
+  {
+    "route": "/syllabus",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 8,
+        "targets": [
+          [
+            ".text-indigo-400"
+          ],
+          [
+            ".mb-6 > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(1) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(2) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(3) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(4) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(5) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border:nth-child(6) > .w-full.hover\\:bg-gray-50.text-left > .gap-3.items-center.flex:nth-child(1) > div:nth-child(2) > .text-gray-400"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_syllabus__tablet-ipad.png",
+    "loadTimeMs": 550
+  },
+  {
+    "route": "/revision",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [
+      "In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <button> button \n\n  ...\n    <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>\n      <LoadingBoundary name=\"revision/\" loading={null}>\n        <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>\n          <RedirectBoundary>\n            <RedirectErrorBoundary router={{...}}>\n              <InnerLayoutRouter url=\"/revision\" tree={[...]} params={{}} cacheNode={{rsc:<Fragment>, ...}} ...>\n                <SegmentViewNode type=\"page\" pagePath=\"revision/p...\">\n                  <SegmentTrieNode>\n                  <ClientPageRoot Component={function RevisionPage} serverProvidedParams={{...}}>\n                    <RevisionPage params={Promise} searchParams={Promise}>\n                      <div className=\"min-h-scre...\">\n                        <nav>\n                        <div>\n                        <div>\n                        <div className=\"max-w-4xl ...\">\n                          <TopicCard topic={{id:\"number\", ...}} expanded={false} onToggle={function onToggle} ...>\n                            <div className=\"rounded-xl...\">\n>                             <button\n>                               onClick={function onToggle}\n>                               className=\"w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors\"\n>                             >\n                                <span>\n                                <div>\n>                               <button\n>                                 onClick={function onClick}\n>                                 className=\"text-xs text-indigo-600 hover:text-indigo-500 font-medium px-3 py-1.5 rou...\"\n>                               >\n                                ...\n                          ...\n                ...\n              ...\n"
+    ],
+    "pageErrors": [
+      "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the HTML before React loaded.\n\nhttps://react.dev/link/hydration-mismatch"
+    ],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 8,
+        "targets": [
+          [
+            ".hover\\:border-indigo-300 > .flex-1.text-left > .text-gray-400"
+          ],
+          [
+            ".text-\\[11px\\]"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(1) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(2) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(3) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(4) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(5) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(6) > .gap-4.px-5.hover\\:bg-gray-50 > .flex-1.text-left > .mt-0\\.5.text-gray-400"
+          ]
+        ]
+      },
+      {
+        "id": "nested-interactive",
+        "impact": "serious",
+        "description": "Ensure interactive controls are not nested as they are not always announced by screen readers or can cause focus problems for assistive technologies",
+        "help": "Interactive controls must not be nested",
+        "nodes": 6,
+        "targets": [
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(1) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(2) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(3) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(4) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(5) > .gap-4.px-5.hover\\:bg-gray-50"
+          ],
+          [
+            ".overflow-hidden.rounded-xl.border-gray-200:nth-child(6) > .gap-4.px-5.hover\\:bg-gray-50"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_revision__tablet-ipad.png",
+    "loadTimeMs": 590
+  },
+  {
+    "route": "/algebra",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "button-name",
+        "impact": "critical",
+        "description": "Ensure buttons have discernible text",
+        "help": "Buttons must have discernible text",
+        "nodes": 9,
+        "targets": [
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(1)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(2)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(3)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(4)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(5)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(6)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(7)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(8)"
+          ],
+          [
+            ".hover\\:text-indigo-400"
+          ]
+        ]
+      },
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 4,
+        "targets": [
+          [
+            ".text-gray-500"
+          ],
+          [
+            ".uppercase"
+          ],
+          [
+            ".mt-1"
+          ],
+          [
+            ".tabular-nums"
+          ]
+        ]
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "description": "Ensure touch targets have sufficient size and space",
+        "help": "All touch targets must be 24px large, or leave sufficient space",
+        "nodes": 8,
+        "targets": [
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(1)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(2)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(3)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(4)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(5)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(6)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(7)"
+          ],
+          [
+            ".rounded-full.duration-300.transition-all:nth-child(8)"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_algebra__tablet-ipad.png",
+    "loadTimeMs": 564
+  },
+  {
+    "route": "/privacy",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "description": "Ensure links are distinguished from surrounding text in a way that does not rely on color",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 4,
+        "targets": [
+          [
+            "p:nth-child(3) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "p:nth-child(19) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "a[href$=\"ico.org.uk\"]"
+          ],
+          [
+            "p:nth-child(27) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_privacy__tablet-ipad.png",
+    "loadTimeMs": 558
+  },
+  {
+    "route": "/terms",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      },
+      {
+        "id": "link-in-text-block",
+        "impact": "serious",
+        "description": "Ensure links are distinguished from surrounding text in a way that does not rely on color",
+        "help": "Links must be distinguishable without relying on color",
+        "nodes": 2,
+        "targets": [
+          [
+            "p:nth-child(3) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ],
+          [
+            "p:nth-child(28) > .text-indigo-600.hover\\:text-indigo-800[href=\"mailto:admin@mathrix.co.uk\"]"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_terms__tablet-ipad.png",
+    "loadTimeMs": 554
+  },
+  {
+    "route": "/contact",
+    "viewport": "tablet-ipad",
+    "httpStatus": 200,
+    "consoleErrors": [],
+    "pageErrors": [],
+    "axeViolations": [
+      {
+        "id": "color-contrast",
+        "impact": "serious",
+        "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+        "help": "Elements must meet minimum color contrast ratio thresholds",
+        "nodes": 1,
+        "targets": [
+          [
+            ".mt-6"
+          ]
+        ]
+      }
+    ],
+    "screenshot": "_contact__tablet-ipad.png",
+    "loadTimeMs": 563
+  }
+]
