@@ -846,7 +846,15 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
     if (topicId && !force) {
       const requestedSkill = String(body.skill || subtopics[0] || topic || "").slice(0, 160);
       const key = ks2LessonCacheKey(topicId, target, tier, kind, requestedSkill);
-      const cached = await lookupKS2LessonCache(key);
+      let cached = await lookupKS2LessonCache(key);
+      // DEF-003 review gate: a lesson an admin has rejected during review
+      // must not keep being served. Treat it as a cache miss so a fresh
+      // lesson is generated below (which re-enters the review queue as
+      // "unreviewed", not silently re-served as the same rejected content).
+      if (cached?.reviewStatus === "rejected") {
+        console.warn("[ks2-lesson] cached lesson was rejected on review, regenerating:", key);
+        cached = null;
+      }
       if (cached) {
         if (isMaths && cached.workedExample?.question) {
           cached.workedExample = hardenWorkedExample(

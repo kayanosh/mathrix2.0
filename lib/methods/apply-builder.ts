@@ -226,7 +226,9 @@ function buildFromCoordinateBlock(
   block: CoordinateGraphBlock,
   question = "",
 ): MethodBuildResult | null {
-  const questionLabel = question.match(/\bpoint\s+([A-Z])\b/i)?.[1]?.toUpperCase();
+  // \$? allows for LaTeX math delimiters, e.g. "point $P$" (common in this
+  // codebase's generated question text).
+  const questionLabel = question.match(/\bpoint\s+\$?([A-Z])\b/i)?.[1]?.toUpperCase();
   const points = (Array.isArray(block.points) ? block.points : []).flatMap(
     (rawPoint, index) => {
       const candidate = rawPoint as unknown as {
@@ -239,7 +241,9 @@ function buildFromCoordinateBlock(
       const y = Number(candidate.point?.y ?? candidate.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return [];
       const rawLabel = String(candidate.label || "");
-      const label = rawLabel.match(/^([A-Z])\b/i)?.[1]?.toUpperCase() ||
+      // Same LaTeX-delimiter tolerance as questionLabel above — point labels
+      // are frequently generated as e.g. "$P$", not a bare "P".
+      const label = rawLabel.match(/^\$?([A-Z])\b/i)?.[1]?.toUpperCase() ||
         questionLabel ||
         String.fromCharCode(65 + index);
       return [{ x, y, label }];
@@ -293,7 +297,24 @@ function resolveBuild(
   // contains the wrong answer produced by the previous sub-step bug.
   if (fromQuestion) return fromQuestion;
 
-  // 2. Recover the complete calculation from the main board before scanning
+  // 2a. A coordinate_graph block is checked first, regardless of where it
+  // sits in the array. The LLM sometimes emits a stray, mismatched extra
+  // block (e.g. a number_line) alongside the correct coordinate_graph one
+  // for the same worked example; the per-block-type loop below returns on
+  // the FIRST matching block type it meets, so a stray block earlier in the
+  // array could otherwise win purely by array position and override a
+  // correct, more specific coordinate_graph block later in the same array
+  // (see DEF-020 — this produced a "read the coordinates" question answered
+  // with an unrelated number-line-difference calculation).
+  const coordinateBlock = example.whiteboard?.blocks?.find(
+    (block) => block.type === "coordinate_graph",
+  );
+  if (coordinateBlock && coordinateBlock.type === "coordinate_graph") {
+    const fromGraph = buildFromCoordinateBlock(coordinateBlock, example.question);
+    if (fromGraph) return fromGraph;
+  }
+
+  // 2b. Recover the complete calculation from the main board before scanning
   // explanatory steps, which contain smaller calculations such as 7 × 3.
   for (const block of example.whiteboard?.blocks || []) {
     if (block.type === "column_method") {
@@ -322,10 +343,7 @@ function resolveBuild(
       const fromEq = buildFromEquationBlock(block);
       if (fromEq && matchesWorkedAnswer(fromEq, example)) return fromEq;
     }
-    if (block.type === "coordinate_graph") {
-      const fromGraph = buildFromCoordinateBlock(block, example.question);
-      if (fromGraph) return fromGraph;
-    }
+    // coordinate_graph already handled in step 2a above.
   }
 
   // 3. Inspect only complete-problem prose (never digit-level sub-steps).

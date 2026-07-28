@@ -95,8 +95,29 @@ export async function requireCentreOwner(): Promise<AuthOk | AuthErr> {
   return { user: { id: profile.id }, profile, centreId: profile.centre_id };
 }
 
-export function isAuthErr(result: AuthOk | AuthErr): result is AuthErr {
-  return (result as AuthErr).error !== undefined;
+export function isAuthErr<T extends object>(result: T | AuthErr): result is AuthErr {
+  return "error" in result;
+}
+
+interface AdminAuthOk {
+  user: { id: string };
+  profile: CentreProfile;
+}
+
+/**
+ * Require a signed-in platform admin. Unlike requireTutor/requireCentreOwner,
+ * this does NOT require a centre_id — admin actions (e.g. reviewing the
+ * shared KS2 lesson cache) are platform-wide, not scoped to any one centre.
+ */
+export async function requireAdmin(): Promise<AdminAuthOk | AuthErr> {
+  const profile = await getCallerProfile();
+  if (!profile) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (profile.role !== "admin") {
+    return { error: NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 }) };
+  }
+  return { user: { id: profile.id }, profile };
 }
 
 /** A 6-character human-friendly join code (no ambiguous characters). */

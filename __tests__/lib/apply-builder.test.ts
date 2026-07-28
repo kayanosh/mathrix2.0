@@ -153,4 +153,59 @@ describe("applyMethodBuilderToWorkedExample", () => {
       true,
     );
   });
+
+  it("DEF-020: a coordinate_graph block wins over an earlier, stray number_line block in the same worked example", () => {
+    // Reproduces a real cached lesson (y6m-position-direction / "coordinates
+    // in four quadrants" / guided) where the LLM emitted BOTH a number_line
+    // block and a coordinate_graph block for the same worked example. The
+    // per-block-type loop used to return on the first matching block type it
+    // walked into, so the number_line (earlier in the array) won purely by
+    // array position and produced an unrelated "compare two numbers on a
+    // number line" answer for a "read the coordinates" question.
+    const out = applyMethodBuilderToWorkedExample(
+      {
+        question: "What are the coordinates of point $P$?",
+        steps: [
+          "Mark both numbers: Place -3 and 2 on the number line (0 is the middle reference).",
+          "Compare / difference: 2 is greater. The difference is 5.",
+        ],
+        answer: "difference 5; greater 2",
+        whiteboard: {
+          intro: "Use a number line through zero to compare -3 and 2.",
+          blocks: [
+            {
+              type: "number_line",
+              range: [-4, 3],
+              markers: [
+                { label: "-3", style: "filled", value: -3 },
+                { label: "2", style: "filled", value: 2 },
+                { label: "0", style: "open", value: 0 },
+              ],
+              tickInterval: 1,
+            },
+            {
+              type: "coordinate_graph",
+              points: [{ point: { x: -3, y: 2 }, label: "$P$" }],
+              plots: [],
+              xLabel: "$x$",
+              xRange: [-5, 5],
+              yLabel: "$y$",
+              yRange: [-5, 5],
+              grid: true,
+            },
+          ],
+          conclusion: "What are the coordinates of point $P$? = difference 5; greater 2",
+        },
+      },
+      "Position & Direction",
+      ["Coordinates in four quadrants"],
+    );
+
+    expect(out.answer).toBe("(-3,2)");
+    expect(out.steps.some((s) => /move 3 left/i.test(s))).toBe(true);
+    expect(out.steps.some((s) => /move 2 up/i.test(s))).toBe(true);
+    // The point's own "$P$" label (LaTeX-wrapped) should be used, not a
+    // fallback letter derived from array index.
+    expect(out.steps.some((s) => /^P\b/.test(s) || /\bP:/.test(s))).toBe(true);
+  });
 });
