@@ -45,15 +45,30 @@ These six defects were found by actually running Phases 2, 5/6, 8, 9, 10, 11, 12
 
 Combined verification for all six: re-ran the full live axe-core sweep after each pass — **0 total violations across all 13 routes/both viewports, 0 console/page errors** (was 28 violations / 4 errors originally). `npx tsc --noEmit` clean throughout; test suite at 738/738 passing, no regressions from any of this work.
 
-## Investigated, not fixed — the "missing_visual" intermittent generation failure
+## DEF-021 — the "missing_visual" intermittent failure: root-caused and FIXED (not an LLM reliability problem at all)
 
-Following DEF-020's fix, the user asked to also tackle the pre-existing intermittent `missing_visual` failure noted there (same failure class as DEF-013 — the model sometimes omits the required whiteboard diagram entirely for "Coordinates in four quadrants", triggering the existing 2-retry-then-422 path). Investigated this session:
+This was first investigated (and mis-diagnosed) earlier in the session, then instrumented and fixed. **Both earlier hypotheses turned out to be wrong, and the record is corrected here rather than quietly overwritten.**
 
-- **Baseline measured live**: an initial small sample (5 fresh generations) showed 1 failure (20%), in line with DEF-013's originally-documented rate for a different skill.
-- **Attempted fix**: added a corrective retry message (told the model specifically what it omitted last time — "you didn't include a required whiteboard block" — rather than silently re-rolling an identical prompt), matching the general pattern of feeding back specific validator failures.
-- **Result: inconclusive, possibly worse.** A larger follow-up sample (8 fresh generations) with the fix in place showed 6 failures (75%) — much higher than the 20% baseline. This could mean either (a) the original 20% estimate was simply too small a sample and the true baseline is much higher regardless of any fix, or (b) the added retry message is actively counterproductive — a plausible mechanism is that the extra message increases how much the model writes in its response, and since `max_completion_tokens` is a hard cap, this could cause the response to be truncated before it reaches the whiteboard block (this specific hypothesis was not confirmed — `finish_reason` on the completion object was not inspected, which would confirm or rule it out).
-- **Reverted.** Given the evidence didn't clearly show an improvement and pointed at possible harm, the change was reverted rather than shipped speculatively. `app/api/ks2-lesson/route.ts` is back to exactly its pre-session state for this code path — verified via `git diff` showing no changes, `tsc --noEmit` clean, test suite unaffected.
-- **What a future attempt should do differently**: check `completion.finish_reason` on both a passing and failing generation to confirm or rule out truncation before trying anything else; if it's not truncation, a larger baseline sample (15-20 generations, no fix) is needed before concluding whether ANY intervention actually moves the failure rate, given how noisy an n=5-8 sample is for a rate that might genuinely be well above 20%.
+**What the earlier pass guessed (both WRONG):**
+- Guessed the model was intermittently omitting the whiteboard, i.e. an LLM-flakiness problem to be mitigated with retry nudging. It was not.
+- Guessed a possible response **truncation** mechanism (`max_completion_tokens` cutting the JSON off before the whiteboard field), and that an attempted retry-message fix might have made things *worse* (20% → 75% failure). Both parts wrong: the 20% figure was a small-sample artefact (n=5), the true baseline was always ~75%, and the retry message neither helped nor hurt materially.
+
+**What actually happens** (measured with `KS2_DEBUG_VISUAL=1` instrumentation added this pass):
+- `finish_reason` was **`stop` on every single call** — truncation definitively ruled out. Responses ran ~1550–1730 completion tokens against a 2600 cap, and `JSON.parse` succeeded every time.
+- The model **always emitted a `coordinate_graph` block** — on failures as well as successes.
+- **Every** failure was the same silent parser drop: `parseWorkedExampleWhiteboard` requires `xRange`/`yRange` on a `coordinate_graph` and discarded the entire block when they were absent. For "read the coordinates"-style questions the model supplies correct points but omits the axis ranges on roughly 3 of 4 generations. All blocks dropped → `missing_visual` → 422 → pupil sees "the lesson couldn't load".
+
+So a **correct, usable diagram was being thrown away over two derivable metadata fields.** The 422 response looked identical whether the model produced nothing or the parser discarded everything, which is exactly why two prior passes mis-attributed it to model flakiness.
+
+**Fix:** derive the axis ranges from the block's own points/segments when the model omits them, instead of dropping the block — matching the convention `coordinateGraph()` in `lib/methods/ks2-topic-builders.ts` already uses (pad by 1, always include the origin so all four quadrants read correctly). Model-supplied ranges are never overridden; a partially-specified pair has only the missing axis filled in; and a graph with no geometry at all is still dropped rather than given an invented window.
+
+**Verified:** live success rate on the affected skill went **2/8 → 8/8**, and all 8 were hand-checked for honesty, not just for passing validation — every stated answer matched its plotted points, every point fell inside the derived window, and the origin was visible in all 8. Regression test in `__tests__/lib/coordinate-graph-ranges.test.ts` (7 cases), *proven load-bearing* by temporarily reinstating the old drop behaviour and confirming 5 of the 7 fail. `tsc --noEmit` clean, `npm run build` compiles, suite at 757/757.
+
+**Scope — what is NOT covered:** only the coordinates family was verified. Whether the same derive-instead-of-drop gap affects other visual families (notably DEF-013's `cuboid_array` "Volume of cuboids", the originally-documented instance of this failure class) is **untested** — the OpenAI key hit `insufficient_quota` mid-sweep, so translation, reflection and volume could not be exercised. DEF-013's root cause was diagnosed separately and earlier as a parser-phrasing gap, so it is probably a different bug, but that is an inference, not a measurement.
+
+**Kept deliberately:** the `KS2_DEBUG_VISUAL` instrumentation (off by default, gated on an env var, logs block types/shapes and token counts only — never pupil content). This class of failure is invisible from the API response alone; two passes mis-diagnosed it without this, and one pass with it found the cause immediately.
+
+**Incidental observation, not fixed:** OpenAI quota exhaustion surfaces to the pupil as an opaque HTTP 500 "Failed to generate lesson". Worth a friendlier, distinguishable message, but out of scope here and not a correctness bug.
 
 ## What this plan does not yet cover
 

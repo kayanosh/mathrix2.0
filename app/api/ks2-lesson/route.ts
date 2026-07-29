@@ -365,13 +365,47 @@ function enrichTeachingFields(
   };
 }
 
-function parseWorkedExampleWhiteboard(
+/**
+ * Diagnostic for the intermittent `missing_visual` 422s. A whiteboard can go
+ * missing either because the model never emitted one, or because every block
+ * it emitted was dropped by normalisation/fitness below — the 422 response
+ * looks identical in both cases, which makes the failure impossible to
+ * attribute from the outside. Set KS2_DEBUG_VISUAL=1 to log which it was.
+ * Off by default; logs shapes and counts only, never pupil content.
+ */
+const DEBUG_VISUAL = process.env.KS2_DEBUG_VISUAL === "1";
+
+/**
+ * Exported for direct unit testing (see __tests__/lib/coordinate-graph-ranges.test.ts).
+ * Next.js ignores non-handler exports from a route module.
+ */
+export function parseWorkedExampleWhiteboard(
   raw: unknown,
   question = "",
 ): CachedKS2WorkedExampleWhiteboard | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
+  if (!raw || typeof raw !== "object") {
+    if (DEBUG_VISUAL) {
+      console.warn("[visual-debug] whiteboard absent from model output:", typeof raw);
+    }
+    return undefined;
+  }
   const wb = raw as Record<string, unknown>;
-  if (!Array.isArray(wb.blocks) || wb.blocks.length === 0) return undefined;
+  if (!Array.isArray(wb.blocks) || wb.blocks.length === 0) {
+    if (DEBUG_VISUAL) {
+      console.warn("[visual-debug] whiteboard present but blocks empty/not-array:", {
+        isArray: Array.isArray(wb.blocks),
+        length: Array.isArray(wb.blocks) ? wb.blocks.length : undefined,
+        keys: Object.keys(wb),
+      });
+    }
+    return undefined;
+  }
+  if (DEBUG_VISUAL) {
+    console.warn(
+      "[visual-debug] model emitted blocks:",
+      (wb.blocks as { type?: unknown }[]).map((b) => String(b?.type)),
+    );
+  }
   const repaired = deepRepairStrings({
     intro: (wb.intro || "").toString(),
     blocks: wb.blocks as VisualBlock[],
@@ -430,22 +464,9 @@ function parseWorkedExampleWhiteboard(
       continue;
     }
     if (block.type === "coordinate_graph") {
-      const xRange = Array.isArray(block.xRange)
-        ? [Number(block.xRange[0]), Number(block.xRange[1])]
-        : [];
-      const yRange = Array.isArray(block.yRange)
-        ? [Number(block.yRange[0]), Number(block.yRange[1])]
-        : [];
-      if (
-        xRange.length < 2 ||
-        yRange.length < 2 ||
-        !xRange.every(Number.isFinite) ||
-        !yRange.every(Number.isFinite) ||
-        xRange[1] <= xRange[0] ||
-        yRange[1] <= yRange[0]
-      ) {
-        continue;
-      }
+      // Geometry is extracted BEFORE axis ranges are validated, because a
+      // missing range can be derived from the points/segments but not the
+      // other way round.
       const plots = Array.isArray(block.plots)
         ? block.plots.filter(
             (plot) =>
@@ -481,7 +502,76 @@ function parseWorkedExampleWhiteboard(
           Number.isFinite(Number(segment?.to?.x)) &&
           Number.isFinite(Number(segment?.to?.y)),
       );
-      if (plots.length === 0 && points.length === 0 && segments.length === 0) continue;
+      if (plots.length === 0 && points.length === 0 && segments.length === 0) {
+        if (DEBUG_VISUAL) {
+          console.warn("[visual-debug] DROPPED coordinate_graph: no usable plots/points/segments", {
+            rawPointCount: Array.isArray(block.points) ? block.points.length : 0,
+            rawPointShapes: Array.isArray(block.points)
+              ? (block.points as unknown as Record<string, unknown>[]).map((p) =>
+                  Object.keys(p || {}),
+                )
+              : [],
+          });
+        }
+        continue;
+      }
+
+      const validRange = (range: number[]) =>
+        range.length >= 2 &&
+        range.every(Number.isFinite) &&
+        range[1] > range[0];
+
+      let xRange = Array.isArray(block.xRange)
+        ? [Number(block.xRange[0]), Number(block.xRange[1])]
+        : [];
+      let yRange = Array.isArray(block.yRange)
+        ? [Number(block.yRange[0]), Number(block.yRange[1])]
+        : [];
+
+      // The model reliably draws the right points but omits xRange/yRange on
+      // most attempts for "read the coordinates"-style questions (measured
+      // live: ~3 of 4 generations). Dropping the block for that alone threw
+      // away a correct diagram and produced a pupil-facing "lesson couldn't
+      // load" 422, so derive the axes from the geometry we already have —
+      // matching coordinateGraph()'s convention in lib/methods/
+      // ks2-topic-builders.ts (pad by 1, always include the origin so the
+      // axes stay visible). Model-supplied ranges are never overridden.
+      if (!validRange(xRange) || !validRange(yRange)) {
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (const p of points) {
+          xs.push(p.point.x);
+          ys.push(p.point.y);
+        }
+        for (const s of segments) {
+          xs.push(Number(s.from.x), Number(s.to.x));
+          ys.push(Number(s.from.y), Number(s.to.y));
+        }
+        // Function plots have no intrinsic extent to measure, so a graph with
+        // only plots and no usable ranges still can't be drawn honestly.
+        if (xs.length === 0 || ys.length === 0) {
+          if (DEBUG_VISUAL) {
+            console.warn(
+              "[visual-debug] DROPPED coordinate_graph: no ranges and no geometry to derive them from",
+            );
+          }
+          continue;
+        }
+        const padding = 1;
+        if (!validRange(xRange)) {
+          xRange = [Math.min(0, ...xs) - padding, Math.max(0, ...xs) + padding];
+        }
+        if (!validRange(yRange)) {
+          yRange = [Math.min(0, ...ys) - padding, Math.max(0, ...ys) + padding];
+        }
+        if (DEBUG_VISUAL) {
+          console.warn("[visual-debug] DERIVED missing coordinate_graph axis ranges:", {
+            xRange,
+            yRange,
+          });
+        }
+      }
+
       normalised.push({
         ...block,
         xRange: xRange as [number, number],
@@ -515,6 +605,12 @@ function parseWorkedExampleWhiteboard(
   }
 
   const fit = filterFitBlocks(normalised, question);
+  if (DEBUG_VISUAL) {
+    console.warn("[visual-debug] after normalise/fitness:", {
+      normalised: normalised.map((b) => b.type),
+      survivedFitness: fit.map((b) => b.type),
+    });
+  }
   if (fit.length === 0) return undefined;
   return {
     intro: repaired.intro,
@@ -1073,6 +1169,25 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
       lastUsedModel = completion.model;
 
       const raw = completion.choices[0]?.message?.content || "{}";
+      if (DEBUG_VISUAL) {
+        // finish_reason === "length" means the model hit max_completion_tokens
+        // and the JSON was cut off mid-object — the prime suspect for a
+        // whiteboard (which the schema places late in the object) going missing.
+        console.warn("[visual-debug] completion:", {
+          finishReason: completion.choices[0]?.finish_reason,
+          rawChars: raw.length,
+          completionTokens: completion.usage?.completion_tokens,
+          maxAllowed: isMaths ? 2600 : teachingSubject ? 2000 : 1400,
+          parsesAsJson: (() => {
+            try {
+              JSON.parse(raw);
+              return true;
+            } catch {
+              return false;
+            }
+          })(),
+        });
+      }
       try {
         const parsed = coerceCanonicalLessonKeys(
           deepRepairStrings(JSON.parse(raw)) as Record<string, unknown>,
