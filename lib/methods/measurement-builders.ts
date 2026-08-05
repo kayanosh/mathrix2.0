@@ -29,8 +29,13 @@ export function parseRectMeasure(
         h: parseInt(vol[3], 10),
       };
     }
+    // "N cubes" is only a TOTAL cube count when N is not immediately acting as
+    // a dimension. In "4 cubes long, 3 cubes wide and 2 cubes high" the 4 is a
+    // length, not a total — reading it as a total silently taught volume 4
+    // (from an invented 2x2x1) for a cuboid that is plainly 4x3x2 = 24
+    // (DEF-023). The lookahead defers those to the dimension parse below.
     const cubeCount = t.match(
-      /\b(\d+)\s+(?:(?:equal|small|unit)\s+)*cubes?\b/i,
+      /\b(\d+)\s+(?:(?:equal|small|unit)\s+)*cubes?\b(?!\s*(?:long|wide|high|tall|deep|across))/i,
     );
     if (cubeCount) {
       const [l, w, h] = cuboidDimensionsForUnitCubes(
@@ -38,13 +43,35 @@ export function parseRectMeasure(
       );
       return { kind: "volume", l, w, h };
     }
-    // Natural-language dimension labels, in any order/separator: "4cm long,
-    // 3cm wide and 2cm high" never matches the by/×/cubes patterns above, so
+    // Natural-language dimension labels, in any order/separator, in BOTH
+    // word orders. Neither form matches the by/×/cubes patterns above, so
     // without this a cuboid question phrased this way (a common model
     // output) can only ever get a correct visual by LLM luck (DEF-013).
-    const long = t.match(/(\d+)\s*(?:cm|m|mm)?\s*long\b/i);
-    const wide = t.match(/(\d+)\s*(?:cm|m|mm)?\s*wide\b/i);
-    const high = t.match(/(\d+)\s*(?:cm|m|mm)?\s*(?:high|tall)\b/i);
+    //
+    //   number-then-word: "4cm long, 3cm wide and 2cm high"   (DEF-013)
+    //   word-then-number: "length 4 units, width 3 units and height 2 units"
+    //
+    // The second form was still unmatched after DEF-013's fix and kept the
+    // volume family failing ~1 in 5 live generations, because the `volume`
+    // contract requires cuboid_array AND equation_steps and the equation
+    // block comes from this builder — no parse, no block, `visual_mismatch`.
+    // Units the model actually emits for these questions. "cubes"/"units" must
+    // be included or "4 cubes long" fails to parse as a dimension, and the
+    // optional qualifier is needed for "4 unit cubes long" / "4 small cubes
+    // wide", both of which appear in real generated output (DEF-023).
+    const UNIT = "(?:(?:unit|small|equal|little)\\s+)?(?:cm|mm|m|cubes?|units?|squares?)?";
+    const dimension = (
+      afterWord: string,
+      beforeWord: string,
+    ): RegExpMatchArray | null =>
+      // e.g. "length 4 units" / "length of 4 cm"
+      t.match(new RegExp(`\\b${afterWord}\\b(?:\\s+of)?\\s*[:=]?\\s*(\\d+)`, "i")) ||
+      // e.g. "4cm long" / "4 cubes long"
+      t.match(new RegExp(`(\\d+)\\s*${UNIT}\\s*${beforeWord}\\b`, "i"));
+
+    const long = dimension("length", "long");
+    const wide = dimension("width", "wide");
+    const high = dimension("height", "(?:high|tall)");
     if (long && wide && high) {
       return {
         kind: "volume",

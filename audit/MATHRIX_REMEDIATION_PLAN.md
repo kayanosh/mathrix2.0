@@ -64,11 +64,31 @@ So a **correct, usable diagram was being thrown away over two derivable metadata
 
 **Verified:** live success rate on the affected skill went **2/8 → 8/8**, and all 8 were hand-checked for honesty, not just for passing validation — every stated answer matched its plotted points, every point fell inside the derived window, and the origin was visible in all 8. Regression test in `__tests__/lib/coordinate-graph-ranges.test.ts` (7 cases), *proven load-bearing* by temporarily reinstating the old drop behaviour and confirming 5 of the 7 fail. `tsc --noEmit` clean, `npm run build` compiles, suite at 757/757.
 
-**Scope — what is NOT covered:** only the coordinates family was verified. Whether the same derive-instead-of-drop gap affects other visual families (notably DEF-013's `cuboid_array` "Volume of cuboids", the originally-documented instance of this failure class) is **untested** — the OpenAI key hit `insufficient_quota` mid-sweep, so translation, reflection and volume could not be exercised. DEF-013's root cause was diagnosed separately and earlier as a parser-phrasing gap, so it is probably a different bug, but that is an inference, not a measurement.
+**Scope — now measured (was blocked on quota).** After credits were restored the sweep completed. Results:
+- **Translation 3/3, Reflection 3/3** — and the instrumentation shows the DEF-021 derivation firing **6 times** across that sweep with **0** remaining `coordinate_graph` drops. So those skills were being saved by the same fix; the gap covered the whole coordinates family, not just one skill.
+- **Volume of cuboids was a genuinely different bug**, as suspected — `4/5` pass, failing with `visual_mismatch` (not `missing_visual`), with the `cuboid_array` block present and surviving fitness. That turned out to be a **residual of DEF-013** and is now filed and fixed as **DEF-022**, with a P0 wrong-answer bug (**DEF-023**) found while verifying it. See both below.
 
 **Kept deliberately:** the `KS2_DEBUG_VISUAL` instrumentation (off by default, gated on an env var, logs block types/shapes and token counts only — never pupil content). This class of failure is invisible from the API response alone; two passes mis-diagnosed it without this, and one pass with it found the cause immediately.
 
 **Incidental observation, not fixed:** OpenAI quota exhaustion surfaces to the pupil as an opaque HTTP 500 "Failed to generate lesson". Worth a friendlier, distinguishable message, but out of scope here and not a correctness bug.
+
+## DEF-022 — residual of DEF-013: the other word order (FIXED)
+
+`volume`'s visual contract needs **both** `cuboid_array` and `equation_steps`, and the equation block comes from the deterministic builder via `parseRectMeasure()`. DEF-013 added a matcher for **number-then-word** ("4cm long, 3cm wide and 2cm high") but the mirror **word-then-number** order was never matched — `"length 4 units, width 3 units and height 2 units"` and `"A cuboid has length 5 cm, width 2 cm and height 3 cm"` both returned `null`, so no equation block was built and the lesson failed its own contract ~1 in 5 generations. Isolated offline at zero API cost by probing the parser directly with the failing vs known-good phrasings. Fixed by matching both word orders (plus the "a length of 6 cm" variant), keeping the all-three-dimensions requirement so a 2-D rectangle isn't misread as a cuboid. **Verified 4/5 → 8/8 → 5/5 live.**
+
+DEF-013's original fix was correct — it just covered one of the two word orders the model actually uses.
+
+## DEF-023 — P0 wrong answer, found while verifying DEF-022 (FIXED)
+
+A live generation produced *"A cuboid is 4 cubes long, 3 cubes wide and 2 cubes high. What is its volume?"* and **taught the answer 4**. Correct is 4×3×2 = **24**.
+
+`parseRectMeasure`'s total-cube-count branch runs *before* the dimension branch and matched the first `"<n> cubes"` it saw, reading "4 cubes long" as *a cuboid made of 4 unit cubes* → `cuboidDimensionsForUnitCubes(4)` → 2×2×1 → volume 4. The `cuboid_array` diagram was then drawn as 2×2×1, so **the diagram agreed with the wrong answer** and looked internally consistent while contradicting the question. Same class as DEF-008. A real cached row had the same defect (`"...4 unit cubes long, 3 unit cubes wide and 2 unit cubes high"` → answer 4).
+
+Fixed with a negative lookahead so the total-count branch defers when the number is acting as a dimension, plus widening the dimension matcher's unit group to accept `cubes`/`units` and an optional qualifier — needed because otherwise the deferred case parses as nothing at all ("4 **unit cubes** long" has two words between the number and "long").
+
+**Verified:** offline probe correct for both dimension *and* genuine total-count phrasings; **5/5 live generations arithmetically correct** against each question's own stated dimensions; and the bad cached row **self-healed on serve** (`cached:true`, answer 4 → 24, correct steps) with no purge or migration, exactly as DEF-008 did.
+
+> **Process note worth keeping.** DEF-023 was only caught because verification checked the maths *against the question*. The wrong answer had a matching diagram, so every internal-consistency check and the HTTP status all passed. A status-code-only verification would have shipped it. Any future "did the fix work?" pass on lesson content should assert against the question's own numbers, not self-consistency.
 
 ## What this plan does not yet cover
 
