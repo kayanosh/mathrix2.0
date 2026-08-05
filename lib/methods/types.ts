@@ -44,6 +44,7 @@ export type MethodBuilderId =
   | "rect_perimeter_area"
   | "rectilinear_perimeter"
   | "irregular_area_estimate"
+  | "counted_squares_area"
   | "cuboid_volume"
   | "angle_diagram"
   | "coordinate_plot"

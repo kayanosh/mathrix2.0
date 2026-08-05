@@ -8,6 +8,7 @@ import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
 export type MultiplesProblem =
   | { kind: "multiples"; n: number; count: number }
+  | { kind: "next_multiple"; n: number; after: number }
   | {
       kind: "common_multiples";
       a: number;
@@ -64,6 +65,15 @@ function formatSequence(values: number[], base: number): string {
 export function parseMultiplesQuestion(text: string): MultiplesProblem | null {
   const t = normalizeMathText(text);
 
+  // A question asking for reasoning wants prose, and the harden path would
+  // replace that prose with a bare number ("Explain why 30 is a multiple of
+  // both 5 and 6" was being answered "30"). Decline and leave the explanation
+  // alone — same DEF-025 class of a builder answering a question it wasn't
+  // asked.
+  if (/\b(?:explain|why|describe|justify|prove|show\s+that|how\s+do\s+you\s+know)\b/i.test(t)) {
+    return null;
+  }
+
   const common =
     t.match(
       /(?:common|shared|lowest common|least common)\s+multiples?(?:\s+of)?\s+(\d+)\s+(?:and|&)\s+(\d+)/i,
@@ -101,14 +111,48 @@ export function parseMultiplesQuestion(text: string): MultiplesProblem | null {
     }
   }
 
-  const mult = t.match(
-    /(?:first\s+)?(\d+)?\s*multiples?\s+of\s+(\d+)|multiples?\s+of\s+(\d+)/i,
+  // DEF-025: this branch must only claim questions it can actually ANSWER by
+  // listing multiples. It previously fired on any text containing the word
+  // "multiple" and returned a generic list of ten, which the harden path then
+  // wrote over the correct answer — so "What is the next multiple of 6 after
+  // 30?" was served the answer "6, 12, 18, 24, 30, 36, 42, 48, 54, 60" and
+  // "Write the first FIVE multiples of 8" was served ten of them.
+  const NUMBER_WORDS: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+    seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  };
+
+  // "the next multiple of 6 after 30" / "...greater than 30" — a single value.
+  const nextAfter = t.match(
+    /\bnext\s+multiple\s+of\s+(\d+)\s+(?:after|above|greater\s+than|more\s+than|past)\s+(\d+)/i,
   );
-  if (mult || /\bmultiples?\b/i.test(t)) {
-    const n = parseInt(mult?.[2] || mult?.[3] || "", 10);
-    const count = parseInt(mult?.[1] || "10", 10) || 10;
-    if (Number.isFinite(n) && n > 0) {
-      return { kind: "multiples", n, count: Math.min(Math.max(count, 5), 12) };
+  if (nextAfter) {
+    const n = parseInt(nextAfter[1], 10);
+    const from = parseInt(nextAfter[2], 10);
+    if (Number.isFinite(n) && n > 0 && Number.isFinite(from)) {
+      return { kind: "next_multiple", n, after: from };
+    }
+  }
+
+  // Only an explicit "list/write the [first] [N] multiples of X" request gets a
+  // list. Anything else mentioning "multiple" is declined below.
+  const listMatch = t.match(
+    /(?:first|list|write|give|state)\b[^.]{0,24}?(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)?\s*multiples?\s+of\s+(\d+)/i,
+  );
+  const plainList = t.match(/^\s*multiples?\s+of\s+(\d+)/i);
+  if (listMatch || plainList) {
+    const n = parseInt(listMatch?.[2] || plainList?.[1] || "", 10);
+    const rawCount = (listMatch?.[1] || "").toLowerCase();
+    const count = rawCount
+      ? /^\d+$/.test(rawCount)
+        ? parseInt(rawCount, 10)
+        : NUMBER_WORDS[rawCount]
+      : 10;
+    if (Number.isFinite(n) && n > 0 && Number.isFinite(count)) {
+      // Honour the requested count exactly — clamping it to a 5..12 window is
+      // what turned "the first four multiples of 7" into five, and combined
+      // with the word-number miss above, into ten.
+      return { kind: "multiples", n, count: Math.min(Math.max(count, 1), 12) };
     }
   }
   const fac = t.match(/factors?\s+of\s+(\d+)/i);
@@ -154,6 +198,45 @@ export function buildMultiplesFactors(
       captions: teachingSteps.map((s) => s.explanation),
       answer: values.join(", "),
       intro: `Multiples of ${n} — jump along the number line in steps of ${n}.`,
+    };
+  }
+
+  if (problem.kind === "next_multiple") {
+    const { n, after } = problem;
+    // Strictly after: the next multiple of 6 after 30 is 36, not 30.
+    const answer = (Math.floor(after / n) + 1) * n;
+    const values = Array.from({ length: 4 }, (_, i) => answer + (i - 2) * n).filter(
+      (v) => v > 0,
+    );
+    const line: NumberLineBlock = {
+      type: "number_line",
+      range: [Math.max(0, Math.min(...values) - n), Math.max(...values) + n],
+      tickInterval: n,
+      markers: values.map((v) => ({
+        value: v,
+        label: String(v),
+        style: v === answer ? ("filled" as const) : ("open" as const),
+      })),
+    };
+    const teachingSteps: TeachingStep[] = [
+      {
+        title: `Count on in ${n}s`,
+        explanation: `Keep adding ${n} until you pass ${after}: the next multiple of ${n} after ${after} is ${answer}.`,
+        why: `A multiple of ${n} is what you land on when you skip-count in ${n}s.`,
+        narration: `Count on in ${n}s from ${after}.`,
+        cellKeys: [],
+        carryKeys: [],
+        noteKeys: [],
+        showAnswer: true,
+      },
+    ];
+    return {
+      builderId: "multiples_number_line",
+      block: line,
+      teachingSteps,
+      captions: teachingSteps.map((s) => s.explanation),
+      answer: String(answer),
+      intro: `Find the next multiple of ${n} after ${after}.`,
     };
   }
 
@@ -355,6 +438,10 @@ export function validateMultiplesVisual(
 ): string[] {
   const parsed = parseMultiplesQuestion(question);
   if (!parsed || parsed.kind === "factors") return [];
+  // A next_multiple board is a short window around a single highlighted answer,
+  // not an ordered list starting at n, so the list checks below don't apply —
+  // its markers are generated from the computed answer and cannot disagree.
+  if (parsed.kind === "next_multiple") return [];
 
   if (parsed.kind === "multiples") {
     if (block.type === "number_line") {

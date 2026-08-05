@@ -90,6 +90,31 @@ Fixed with a negative lookahead so the total-count branch defers when the number
 
 > **Process note worth keeping.** DEF-023 was only caught because verification checked the maths *against the question*. The wrong answer had a matching diagram, so every internal-consistency check and the HTTP status all passed. A status-code-only verification would have shipped it. Any future "did the fix work?" pass on lesson content should assert against the question's own numbers, not self-consistency.
 
+## ⚠️ The systemic pattern behind DEF-008/020/023/024/025 — read this before touching a builder
+
+Five separate P0/P1 defects this audit share one root cause, and each was found by accident until this pass built tooling for it:
+
+| Defect | The builder's mistake |
+|---|---|
+| DEF-008 | Couldn't parse comma-thousands, so solved `403 − 27` for `62,403 − 27,568` |
+| DEF-020 | Picked the wrong block when two were present, answering a different question |
+| DEF-023 | Read "4 cubes long" as "made of 4 cubes", inventing a 2×2×1 |
+| DEF-024 | Returned a hardcoded canonical shape (constant `51 cm²`) for every question |
+| DEF-025 | Returned a generic list of ten multiples whatever was asked |
+
+**The shared mechanism: the harden path unconditionally trusts any builder that pattern-matches, and overwrites the stored answer with the builder's.** A builder matching on *topic* keywords ("area", "multiple", "cuboid") will happily replace a correct, specific answer with generic topic output. In every one of these five, **the LLM was right and the deterministic "safety net" made it wrong** — the inversion first noted in DEF-008's headline finding.
+
+Two properties make this class hard to see, and both are worth designing against:
+1. **The diagram is regenerated from the same wrong numbers**, so it *agrees* with the wrong answer. Every internal-consistency check passes. Only comparing against the question's own numbers catches it.
+2. **HTTP 200.** Nothing errors. A status-code-only verification passes happily — this is how DEF-023 nearly shipped.
+
+**Practical rules this suggests:**
+- A builder should **decline** rather than guess. Declining leaves the model's answer, which these five cases show is often correct; guessing actively corrupts.
+- Never claim reasoning questions ("explain why…", "what does the 1 in 14 mean?") — a bare number cannot replace prose. Guards for this were added to the multiples builder (DEF-025) and are the prerequisite for DEF-026.
+- Any "did the fix work?" check on lesson content must assert **against the question's own numbers**, never self-consistency or status codes.
+
+**Tooling now exists:** `scripts/audit-cached-answers.ts` classifies every answer-bearing item in the live cache as AGREE / DISAGREE / UNVERIFIABLE with no API cost. It found DEF-024 and DEF-025 directly. Run it after any builder change.
+
 ## What this plan does not yet cover
 
 Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe, and no manual/screen-reader testing has been done. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.

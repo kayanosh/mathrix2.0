@@ -94,6 +94,8 @@ import {
 import {
   buildIrregularArea,
   parseIrregularArea,
+  buildCountedSquares,
+  parseCountedSquares,
 } from "@/lib/methods/irregular-area";
 import {
   buildAngleDiagram,
@@ -330,6 +332,16 @@ function tryRectilinearPerimeter(text: string): MethodBuildResult | null {
   }
 }
 
+function tryCountedSquaresArea(text: string): MethodBuildResult | null {
+  const parsed = parseCountedSquares(text);
+  if (!parsed) return null;
+  try {
+    return buildCountedSquares(parsed);
+  } catch {
+    return null;
+  }
+}
+
 function tryIrregularAreaEstimate(text: string): MethodBuildResult | null {
   const parsed = parseIrregularArea(text);
   if (!parsed) return null;
@@ -454,6 +466,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   fdp_equivalence: tryFdpEquivalence,
   multiples_number_line: tryMultiplesNumberLine,
   signed_number_line: trySignedNumberLine,
+  counted_squares_area: tryCountedSquaresArea,
   irregular_area_estimate: tryIrregularAreaEstimate,
   rectilinear_perimeter: tryRectilinearPerimeter,
   rect_perimeter_area: tryRectPerimeterArea,
@@ -490,6 +503,7 @@ const DEFAULT_ORDER: MethodBuilderId[] = [
   "ratio_table",
   "function_machine",
   "signed_number_line",
+  "counted_squares_area",
   "irregular_area_estimate",
   "rectilinear_perimeter",
   "rect_perimeter_area",

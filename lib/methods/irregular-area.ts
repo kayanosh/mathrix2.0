@@ -28,8 +28,49 @@ export function parseIrregularArea(text: string): IrregularAreaProblem | null {
   if (!/\barea\b/.test(t)) return null;
   if (!/irregular|estimate/.test(t)) return null;
   if (/\bperimeter\b/.test(t)) return null;
+  // CRITICAL (DEF-024): the canonical-L fallback below is only legitimate when
+  // the question states NO countable quantities of its own — the premise in the
+  // docstring above. A question like "A shape covers 11 whole squares and 6
+  // half-squares, what is its estimated area?" has its own determinate answer
+  // (11 + 3 = 14), and returning the canonical 51 here silently overwrote the
+  // correct answer via the harden path — a whole skill was taught "51 cm²" for
+  // every question regardless of its numbers. Decline these so a builder that
+  // can actually read them (or, failing that, the model's own correct answer)
+  // is used instead of a constant.
+  if (/\b(?:whole|half|full|complete|part(?:ial)?|edge)\b[^.]*\bsquares?\b/.test(t)) return null;
+  if (/\bsquares?\b[^.]*\b(?:covered|shaded|counted)\b/.test(t)) return null;
   const unit = /\bmm\b/.test(t) ? "mm" : /\bm\b/.test(t) && !/\bmm\b/.test(t) ? "m" : "cm";
   return { width: 9, height: 7, notchWidth: 4, notchHeight: 3, unit };
+}
+
+/**
+ * "N whole squares and M half-squares (or edge parts)" → N + M/2.
+ *
+ * A separate, genuinely determinate problem type that the canonical-L parser
+ * above used to swallow (DEF-024). Reading the question's own numbers means
+ * these answers become deterministically verifiable instead of unverifiable,
+ * so an LLM slip here is caught rather than silently served.
+ */
+export interface CountedSquaresProblem {
+  whole: number;
+  halves: number;
+  unit: string;
+}
+
+export function parseCountedSquares(text: string): CountedSquaresProblem | null {
+  const t = normalizeMathText(text).toLowerCase();
+  if (!/\barea\b/.test(t)) return null;
+  if (/\bperimeter\b/.test(t)) return null;
+  // "11 whole squares" / "11 full squares"
+  const whole = t.match(/(\d+)\s*(?:whole|full|complete)\s+squares?/);
+  if (!whole) return null;
+  // "6 half-squares" / "6 half squares" / "6 edge parts ... half a square each"
+  const halves =
+    t.match(/(\d+)\s*half[-\s]*squares?/) ||
+    t.match(/(\d+)\s*(?:edge\s+)?(?:parts?|pieces?|bits?)\b[^.]*?\bhalf\b/);
+  if (!halves) return null;
+  const unit = /\bmm\b/.test(t) ? "mm" : /\bm\b/.test(t) && !/\bmm\b/.test(t) ? "m" : "cm";
+  return { whole: parseInt(whole[1], 10), halves: parseInt(halves[1], 10), unit };
 }
 
 export function buildIrregularArea(
@@ -138,5 +179,87 @@ export function buildIrregularArea(
       .filter((s) => s.title !== "Answer")
       .map((s) => s.explanation),
     answer: `${total}${up}`,
+  };
+}
+
+export function buildCountedSquares(
+  problem: CountedSquaresProblem,
+): MethodBuildResult {
+  const { whole, halves, unit } = problem;
+  const halfArea = halves / 2;
+  const total = whole + halfArea;
+  const up = unit ? ` ${unit}²` : "";
+  const pretty = (n: number) => (Number.isInteger(n) ? String(n) : String(n));
+
+  const mk = (
+    title: string,
+    explanation: string,
+    latexBefore: string,
+    latexAfter: string,
+    operationLabel: string,
+    why: string,
+    showAnswer = false,
+  ) => ({
+    step: {
+      stepNumber: 0,
+      operationLabel,
+      explanation,
+      latexBefore,
+      latexAfter,
+      arrowDirection: "down" as const,
+      rule: title,
+    },
+    teaching: {
+      title,
+      explanation,
+      why,
+      narration: explanation,
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      ...(showAnswer ? { showAnswer: true } : {}),
+    },
+  });
+
+  const parts = [
+    mk(
+      "Count the whole squares",
+      `There are ${whole} whole squares, giving ${whole}${up}.`,
+      String(whole),
+      String(whole),
+      "Count whole squares",
+      "Every whole square counts as one full unit of area.",
+    ),
+    mk(
+      "Pair up the part squares",
+      `${halves} part squares are each about half a square: ${halves} ÷ 2 = ${pretty(halfArea)}${up}.`,
+      `${halves} \\div 2`,
+      pretty(halfArea),
+      "Halve the part squares",
+      "Two half squares make one whole square, so divide the count by 2.",
+    ),
+    mk(
+      "Add the two totals",
+      `${whole} + ${pretty(halfArea)} = ${pretty(total)}${up}.`,
+      `${whole} + ${pretty(halfArea)}`,
+      pretty(total),
+      "Add",
+      "The estimate is the whole squares plus the paired-up part squares.",
+      true,
+    ),
+  ];
+
+  const steps: EquationStep[] = parts.map((p, i) => ({
+    ...p.step,
+    stepNumber: i + 1,
+  }));
+  const teachingSteps: TeachingStep[] = parts.map((p) => p.teaching);
+
+  return {
+    builderId: "counted_squares_area",
+    block: { type: "equation_steps", steps },
+    teachingSteps,
+    captions: teachingSteps.map((s) => s.explanation),
+    answer: `${pretty(total)}${up}`,
   };
 }
