@@ -158,6 +158,27 @@ Fixing it surfaced a third problem: **7 cached items were serving answers to a c
 
 > **My own fix introduced a pupil-facing bug, and the suite missed it again.** Enabling more matches surfaced raw IEEE754 arithmetic: `4.6 × 100 = 459.99999999999994`, and `0.01 / 0.001 = 9.999999999999998` in the teaching text — so a Year 5 pupil would be told to "divide by 9.999999999999998". All 791 tests passed. I caught it reading the diff output. That is now **twice** in two passes that inspecting real content caught what the test suite could not.
 
+## DEF-009 — the offline validator now tests real questions (FIXED), and immediately found 6 new issues
+
+The harness tested most maths skills against **their own skill name** as the "question", so it structurally could not catch a wrong-answer defect — which is how DEF-008 survived a run reporting *"377/378 passed"*. Every wrong-answer defect in this audit came from a real generated question; none could have come from a skill name.
+
+**Fix:** `scripts/generate-sample-questions.ts` mines the live cache for one real question per skill (preferring ones the builders can actually solve) into a **committed** fixture, so the validator stays offline and deterministic for CI. Fake questions: **146 → 1**.
+
+Also fixed an inconsistency the switch exposed: the harness set practice answers from `built.answer`, which is `undefined` for column arithmetic, storing the literal `"see method"`. Harmless while nothing could solve those questions — but once DEF-026 taught the audit to solve them, it correctly flagged the harness's own fixture. Now uses `deterministicMathsAnswer()`, the same source production uses.
+
+> **A misstep worth recording.** Switching to real questions initially produced **46 failures that were not lesson defects.** A builder legitimately yields 1–2 steps for *"Write 0.37 as a fraction"* while the validator requires 3+; real lessons make up the difference with LLM-authored teaching content that this synthetic fixture has none of. The old skill-name questions matched no builder at all, so a generic 6-step fallback had been silently satisfying the rule. Shipped as-is, this would have been a crying-wolf harness that trains people to ignore it. Fixed by scaffolding the builder's steps to the structural minimum — keeping the builder's own content, placed last so the answer never precedes the reasoning.
+
+**Net:** 377 passed / 1 failed with 146 vacuous questions → **371 passed / 7 failed with 1 vacuous**. The 7 are substantive (`visual_mismatch` ×4, `unfit_visual`, `cuboid_array_invalid`, `sentence_too_long`) on real question shapes — **6 newly surfaced findings** of the same class as DEF-022, previously invisible. Not yet fixed; they are the natural next work:
+
+| Skill | Code |
+|---|---|
+| y5m-shape / Measure angles in degrees | `visual_mismatch` |
+| y5m-volume / Estimate volume | `cuboid_array_invalid` |
+| y6m-place-value / Negative numbers | `unfit_visual` |
+| y6m-algebra / Find pairs of values | `visual_mismatch` |
+| y6m-decimals / Decimals and fractions | `visual_mismatch` |
+| y6m-shape / Measure and classify angles | `visual_mismatch` |
+
 ## What this plan does not yet cover
 
 Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe, and no manual/screen-reader testing has been done. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.

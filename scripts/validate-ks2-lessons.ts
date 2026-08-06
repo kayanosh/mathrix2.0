@@ -10,12 +10,21 @@ import { join } from "path";
 import { listAllKS2Topics, getKS2TopicById } from "../lib/ks2";
 import { resolveKS2Taxonomy, type KS2TaxonomyNode } from "../lib/ks2-taxonomy";
 import { buildMethodForQuestion } from "../lib/methods";
+import { deterministicMathsAnswer } from "../lib/ks2-maths-accuracy";
 import {
   validateKS2TeachingLesson,
   assertNoGcd,
 } from "../lib/ks2-lesson-validator";
 import { usesTeachingEngine } from "../lib/ks2-subject-pedagogy/shared";
 import type { KS2TeachingLesson } from "../types/ks2-lesson";
+import REAL_SAMPLE_QUESTIONS_JSON from "./fixtures/ks2-sample-questions.json";
+
+/**
+ * Real questions these skills have actually generated, keyed "topic|skill".
+ * Committed so this validator stays offline and deterministic for CI;
+ * regenerate with `npx tsx scripts/generate-sample-questions.ts` (DEF-009).
+ */
+const REAL_SAMPLE_QUESTIONS = REAL_SAMPLE_QUESTIONS_JSON as Record<string, string>;
 
 const SUBJECTS = ["maths", "english", "science", "computing", "arabic"] as const;
 
@@ -66,10 +75,18 @@ function sampleQuestion(tax: KS2TaxonomyNode): string {
       ? "62,403 - 27,568"
       : "47,586 + 28,749";
   }
-  // Any other maths skill reaching here is tested against its own name, not
-  // a real question — this makes that gap visible instead of a silent pass.
+  // DEF-009: prefer a REAL question this skill has actually generated, taken
+  // from the committed fixture (scripts/generate-sample-questions.ts). Testing
+  // a skill against its own NAME cannot catch a wrong-answer defect — that is
+  // precisely how DEF-008 survived a run reporting "377/378 passed". Every
+  // wrong-answer defect in this audit came from a real generated question.
+  const real = REAL_SAMPLE_QUESTIONS[`${tax.topic}|${tax.skill}`];
+  if (real) return real;
+
+  // Still nothing real on record: fall back to the skill name, but say so
+  // loudly rather than passing silently.
   console.warn(
-    `[validate-ks2-lessons] no realistic sample question for maths skill "${tax.skill}" (topic ${tax.topic}) — testing against the skill name as a placeholder question, which cannot catch a wrong-answer defect for this skill. See DEF-009.`,
+    `[validate-ks2-lessons] no realistic sample question for maths skill "${tax.skill}" (topic ${tax.topic}) — testing against the skill name as a placeholder question, which cannot catch a wrong-answer defect for this skill. Regenerate the fixture with: npx tsx scripts/generate-sample-questions.ts. See DEF-009.`,
   );
   return tax.skill;
 }
@@ -100,30 +117,83 @@ function validateSkill(topicId: string, skill: string): Row {
       ? buildMethodForQuestion(sampleQ, tax.builderId as never)
       : null;
 
-  const steps = built?.teachingSteps?.map((s) => s.explanation) || [
-    "Read the question carefully.",
-    `Choose the method: ${tax.method}.`,
-    "Work through each part carefully.",
-    "Explain why this step works for the skill.",
-    "Check the answer makes sense.",
-    "Write the final answer clearly.",
-  ];
+  // Use the SAME answer source production uses. The column/division builders
+  // put their result on block.answer rather than the top-level answer, so
+  // reading only `built.answer` stored the literal string "see method" as the
+  // answer to a deterministically solvable question — which the accuracy audit
+  // then (correctly) flagged as a mismatch once DEF-026 taught it to solve
+  // column arithmetic. Fixture and production must agree, or the harness
+  // reports its own inconsistency as a lesson defect.
+  const solvedAnswer =
+    tax.subjectId === "maths"
+      ? (deterministicMathsAnswer(sampleQ)?.answer ?? built?.answer ?? null)
+      : (built?.answer ?? null);
+  const answerText = solvedAnswer || "see method";
 
-  const teachingSteps =
-    built?.teachingSteps?.map((s, i) =>
-      i === 0 || s.why
-        ? { ...s, why: s.why || `This is how ${tax.method} works.` }
-        : s,
-    ) ||
-    steps.map((explanation, i) => ({
-      title: `Step ${i + 1}`,
-      explanation,
-      why: i === 0 ? `This is how ${tax.method} works.` : undefined,
-      narration: explanation,
-      cellKeys: [] as string[],
-      carryKeys: [] as string[],
-      noteKeys: [] as string[],
-    }));
+  // A builder legitimately yields only 1-2 steps for many real questions
+  // ("Write 0.37 as a fraction" is one step), while the validator requires at
+  // least 3 and wants reasoning before the answer. A REAL lesson meets those
+  // from its LLM-authored teaching content, which this synthetic fixture has
+  // none of — so without scaffolding, switching to real questions (DEF-009)
+  // made the harness report 46 `few_steps`/`answer_before_reasoning` failures
+  // that say nothing about the lessons, only about the fixture. Scaffold the
+  // builder's steps up to the structural minimum, keeping the builder's own
+  // content (which is what this harness exists to check) and placing it LAST
+  // so the answer never precedes the reasoning.
+  const MIN_STEPS = 3;
+  const scaffoldFor = (n: number) =>
+    [
+      "Read the question carefully and note what is being asked.",
+      `Choose the method: ${tax.method}.`,
+      "Set out the working before calculating.",
+    ].slice(0, Math.max(0, n));
+
+  const builderExplanations = built?.teachingSteps?.map((s) => s.explanation);
+  const steps = builderExplanations
+    ? [
+        ...scaffoldFor(MIN_STEPS - builderExplanations.length),
+        ...builderExplanations,
+      ]
+    : [
+        "Read the question carefully.",
+        `Choose the method: ${tax.method}.`,
+        "Work through each part carefully.",
+        "Explain why this step works for the skill.",
+        "Check the answer makes sense.",
+        "Write the final answer clearly.",
+      ];
+
+  const scaffoldSteps = (built?.teachingSteps
+    ? scaffoldFor(MIN_STEPS - built.teachingSteps.length)
+    : []
+  ).map((explanation, i) => ({
+    title: i === 0 ? "Understand the question" : `Set up (${i + 1})`,
+    explanation,
+    why: `This is how ${tax.method} works.`,
+    narration: explanation,
+    cellKeys: [] as string[],
+    carryKeys: [] as string[],
+    noteKeys: [] as string[],
+  }));
+
+  const teachingSteps = built?.teachingSteps
+    ? [
+        ...scaffoldSteps,
+        ...built.teachingSteps.map((s, i) =>
+          i === 0 || s.why
+            ? { ...s, why: s.why || `This is how ${tax.method} works.` }
+            : s,
+        ),
+      ]
+    : steps.map((explanation, i) => ({
+        title: `Step ${i + 1}`,
+        explanation,
+        why: i === 0 ? `This is how ${tax.method} works.` : undefined,
+        narration: explanation,
+        cellKeys: [] as string[],
+        carryKeys: [] as string[],
+        noteKeys: [] as string[],
+      }));
 
   const lesson: KS2TeachingLesson = {
     schemaVersion: 2,
@@ -138,12 +208,12 @@ function validateSkill(topicId: string, skill: string): Row {
     teachingBlocks: [],
     workedExamples: [],
     guidedPractice: [
-      { question: sampleQ, answer: built?.answer || "see method" },
+      { question: sampleQ, answer: answerText },
     ],
     independentPractice: [
-      { question: sampleQ, answer: built?.answer || "see method" },
+      { question: sampleQ, answer: answerText },
     ],
-    quickCheck: { question: sampleQ, answer: built?.answer || "see method" },
+    quickCheck: { question: sampleQ, answer: answerText },
     commonMistakes: skillMistakes(tax),
     recap: `For ${tax.skill}, use ${tax.method}. Check your working.`,
     intro: `Let's learn ${tax.skill}.`,
@@ -156,7 +226,7 @@ function validateSkill(topicId: string, skill: string): Row {
     workedExample: {
       question: sampleQ,
       steps,
-      answer: built?.answer || "see method",
+      answer: answerText,
       whiteboard: built
         ? {
             intro: built.intro || "",
