@@ -80,12 +80,115 @@ export function mathsAnswersEquivalent(
   return Boolean(compactExpected) && compactActual.includes(compactExpected);
 }
 
+/**
+ * Why a question's answer must NOT be replaced by a builder's numeric result,
+ * or null when a bare computed value is genuinely what the question asks for.
+ *
+ * Every rule here was derived from a real cached question that would otherwise
+ * have been corrupted — see DEF-026. Returning a reason (rather than a boolean)
+ * keeps the tests and any future audit output self-explanatory.
+ *
+ * The governing principle, learned the hard way across DEF-008/020/023/024/025:
+ * a builder must DECLINE rather than guess. Declining leaves the model's
+ * answer, which for these question forms is usually right; guessing replaces
+ * correct prose or a correct sub-step value with an unrelated total.
+ */
+export function reasonToDeclineNumericAnswer(
+  question: string,
+  builderId = "",
+): string | null {
+  const t = normalizeMathText(question);
+  const isIntegerArithmeticBuilder =
+    /^(?:column_addition|column_subtraction|column_multiplication|long_division)$/.test(
+      builderId,
+    );
+
+  // "In 268 + 157, what digit is carried?" / "When calculating 326 x 54, why..."
+  // The expression is CONTEXT; the question is about a step inside it.
+  if (/^\s*(?:in|for|when|from)\b[^,?]{0,60},/i.test(t)) {
+    return "sub-step question: the expression is context, not the task";
+  }
+  // Asks about a digit, a place value, or a named part of the method.
+  if (
+    /\bwhat\s+(?:digit|number|does|do\s+you\s+write)\b|\brepresent\b|\bstand\s+for\b|\bmean\b|\bcarried\b|\bpartial\s+product\b|\bexchang\w*\b/i.test(
+      t,
+    )
+  ) {
+    return "asks about a digit/place value/step, not the result";
+  }
+  // Wants reasoning in prose. A bare number cannot be an explanation.
+  if (/\b(?:why|explain|justify|describe|how\s+do\s+you\s+know|reason)\b/i.test(t)) {
+    return "reasoning question: the answer is prose";
+  }
+  // "Use 46 + 23 = 69 to work out 460 + 230" — the stated fact is a GIVEN, and a
+  // builder reading left-to-right answers the given instead of the target.
+  if (/\buse\b[^.?]*\bto\s+(?:work\s+out|find|calculate|solve)\b/i.test(t)) {
+    return "derived-fact question: the stated calculation is a given, not the task";
+  }
+  // Fill-in-the-blank: the answer is the completed statement, not one value.
+  if (/complete\s*:|\\+square|\\+Box|□|\?\s*=/i.test(t)) {
+    return "fill-in-the-blank: the answer is the completed statement";
+  }
+  // Verify/check questions want the checking calculation or a yes/no with a why.
+  if (
+    /\bis\b[^?]*\bcorrect\b|\btrue\?|\bcheck\b[^?]*\b(?:using|by)\b|\bwhich\s+calculation\b|\bsensible\b|\binverse\s+operation\b/i.test(
+      t,
+    )
+  ) {
+    return "verification question: the answer is a check, not the total";
+  }
+  // Estimation asks for a ROUNDED value; a builder returns the exact one.
+  if (/\bestimat\w*\b|\bround\w*\s+to\s+the\s+nearest\b|\bapproximat\w*\b/i.test(t)) {
+    return "estimation question: an exact total is the wrong answer";
+  }
+  // Function machines / sequences ask for a rule or several outputs.
+  if (/\bthe\s+rule\s+is\b|\bfunction\s+machine\b|\boutput\s+values?\b|\bnth\s+term\b/i.test(t)) {
+    return "rule/sequence question: the answer is not a single total";
+  }
+  // Multi-part questions have more than one required answer.
+  if (/\band\s+what\s+is\b/i.test(t) || (t.match(/\?/g) ?? []).length > 1) {
+    return "multi-part question: more than one answer is required";
+  }
+  // The integer column/division builders cannot do decimals or fractions, and
+  // silently return a wrong integer for them (e.g. "8.4 ÷ 4" -> 1, not 2.1).
+  if (isIntegerArithmeticBuilder && /\d\.\d/.test(t)) {
+    return "decimal question routed to an integer-only builder";
+  }
+  // Fraction notation must be checked in BOTH forms: normalizeMathText rewrites
+  // "\frac{8}{12}" to "8/12", so testing only for the LaTeX macro silently
+  // missed every normalised fraction and let long_division answer "What is
+  // \frac{8}{12} simplified?" with "0 r 8".
+  const hasFractionNotation =
+    /\\+frac/i.test(question) ||
+    /\d\s*\/\s*\d/.test(t) ||
+    /[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/.test(t);
+  if (isIntegerArithmeticBuilder && (hasFractionNotation || /%|\bpercent/i.test(t))) {
+    return "fraction/percentage question routed to an integer-only builder";
+  }
+  return null;
+}
+
 export function deterministicMathsAnswer(
   question: string,
 ): { answer: string; builderId: string } | null {
   const built = buildMethodForQuestion(question);
-  if (!built?.answer) return null;
-  return { answer: built.answer, builderId: built.builderId };
+  if (!built) return null;
+
+  // Column/division builders put their result on the block, not on the result
+  // object. Without this fallback, deterministicMathsAnswer() returned null for
+  // ALL column arithmetic — so hardenKS2MathsPracticeAnswers() silently
+  // verified nothing there, which is why DEF-008's wrong practice answers
+  // (e.g. "47,586 + 28,749 = 614") survived long after its parser was fixed and
+  // its worked examples had self-healed (DEF-026).
+  const blockAnswer =
+    built.block?.type === "column_method" ? String(built.block.answer ?? "") : "";
+  const answer = built.answer || blockAnswer;
+  if (!answer) return null;
+
+  // Only trust a computed value when the question actually asks for one.
+  if (reasonToDeclineNumericAnswer(question, built.builderId)) return null;
+
+  return { answer, builderId: built.builderId };
 }
 
 function hardenItem<T extends PracticeItemLike>(item: T | undefined): T | undefined {

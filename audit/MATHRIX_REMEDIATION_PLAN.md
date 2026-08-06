@@ -115,6 +115,30 @@ Two properties make this class hard to see, and both are worth designing against
 
 **Tooling now exists:** `scripts/audit-cached-answers.ts` classifies every answer-bearing item in the live cache as AGREE / DISAGREE / UNVERIFIABLE with no API cost. It found DEF-024 and DEF-025 directly. Run it after any builder change.
 
+## DEF-026 — half the maths answers had no verification, and it was hiding live DEF-008 damage (FIXED)
+
+`deterministicMathsAnswer()` only read a builder's top-level `answer`, but the column/division builders put their result on `block.answer`. So it returned null for **all** column arithmetic — and since `hardenKS2MathsPracticeAnswers()` routes through it, **practice items were never verified or repaired**.
+
+**That is why DEF-008 was still partly live.** Its parser fix healed *worked examples*; practice items kept their wrong answers for the whole audit:
+
+| Question | Was served | Correct |
+|---|---|---|
+| `47,586 + 28,749` | **614** (11×) | 76,335 |
+| `62,403 − 27,856` | **376** (7×) | 34,547 |
+| `4,786 + 2,659` | **788** (9×) | 7,445 |
+| `3,696 ÷ 4` | **174** (10×) | 924 |
+| `2,347 × 6` | **2082** (13×) | 14,082 |
+
+Fixed in the documented order: **guard first, then enable, then diff, then serve.**
+
+The guard (`reasonToDeclineNumericAnswer`) was built from *every* risky real cached question, not guessed — sub-step framing, place-value asks, reasoning, derived-fact, fill-in-the-blank, verification, estimation, rule/sequence, multi-part, and decimals/fractions routed to integer-only builders.
+
+**Measured outcome:** UNVERIFIABLE 50.9% → 43.4%; **200** newly verified-and-agreeing; **6** genuinely wrong answers caught. 38 items deliberately lost verification — I inspected all 38 and in **every** case the stored answer was right and the builder wrong, so each decline *prevented* a corruption. Live-served all 5 affected lessons: **39 bare-arithmetic answers checked against each question's own numbers, 0 wrong.**
+
+> **Two lessons worth keeping.**
+> **(1) "Fixed and self-healed" was verified on one code path and assumed for the others.** DEF-008 was closed on worked-example evidence while practice items stayed broken for months. When a fix claims to heal cached content, check *every* path that serves it.
+> **(2) The test suite did not catch the fraction-guard bug.** `normalizeMathText` rewrites `\frac{8}{12}` → `8/12`, so a guard testing only the LaTeX macro let `long_division` answer "what is 8/12 simplified?" with `0 r 8`. 791 unit tests passed; the **before/after cache diff** caught it. Diff real content, don't just run the suite.
+
 ## What this plan does not yet cover
 
 Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe, and no manual/screen-reader testing has been done. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.
