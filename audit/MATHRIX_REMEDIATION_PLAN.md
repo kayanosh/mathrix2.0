@@ -179,6 +179,25 @@ Also fixed an inconsistency the switch exposed: the harness set practice answers
 | y6m-decimals / Decimals and fractions | `visual_mismatch` |
 | y6m-shape / Measure and classify angles | `visual_mismatch` |
 
+## Autonomous remediation pass — final state
+
+Worked the queue end-to-end. Fixed and verified this pass: **DEF-028** (no builder ever emitted a `protractor` block, so every "measure this angle" question 422'd with no repair path — and `angle_diagram` claimed them, inventing a "missing" angle of 180−65), **DEF-029** (function machine missed the plural "inputs" and answered only the first of four), **DEF-030** (`decimal_column` read `0.3 + 2/5` as `0.3 + 2` = 2.3).
+
+Along the way the protractor fix surfaced **4 live wrong answers at 23× reach each** — questions whose stored answer was the *supplement* (180 − x), an artefact of `angle_diagram` treating "measure this angle" as a missing-angle problem.
+
+> **I introduced a regression and caught it in the cache diff, not the tests.** `protractor_measure` initially answered *"An angle measures 42°. Classify it."* with `"42°"`, which would have overwritten correct prose (*"It is an acute angle because 42° < 90°"*) with a bare number — precisely the DEF-025 failure mode I had spent the session fixing. The answer now matches the question asked: classify → a full classification sentence, measure → the reading. **Third time in three passes that diffing real content caught what 812 unit tests could not.**
+
+**Validator: 377 passed / 1 failed (146 fake questions) → 374 passed / 4 failed (1 fake).** Fewer vacuous passes, more real signal.
+
+### The 4 remaining validator failures — why they are not simply "bugs to fix"
+
+| Skill | Code | Why it is still open |
+|---|---|---|
+| y5m-volume / Estimate volume | `cuboid_array_invalid` | **Needs a pedagogy decision.** The `volume` contract requires a `cuboid_array`, but that block caps each dimension at 12 and a 48×21×9 cuboid genuinely cannot be drawn as unit cubes. Estimating a large volume is a rounding-and-multiplying skill, not cube counting — so the contract, not the builder, is arguably wrong. I will not silently re-map a pedagogy contract. |
+| y6m-decimals / Decimals and fractions | `visual_mismatch` | `fraction_ops` cannot parse a mixed `0.3 + 2/5`, so `decimal_column` claims it and shows a column board. **The wrong answer is already prevented** (DEF-030); only the visual is wrong. Fixing properly means teaching a builder to add across representations — real work, not a regex tweak. |
+| y6m-place-value / Negative numbers | `unfit_visual` | The signed number line for *"Which is greater: −6 or −2?"* fails a fitness rule I have not yet isolated. Not diagnosed, so not fixed. |
+| y6m-position-direction / Coordinates | `sentence_too_long` | A 132-character step listing all four quadrant assignments. Cosmetic; a readability rule, not a correctness one. |
+
 ## What this plan does not yet cover
 
 Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe, and no manual/screen-reader testing has been done. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.
