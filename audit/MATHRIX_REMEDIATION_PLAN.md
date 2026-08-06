@@ -139,6 +139,25 @@ The guard (`reasonToDeclineNumericAnswer`) was built from *every* risky real cac
 > **(1) "Fixed and self-healed" was verified on one code path and assumed for the others.** DEF-008 was closed on worked-example evidence while practice items stayed broken for months. When a fix claims to heal cached content, check *every* path that serves it.
 > **(2) The test suite did not catch the fraction-guard bug.** `normalizeMathText` rewrites `\frac{8}{12}` → `8/12`, so a guard testing only the LaTeX macro let `long_division` answer "what is 8/12 simplified?" with `0 r 8`. 791 unit tests passed; the **before/after cache diff** caught it. Diff real content, don't just run the suite.
 
+## DEF-027 — unit conversion: a silently wrong conversion behind a coverage gap (FIXED)
+
+Follow-up to DEF-026. Having closed the mechanical gap, I characterised the remaining 962 unverifiable items to test my own claim that they were "genuinely unverifiable". Result: **841 (87%) had no builder at all, 121 were my deliberate guard declines, and zero were mechanical gaps** — so the claim held. But probing the largest buckets showed builders matching only their *canonical* phrasing, the DEF-013/DEF-022 pattern once more.
+
+`parseUnitConversion` matched abbreviations only, alternation ordered shortest-first:
+
+| Question | Parsed as | Answered | Correct |
+|---|---|---|---|
+| `Convert 5 m to millimetres` | m → **m** | **5 m** | 5000 mm |
+| `Convert 250 cm to millimetres` | cm → **m** | **2.5 m** | 2500 mm |
+
+`millimetres` prefix-matches `m`. A **confidently wrong conversion**, not a miss.
+
+Fixing it surfaced a third problem: **7 cached items were serving answers to a completely different question** — `"Convert 2.7 m to centimetres"` answered `"7/10 = 0.7 = 70%"` (7× each). Decimal→fraction→percentage answers attached to unit-conversion questions.
+
+**Measured:** UNVERIFIABLE 43.4% → 40.7%; 51 newly verified-and-agreeing; 7 wrong answers caught; **zero items lost verification**. Live-served both lessons: 13 answers checked against each question's own numbers, 0 wrong.
+
+> **My own fix introduced a pupil-facing bug, and the suite missed it again.** Enabling more matches surfaced raw IEEE754 arithmetic: `4.6 × 100 = 459.99999999999994`, and `0.01 / 0.001 = 9.999999999999998` in the teaching text — so a Year 5 pupil would be told to "divide by 9.999999999999998". All 791 tests passed. I caught it reading the diff output. That is now **twice** in two passes that inspecting real content caught what the test suite could not.
+
 ## What this plan does not yet cover
 
 Curriculum-coverage verification is a bounded 2-of-28-KS2-maths-topics spot-check (see `MATHRIX_CURRICULUM_COVERAGE.csv`), not a full traceability matrix — the other 26 maths topics, all non-maths KS2 subjects, and all GCSE board specs remain unchecked. The accessibility sweep covered only public routes; authenticated routes (`/chat`, `/portal`, lesson pages) have not been run through axe, and no manual/screen-reader testing has been done. The IDOR/authorisation sweep covered 2 student accounts and 7 API routes; cross-centre IDOR (needs a second tutor/centre account), file-upload abuse, and XSS/injection sweeps remain untested. Treat this as a living document.

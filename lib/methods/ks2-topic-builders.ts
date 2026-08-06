@@ -752,17 +752,73 @@ export function buildBarChart(
   };
 }
 
+/**
+ * Unit tokens, LONGEST FIRST. Order is load-bearing: regex alternation is
+ * ordered, so listing "m" before "millimetres" made "Convert 5 m to
+ * millimetres" parse as m -> m and answer "5 m" instead of 5000 mm — a silently
+ * wrong conversion, not a miss (DEF-027). Spelled-out names are included
+ * because the model writes "Convert 3 l to millilitres" far more often than
+ * "3 l to ml", and those were previously invisible to the builder entirely.
+ */
+const UNIT_ALTERNATION = [
+  "kilometres", "kilometers", "kilometre", "kilometer",
+  "millimetres", "millimeters", "millimetre", "millimeter",
+  "centimetres", "centimeters", "centimetre", "centimeter",
+  "millilitres", "milliliters", "millilitre", "milliliter",
+  "kilograms", "kilogram",
+  "metres", "meters", "metre", "meter",
+  "litres", "liters", "litre", "liter",
+  "grams", "gram",
+  "km", "mm", "cm", "ml", "kg", "m", "g", "l",
+].join("|");
+
+/** Canonical abbreviation for any accepted spelling. */
+function canonicalUnit(raw: string): string | null {
+  const u = raw.toLowerCase();
+  if (/^kilometre|^kilometer|^km$/.test(u)) return "km";
+  if (/^millimetre|^millimeter|^mm$/.test(u)) return "mm";
+  if (/^centimetre|^centimeter|^cm$/.test(u)) return "cm";
+  if (/^millilitre|^milliliter|^ml$/.test(u)) return "ml";
+  if (/^kilogram|^kg$/.test(u)) return "kg";
+  if (/^metre|^meter|^m$/.test(u)) return "m";
+  if (/^litre|^liter|^l$/.test(u)) return "l";
+  if (/^gram|^g$/.test(u)) return "g";
+  return null;
+}
+
 export function parseUnitConversion(
   text: string,
 ): { value: number; from: string; to: string; factor: number } | null {
   const t = normalizeMathText(text);
-  const m = t.match(
-    /(\d+(?:\.\d+)?)\s*(km|m|cm|mm|kg|g|l|ml)\s*(?:to|into|=|in)\s*(km|m|cm|mm|kg|g|l|ml)/i,
+
+  // "Convert 3 l to millilitres" / "3l into ml" / "5 m = ? cm"
+  let m = t.match(
+    new RegExp(
+      `(\\d+(?:\\.\\d+)?)\\s*(${UNIT_ALTERNATION})\\b\\s*(?:to|into|=|in)\\s*(${UNIT_ALTERNATION})\\b`,
+      "i",
+    ),
   );
-  if (!m) return null;
-  const value = parseFloat(m[1]);
-  const from = m[2].toLowerCase();
-  const to = m[3].toLowerCase();
+  let rawFrom = m?.[2];
+  let rawTo = m?.[3];
+  let rawValue = m?.[1];
+
+  // "How many metres are in 5 kilometres?" — target unit stated FIRST, so the
+  // capture order is reversed relative to the pattern above.
+  if (!m) {
+    m = t.match(
+      new RegExp(
+        `how many\\s+(${UNIT_ALTERNATION})\\b[^.?]*?\\b(?:are\\s+|is\\s+)?in\\s+(\\d+(?:\\.\\d+)?)\\s*(${UNIT_ALTERNATION})\\b`,
+        "i",
+      ),
+    );
+    if (m) { rawTo = m[1]; rawValue = m[2]; rawFrom = m[3]; }
+  }
+
+  if (!m || !rawFrom || !rawTo || !rawValue) return null;
+  const value = parseFloat(rawValue);
+  const from = canonicalUnit(rawFrom);
+  const to = canonicalUnit(rawTo);
+  if (!from || !to || from === to) return null;
   const scale: Record<string, number> = {
     km: 1000,
     m: 1,
@@ -786,13 +842,25 @@ export function parseUnitConversion(
   return { value, from, to, factor };
 }
 
+/**
+ * Metric conversions are all powers of ten, so any repeating tail is an IEEE754
+ * artefact rather than real precision: 4.6 x 100 evaluates to
+ * 459.99999999999994, and 0.01 / 0.001 to 9.999999999999998. Left raw, a Year 5
+ * pupil would be shown "459.99999999999994 cm" and told to "multiply by
+ * 9.999999999999998" (DEF-027).
+ */
+function tidyMetric(n: number): number {
+  return Number(n.toPrecision(12));
+}
+
 export function buildUnitConversion(
   value: number,
   from: string,
   to: string,
-  factor: number,
+  factorRaw: number,
 ): MethodBuildResult {
-  const result = value * factor;
+  const factor = tidyMetric(factorRaw);
+  const result = tidyMetric(value * factor);
   const multiply = factor >= 1;
   const steps: EquationStepBlock = {
     type: "equation_steps",
@@ -802,7 +870,7 @@ export function buildUnitConversion(
         operationLabel: multiply ? "Multiply" : "Divide",
         explanation: multiply
           ? `Going to a smaller unit: multiply by ${factor}.`
-          : `Going to a larger unit: multiply by ${factor} (or divide by ${1 / factor}).`,
+          : `Going to a larger unit: multiply by ${factor} (or divide by ${tidyMetric(1 / factor)}).`,
         latexBefore: `${value}\\,\\mathrm{${from}}`,
         latexAfter: `${value} \\times ${factor} = ${result}\\,\\mathrm{${to}}`,
         arrowDirection: "simplify",
