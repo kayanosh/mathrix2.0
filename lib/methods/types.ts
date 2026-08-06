@@ -18,6 +18,17 @@ export interface TeachingStep {
   carryKeys: string[];
   /** Borrow notes revealed this step */
   noteKeys: string[];
+  /**
+   * Anchors the teacher cursor should visit this step, in teaching order,
+   * matched against a rendered element's `data-teacher-id` (DEF-004).
+   *
+   * Authoritative when present: the cursor visits exactly these, in this
+   * order, instead of inferring anchors from the board. Timing within the
+   * step comes from aligning each anchor's label to the narration. Leave
+   * unset to keep the inferred behaviour — an anchor id that matches nothing
+   * on the board is skipped rather than freezing the cursor.
+   */
+  focusTargetIds?: string[];
   showAnswer?: boolean;
 }
 

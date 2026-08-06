@@ -648,6 +648,12 @@ export interface WhiteboardResponse {
     cellKeys?: string[];
     carryKeys?: string[];
     noteKeys?: string[];
+    /**
+     * Anchors the teacher cursor visits this step, in teaching order, matched
+     * against a rendered element's `data-teacher-id` (DEF-004). Authoritative
+     * when present; unset keeps the inferred behaviour.
+     */
+    focusTargetIds?: string[];
   }>;
   /** Final answer clearly stated */
   conclusion: string;

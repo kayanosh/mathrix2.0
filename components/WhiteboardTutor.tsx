@@ -155,10 +155,22 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   );
   const pointerSpeechText =
     phase === "check" ? speechParts.check || "" : speechParts.explanation;
-  const pointerPlaybackRef = useRef({
+  // DEF-004: anchors this step explicitly teaches, in order. Authored data
+  // beats inference — see findTargets below.
+  const pointerFocusIds = useMemo<string[] | undefined>(() => {
+    const ids = currentStep?.focusTargetIds;
+    return ids && ids.length > 0 ? ids : undefined;
+  }, [currentStep]);
+  const pointerPlaybackRef = useRef<{
+    phase: typeof phase;
+    activeWord: number;
+    narration: string;
+    focusTargetIds?: string[];
+  }>({
     phase,
     activeWord,
     narration: pointerSpeechText,
+    focusTargetIds: pointerFocusIds,
   });
   const schedulePointerPlaceRef = useRef<() => void>(() => undefined);
 
@@ -167,8 +179,9 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       phase,
       activeWord,
       narration: pointerSpeechText,
+      focusTargetIds: pointerFocusIds,
     };
-  }, [activeWord, phase, pointerSpeechText]);
+  }, [activeWord, phase, pointerSpeechText, pointerFocusIds]);
 
   const { speak, prepare, cancel } = useWhiteboardSpeech();
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,6 +221,27 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       });
 
     const findTargets = (): HTMLElement[] => {
+      // DEF-004: an authored path wins over anything inferred from the board.
+      // The step names the anchors it teaches, in order; we resolve each by
+      // `data-teacher-id`. Ids that match nothing are skipped rather than
+      // freezing the cursor, so a stale id degrades to the inferred path
+      // instead of breaking playback.
+      const authored = pointerPlaybackRef.current.focusTargetIds;
+      if (authored && authored.length > 0) {
+        const resolved = authored
+          .map((id) =>
+            focusEl.querySelector<HTMLElement>(
+              `[data-teacher-id="${CSS.escape(id)}"]`,
+            ),
+          )
+          .filter((el): el is HTMLElement => {
+            if (!el) return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          });
+        if (resolved.length > 0) return resolved;
+      }
+
       const equationTargets = visibleTargets('[id$="-from"], [id$="-to"]');
       if (equationTargets.length > 0) {
         return equationTargets;
@@ -241,12 +275,20 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           return Number.isFinite(parsed) ? parsed : index;
         })(),
       }));
-      const ordered = targets
-        .map((target, index) => ({ target, descriptor: descriptors[index], index }))
-        .sort(
-          (a, b) =>
-            a.descriptor.sequence - b.descriptor.sequence || a.index - b.index,
-        );
+      // An authored path is already in teaching order; re-sorting it by the
+      // renderer's own sequence would scramble the author's intent.
+      const authoredPath = Boolean(playback.focusTargetIds?.length);
+      const paired = targets.map((target, index) => ({
+        target,
+        descriptor: descriptors[index],
+        index,
+      }));
+      const ordered = authoredPath
+        ? paired
+        : paired.sort(
+            (a, b) =>
+              a.descriptor.sequence - b.descriptor.sequence || a.index - b.index,
+          );
       const targetIndex = teacherTargetIndex(
         ordered.map(({ descriptor }) => descriptor),
         playback.narration,

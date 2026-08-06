@@ -57,6 +57,47 @@ export interface PointerTargetDescriptor {
 }
 
 /**
+ * Align anchors to the narration IN ORDER: walk the words once and give each
+ * anchor the next occurrence of its own label at or after the previous
+ * anchor's word. Returns one start-word per anchor, or null when the anchors
+ * cannot all be placed in order.
+ *
+ * This is what makes the cursor move at the right MOMENT rather than at a
+ * proportional guess. For "8 times 7 is 56. Write 6 and carry 5." with anchors
+ * [6, 5] it yields starts [6, 9] — the cursor sits on the 6 cell until the
+ * tutor actually says "carry", then moves. Order is enforced, so a repeated
+ * digit earlier in the sentence (the 6 inside "56") cannot pull a later anchor
+ * backwards, which is exactly how the free-for-all matcher went wrong.
+ */
+export function alignAnchorsToNarration(
+  targets: PointerTargetDescriptor[],
+  narrationWords: string[],
+): number[] | null {
+  if (targets.length === 0 || narrationWords.length === 0) return null;
+  const starts: number[] = [];
+  let cursor = 0;
+  for (const target of targets) {
+    const labelWords = normalizedWords(target.label).filter(
+      (word) => !STOP_WORDS.has(word),
+    );
+    if (labelWords.length === 0) return null;
+    let found = -1;
+    for (let i = cursor; i < narrationWords.length; i++) {
+      if (labelWords.some((lw) => narrationWords[i] === lw)) {
+        found = i;
+        break;
+      }
+    }
+    if (found === -1) return null;
+    starts.push(found);
+    cursor = found + 1;
+  }
+  // First anchor owns everything spoken before it.
+  starts[0] = 0;
+  return starts;
+}
+
+/**
  * Select the visual anchor that best matches the currently narrated word.
  * A nearby label match wins (for example "gravity" or "8"); otherwise the
  * cursor advances through the anchors in their teaching order.
@@ -78,6 +119,19 @@ export function teacherTargetIndex(
     narrationWords.length - 1,
     Math.max(0, activeWord),
   );
+
+  // Best case: every anchor's label can be found in the narration IN ORDER, so
+  // the exact word at which the cursor should move is known. `targets` arrives
+  // sorted by authored `sequence` (pen order), so this respects the authored
+  // path and only decides the timing.
+  const aligned = alignAnchorsToNarration(targets, narrationWords);
+  if (aligned) {
+    let index = 0;
+    for (let i = 0; i < aligned.length; i++) {
+      if (currentWord >= aligned[i]) index = i;
+    }
+    return index;
+  }
 
   // When no anchor has a distinctive label — the column-method case, where
   // every anchor is a single digit — semantic matching is noise. Follow the

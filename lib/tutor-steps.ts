@@ -16,6 +16,8 @@ export interface TutorStepModel {
   check?: string;
   rule?: string;
   narration: string;
+  /** Authored teacher-cursor path for this step, in order (DEF-004). */
+  focusTargetIds?: string[];
   /** Visual payload for the active step card */
   visual:
     | { type: "intro"; text: string }
@@ -25,6 +27,28 @@ export interface TutorStepModel {
     | { type: "column"; blockIndex: number; revealStep: number }
     | { type: "block"; block: VisualBlock; blockIndex: number }
     | { type: "text"; content: string; latex?: string };
+}
+
+/**
+ * The teacher-cursor path for a step (DEF-004).
+ *
+ * An explicit `focusTargetIds` wins. Otherwise derive it from the keys the step
+ * already declares — those ARE the authored pen order, so deriving avoids a
+ * second source of truth that could drift out of sync with the reveal. The
+ * order matches ColumnMethodRenderer's writeOrder (notes, then cells, then
+ * carries) and the `data-teacher-id` scheme it emits.
+ */
+export function teacherFocusPath(step: {
+  focusTargetIds?: string[];
+  cellKeys?: string[];
+  carryKeys?: string[];
+}): string[] | undefined {
+  if (step.focusTargetIds?.length) return step.focusTargetIds;
+  const derived = [
+    ...(step.cellKeys ?? []).map((k) => `cell:${k}`),
+    ...(step.carryKeys ?? []).map((k) => `carry:${k}`),
+  ];
+  return derived.length > 0 ? derived : undefined;
 }
 
 export function buildTutorSteps(
@@ -133,6 +157,7 @@ export function buildTutorSteps(
           why: teachingStep.why,
           check: teachingStep.check,
           narration,
+          focusTargetIds: teacherFocusPath(teachingStep),
           visual,
         };
       }
