@@ -29,7 +29,26 @@ function normalizedWords(text: string): string[] {
     .replace(/[^a-z0-9.+\-÷×=/%]+/g, " ")
     .trim()
     .split(/\s+/)
+    // Trailing sentence punctuation is kept by the character class above (a
+    // decimal point is meaningful mid-token), so strip it at the token edges.
+    // Without this the spoken word "5." never matched the cell label "5", and
+    // the cursor stayed on an earlier digit while the tutor said "carry 5"
+    // (DEF-004).
+    .map((word) => word.replace(/^\.+|\.+$/g, ""))
     .filter(Boolean);
+}
+
+/**
+ * A label worth matching narration against — "gravity" or "numerator", not a
+ * bare digit. Column-method anchors are labelled with single digits, which
+ * repeat across cells, so matching on them picks a cell by coincidence. Those
+ * anchors already carry an authored pen order in `sequence`, which is the real
+ * teaching order and a far better signal than a digit collision (DEF-004).
+ */
+function isDistinctiveLabel(label: string): boolean {
+  return normalizedWords(label).some(
+    (word) => /[a-z]/.test(word) && word.length > 2 && !STOP_WORDS.has(word),
+  );
 }
 
 export interface PointerTargetDescriptor {
@@ -60,10 +79,23 @@ export function teacherTargetIndex(
     Math.max(0, activeWord),
   );
 
+  // When no anchor has a distinctive label — the column-method case, where
+  // every anchor is a single digit — semantic matching is noise. Follow the
+  // authored pen order instead, advancing with the narration. `targets` is
+  // already sorted by `sequence` by the caller.
+  const anyDistinctive = targets.some((t) => isDistinctiveLabel(t.label));
+  if (!anyDistinctive) {
+    const progress = (currentWord + 0.5) / narrationWords.length;
+    return Math.min(targets.length - 1, Math.floor(progress * targets.length));
+  }
+
   let bestIndex = -1;
   let bestScore = Number.NEGATIVE_INFINITY;
 
   targets.forEach((target, targetIndex) => {
+    // Only distinctive labels may win on a word match; a bare digit anchor can
+    // still be reached through the sequence fallback below.
+    if (!isDistinctiveLabel(target.label)) return;
     const labelWords = normalizedWords(target.label).filter(
       (word) => !STOP_WORDS.has(word) && (word.length > 1 || /^\d/.test(word)),
     );
