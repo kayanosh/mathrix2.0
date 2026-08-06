@@ -242,3 +242,86 @@ describe("pinAnchorsToNarration on captured live narration (DEF-004)", () => {
     ).toBeNull();
   });
 });
+
+describe("pinAnchorsToNarration tie-breaking (DEF-004)", () => {
+  const words = (narration: string) =>
+    narration
+      .toLowerCase()
+      .replace(/[^a-z0-9.+\-÷×=/%]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.replace(/^\.+|\.+$/g, ""))
+      .filter(Boolean);
+
+  const narration =
+    "Write 36 on top and 15 underneath, lining up ones under ones. 5 × 6 = 30. " +
+    "Write 0 and carry 3. Here is why. Ones under ones, tens under tens. " +
+    "The arrow shows carry 3 moving to the tens.";
+  const labels = ["3", "1", "6", "5", "0", "3"];
+
+  it("sits on the 6 cell while the tutor says '6'", () => {
+    // Captured live as a MISS. The narration recites "5 × 6" but the pen order
+    // writes the 6 cell before the 5 cell, so pinning either one yields the same
+    // number of pins. Preferring the pin keeps the cursor on the digit spoken.
+    const w = words(narration);
+    const sixWord = w.indexOf("6");
+    expect(
+      teacherTargetIndex(
+        labels.map((label, sequence) => ({ label, sequence })),
+        narration,
+        sixWord,
+        "explain",
+      ),
+    ).toBe(2);
+  });
+
+  it("still refuses a pin that would cost a later one", () => {
+    // Anchor 0 is labelled "3" and the only bare "3" is at the very END, in
+    // "carry 3". Claiming it would strand every following anchor, so anchor 0
+    // must stay unpinned even though pinning is otherwise preferred.
+    const short = "Write 36 and 15. Write 0 and carry 3.";
+    const w = words(short);
+    const pins = pinAnchorsToNarration(
+      labels.map((label, sequence) => ({ label, sequence })),
+      w,
+    )!;
+    expect(pins[4]).toBe(w.indexOf("0"));
+    expect(pins[5]).toBe(w.lastIndexOf("3"));
+    for (let i = 1; i < pins.length; i++) {
+      expect(pins[i]).toBeGreaterThanOrEqual(pins[i - 1]);
+    }
+  });
+});
+
+/**
+ * KNOWN LIMITATION, characterised rather than hidden.
+ *
+ * A step's anchors are in PEN order (the order the digits get written). Some
+ * narration recites them in a different order — "5 × 6" when the pen writes the
+ * 6 cell before the 5 cell, or "Write 8 (and 1 next door)" when the pen order is
+ * 1 then 8. The cursor is deliberately monotonic, because a hand that jumps
+ * backwards mid-sentence reads as a glitch rather than as teaching. So for a
+ * pair recited against pen order, exactly one of the two must be off.
+ *
+ * These are the only two failures left in the live audit
+ * (scripts/audit-cursor-semantics.ts), at 9/11 spoken anchors correct across
+ * three topics. Locking the behaviour down means a future change that alters
+ * this trade-off has to do so on purpose.
+ */
+describe("teacher pointer: recited-against-pen-order is monotonic (DEF-004)", () => {
+  it("keeps the cursor moving forwards when narration recites out of pen order", () => {
+    const narration =
+      "5 × 3 = 15, plus carry 3 is 18. Write 8 (and 1 next door). " +
+      "So far: 36 × 5 = 180. Here is why. Add the 3 we carried.";
+    const targets = ["1", "8", "0"].map((label, sequence) => ({ label, sequence }));
+    const indices = Array.from({ length: 24 }, (_, w) =>
+      teacherTargetIndex(targets, narration, w, "explain"),
+    );
+    // Never decreases: the hand only ever moves on.
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i]).toBeGreaterThanOrEqual(indices[i - 1]);
+    }
+    // And it does traverse the path rather than sticking on one anchor.
+    expect(new Set(indices).size).toBeGreaterThan(1);
+  });
+});

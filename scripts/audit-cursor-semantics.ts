@@ -177,7 +177,20 @@ async function main() {
     const word = s.spokenWord?.replace(/[^0-9]/g, "");
     if (!word || !s.anchorLabels) return false;
     const labels = s.anchorLabels.split("|");
-    return labels.filter((l) => l === word).length === 1;
+    if (labels.filter((l) => l === word).length !== 1) return false;
+    // The digit must also be unambiguous IN THE NARRATION. "8 + 5 + carry 1 =
+    // 14. Write 4 and carry 1." speaks "1" twice for two different things — the
+    // carry coming IN from the previous column, and the one going out. Only one
+    // of them is this step's anchor, and nothing in the DOM says which was
+    // meant, so scoring it either way would be inventing a result.
+    const spoken = (s.narration ?? "")
+      .split(/\s+/)
+      .map((w) => w.replace(/[^0-9]/g, ""))
+      .filter((w) => w === word);
+    if (spoken.length !== 1) return false;
+    // The settle window must fit inside the sampling period, or "never arrived"
+    // just means "we stopped watching".
+    return s.t + SETTLE_MS <= SAMPLE_MS;
   });
 
   // The cursor TWEENS between anchors; it does not teleport, and it should not

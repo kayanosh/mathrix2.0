@@ -156,7 +156,14 @@ export function pinAnchorsToNarration(
     const word = candidates[i].find((w) => w > after);
     if (word !== undefined) {
       const withPin = 1 + solve(i + 1, word).count;
-      if (withPin > best.count) best = { count: withPin, pin: word };
+      // `>=`, not `>`: on a tie prefer PINNING. A real spoken word is better
+      // evidence than an interpolation, and both options place the same number
+      // of anchors. "5 × 6 = 30" with anchors [.., 6, 5, ..] is a genuine tie —
+      // the narration recites the operands in the opposite order to the pen —
+      // and leaving the 6 unpinned drifted the cursor onto the 5 cell while the
+      // tutor said "6". Ties only; a pin that would COST a later pin still
+      // loses, so anchor 0 cannot claim a word near the end of the sentence.
+      if (withPin >= best.count) best = { count: withPin, pin: word };
     }
     memo.set(key, best);
     return best;
