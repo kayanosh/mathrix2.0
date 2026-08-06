@@ -981,10 +981,16 @@ export function buildRatioTable(
 
 export function parseFunctionMachine(
   text: string,
-): { input: number; ops: { op: string; n: number }[] } | null {
+): { input: number; inputs: number[]; ops: { op: string; n: number }[] } | null {
   const t = normalizeMathText(text);
-  if (!/\b(function machine|input|output|then)\b/i.test(t)) return null;
-  const inputM = t.match(/input\s*(\d+)/i) || t.match(/\b(\d+)\s*(?:→|->|then)/);
+  if (!/\b(function machine|inputs?|outputs?|then|the rule is)\b/i.test(t)) return null;
+  // "inputs 1, 2, 3 and 4" — note the PLURAL. `input\s*(\d+)` cannot match
+  // "inputs 1" (the "s" is not whitespace), so these fell through to
+  // column_addition, which showed a column-arithmetic board for a function
+  // machine question (DEF-029). Take the first stated input here; the
+  // multi-input table is produced by parseFunctionMachineTable below.
+  const inputM =
+    t.match(/inputs?\s*(?:of\s*)?(-?\d+)/i) || t.match(/\b(-?\d+)\s*(?:→|->|then)/);
   if (!inputM) return null;
   const input = parseInt(inputM[1], 10);
   const ops: { op: string; n: number }[] = [];
@@ -1001,7 +1007,89 @@ export function parseFunctionMachine(
     ops.push({ op, n: parseInt(m[2], 10) });
   }
   if (ops.length === 0) return null;
-  return { input, ops };
+  // "for inputs 1, 2, 3 and 4" — collect the whole list so the table can show
+  // every input/output pair the question actually asks for, rather than
+  // silently answering only the first (DEF-029).
+  let inputs = [input];
+  const listM = t.match(/inputs?\s*(?:of\s*)?((?:-?\d+\s*(?:,|and|&)\s*)+-?\d+)/i);
+  if (listM) {
+    const parsed = listM[1]
+      .split(/\s*(?:,|and|&)\s*/)
+      .map((v) => parseInt(v, 10))
+      .filter((v) => Number.isFinite(v));
+    if (parsed.length > 1) inputs = parsed.slice(0, 8);
+  }
+  return { input: inputs[0], inputs, ops };
+}
+
+function applyOps(start: number, ops: { op: string; n: number }[]): number {
+  let v = start;
+  for (const o of ops) {
+    if (o.op === "+") v += o.n;
+    else if (o.op === "-") v -= o.n;
+    else if (o.op === "×") v *= o.n;
+    else if (o.op === "÷") v /= o.n;
+  }
+  return v;
+}
+
+/**
+ * "The rule is x3 + 2. Find the output values for inputs 1, 2, 3 and 4" asks
+ * for FOUR outputs. Showing a single-input trace would answer a question that
+ * wasn't asked, so when several inputs are stated the board becomes an
+ * input/output table — which is also exactly what the `algebra` visual
+ * contract wants (table | equation_steps). See DEF-029.
+ */
+export function buildFunctionMachineTable(
+  inputs: number[],
+  ops: { op: string; n: number }[],
+): MethodBuildResult {
+  const ruleText = ops.map((o) => `${o.op} ${o.n}`).join(" then ");
+  const pairs = inputs.map((i) => [i, applyOps(i, ops)] as const);
+  const table: TableBlock = {
+    type: "table",
+    headers: ["Input", "Output"],
+    rows: pairs.map(([i, o]) => [String(i), String(o)]),
+    caption: `Rule: ${ruleText}`,
+  };
+  const teachingSteps: TeachingStep[] = [
+    {
+      title: "Read the rule",
+      explanation: `The rule is ${ruleText}. Apply it to each input in turn.`,
+      why: "The same rule is used for every input.",
+      narration: `The rule is ${ruleText}.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: "Work through one input",
+      explanation: `Input ${pairs[0][0]}: ${ops
+        .reduce<{ text: string[]; v: number }>((acc, o) => {
+          const before = acc.v;
+          const after = applyOps(before, [o]);
+          acc.text.push(`${before} ${o.op} ${o.n} = ${after}`);
+          return { text: acc.text, v: after };
+        }, { text: [], v: pairs[0][0] })
+        .text.join(", then ")}.`,
+      why: "Doing one input carefully shows the pattern for the rest.",
+      narration: `Start with input ${pairs[0][0]}.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: "Complete the table",
+      explanation: pairs.map(([i, o]) => `${i} → ${o}`).join("; ") + ".",
+      why: "Every input follows the same rule, so the outputs form a pattern.",
+      narration: "Fill in the remaining outputs.",
+      cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+    },
+  ];
+  return {
+    builderId: "function_machine",
+    block: table,
+    teachingSteps,
+    captions: teachingSteps.map((s) => s.explanation),
+    answer: pairs.map(([, o]) => String(o)).join(", "),
+    intro: `Apply the rule ${ruleText} to each input.`,
+  };
 }
 
 export function buildFunctionMachine(

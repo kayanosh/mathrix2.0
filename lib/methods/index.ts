@@ -98,6 +98,7 @@ import {
   parseCountedSquares,
 } from "@/lib/methods/irregular-area";
 import {
+  buildFunctionMachineTable,
   buildProtractorMeasure,
   parseProtractorMeasure,
   buildAngleDiagram,
@@ -446,6 +447,10 @@ function tryFunctionMachine(text: string): MethodBuildResult | null {
   const parsed = parseFunctionMachine(text);
   if (!parsed) return null;
   try {
+    // Several stated inputs => an input/output table, not a single trace.
+    if (parsed.inputs.length > 1) {
+      return buildFunctionMachineTable(parsed.inputs, parsed.ops);
+    }
     return buildFunctionMachine(parsed.input, parsed.ops);
   } catch {
     return null;
