@@ -7,6 +7,7 @@ import type {
   CoordinateGraphBlock,
   EquationStepBlock,
   LabeledShapeBlock,
+  ProtractorBlock,
   TableBlock,
 } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
@@ -20,6 +21,20 @@ export function parseAngleProblem(
 ): { known: number[]; total: 180 | 360; kind: AngleProblemKind } | null {
   const t = normalizeMathText(text);
   if (!/\bangle\b/i.test(t) && !/\b(straight line|around a point)\b/i.test(t)) {
+    return null;
+  }
+  // This builder finds a MISSING angle from a known sum. A protractor
+  // "measure and classify this angle" question has no missing angle at all —
+  // claiming it produced a labeled_shape where the measure_angles contract
+  // requires a protractor block (visual_mismatch -> 422), and computed a
+  // nonsense "missing" value of 180 - 65. Decline so protractor_measure
+  // handles it (DEF-028). Declining is safe: the taxonomy names angle_diagram
+  // as preferred for these skills, and a preferred builder that returns null
+  // simply falls through to the rest of the order.
+  if (
+    /protractor/i.test(t) &&
+    !/missing|sum of|add up|remaining|find\s+(?:the\s+)?(?:value|size)\s+of/i.test(t)
+  ) {
     return null;
   }
   const explicitAroundPoint = /\b(around a point|full turn|360)\b/i.test(t);
@@ -1043,3 +1058,110 @@ export function buildFunctionMachine(
 
 // silence unused import warning if any
 void normalizeMathText;
+
+/**
+ * Measuring an angle with a protractor (DEF-028).
+ *
+ * The `measure_angles` visual contract requires a `protractor` block, but no
+ * deterministic builder ever emitted one — buildAngleDiagram() solves a
+ * different problem (missing angles in a shape) and returns a labeled_shape.
+ * So every "measure this angle" question depended entirely on the LLM
+ * volunteering a protractor block, and produced `visual_mismatch` -> 422 when
+ * it did not, with no repair path.
+ *
+ * Teaching order follows lib/ks2-required-visuals.ts: ESTIMATE against a right
+ * angle first (revealReading: false), then reveal the reading.
+ */
+export interface ProtractorMeasureProblem {
+  degrees: number;
+  vertex?: string;
+}
+
+export function classifyAngle(deg: number): string {
+  if (deg < 90) return "acute";
+  if (deg === 90) return "a right angle";
+  if (deg < 180) return "obtuse";
+  if (deg === 180) return "a straight line";
+  return "reflex";
+}
+
+export function parseProtractorMeasure(
+  text: string,
+): ProtractorMeasureProblem | null {
+  const t = normalizeMathText(text);
+  // Must be a MEASURING question, not "find the missing angle in a triangle".
+  if (!/protractor|measure\w*\s+(?:the\s+)?angle|angle[^.?]*\bmeasure/i.test(t)) {
+    return null;
+  }
+  if (/missing|sum of|add up|remaining/i.test(t)) return null;
+  // Prefer the largest stated reading that is a plausible protractor value;
+  // "one arm starts at 0°, the other reaches 120°" states both 0 and 120.
+  const all = [...t.matchAll(/(\d+(?:\.\d+)?)\s*(?:°|degrees?)/gi)]
+    .map((m) => Number(m[1]))
+    .filter((d) => d > 0 && d <= 180);
+  if (all.length === 0) return null;
+  const degrees = Math.max(...all);
+  const vertex = t.match(/\bvertex\s+([A-Z])\b/i)?.[1]?.toUpperCase()
+    ?? t.match(/\bangle\s+([A-Z])([A-Z])([A-Z])\b/)?.[2];
+  return { degrees, vertex };
+}
+
+export function buildProtractorMeasure(
+  problem: ProtractorMeasureProblem,
+): MethodBuildResult {
+  const { degrees, vertex } = problem;
+  const family = classifyAngle(degrees);
+  const compare =
+    degrees < 90 ? "smaller than a right angle" :
+    degrees === 90 ? "exactly a right angle" :
+    degrees === 180 ? "a straight line" : "larger than a right angle";
+
+  const estimateBlock: ProtractorBlock = {
+    type: "protractor",
+    angle: degrees,
+    vertex,
+    revealReading: false,
+    caption: "Estimate first: is it bigger or smaller than a right angle?",
+  };
+  const measureBlock: ProtractorBlock = {
+    type: "protractor",
+    angle: degrees,
+    vertex,
+    revealReading: true,
+    caption: `The angle measures ${degrees}°.`,
+  };
+
+  const teachingSteps: TeachingStep[] = [
+    {
+      title: "Line up the protractor",
+      explanation: `Put the centre of the protractor on the vertex${vertex ? ` ${vertex}` : ""} and one arm along 0°.`,
+      why: "A reading is only correct if the centre sits exactly on the vertex.",
+      narration: "Line the protractor up with the vertex and the zero line.",
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: "Estimate before measuring",
+      explanation: `This angle looks ${compare}, so expect ${family === "a right angle" ? "about 90°" : family === "acute" ? "less than 90°" : "more than 90°"}.`,
+      why: "Estimating first catches reading the wrong scale.",
+      narration: `Compare it with a right angle: it is ${compare}.`,
+      cellKeys: [], carryKeys: [], noteKeys: [],
+    },
+    {
+      title: "Read the correct scale",
+      explanation: `Following the arm from 0°, the reading is ${degrees}°, so the angle is ${family}.`,
+      why: "Use the scale that starts at 0° on your baseline arm.",
+      narration: `The angle measures ${degrees} degrees.`,
+      cellKeys: [], carryKeys: [], noteKeys: [], showAnswer: true,
+    },
+  ];
+
+  return {
+    builderId: "protractor_measure",
+    block: estimateBlock,
+    extraBlocks: [measureBlock],
+    teachingSteps,
+    captions: teachingSteps.map((s) => s.explanation),
+    answer: `${degrees}°`,
+    intro: "Estimate the angle first, then measure it with the protractor.",
+  };
+}

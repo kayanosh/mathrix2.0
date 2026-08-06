@@ -98,6 +98,8 @@ import {
   parseCountedSquares,
 } from "@/lib/methods/irregular-area";
 import {
+  buildProtractorMeasure,
+  parseProtractorMeasure,
   buildAngleDiagram,
   buildBarChart,
   buildCoordinatePlot,
@@ -342,6 +344,16 @@ function tryCountedSquaresArea(text: string): MethodBuildResult | null {
   }
 }
 
+function tryProtractorMeasure(text: string): MethodBuildResult | null {
+  const parsed = parseProtractorMeasure(text);
+  if (!parsed) return null;
+  try {
+    return buildProtractorMeasure(parsed);
+  } catch {
+    return null;
+  }
+}
+
 function tryIrregularAreaEstimate(text: string): MethodBuildResult | null {
   const parsed = parseIrregularArea(text);
   if (!parsed) return null;
@@ -471,6 +483,7 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
   rectilinear_perimeter: tryRectilinearPerimeter,
   rect_perimeter_area: tryRectPerimeterArea,
   cuboid_volume: tryCuboidVolume,
+  protractor_measure: tryProtractorMeasure,
   angle_diagram: tryAngleDiagram,
   coordinate_plot: tryCoordinatePlot,
   bar_chart_stats: tryBarChartStats,
@@ -485,6 +498,12 @@ const BUILDERS: Record<MethodBuilderId, (text: string) => MethodBuildResult | nu
 
 /** Default try order — algebra, then fraction compare before ops, then KS2 arithmetic. */
 const DEFAULT_ORDER: MethodBuilderId[] = [
+  // Highly specific matchers first. protractor_measure requires BOTH a
+  // protractor/measure-an-angle cue AND a degree value, so it cannot
+  // over-claim; without this it lost to place_value_chart, which matches
+  // almost any number and answered "measure the angle" with a place-value
+  // table (DEF-028).
+  "protractor_measure",
   "order_of_operations",
   "quadratic_solve",
   "linear_equation",

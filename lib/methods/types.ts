@@ -47,6 +47,7 @@ export type MethodBuilderId =
   | "counted_squares_area"
   | "cuboid_volume"
   | "angle_diagram"
+  | "protractor_measure"
   | "coordinate_plot"
   | "bar_chart_stats"
   | "unit_conversion"
