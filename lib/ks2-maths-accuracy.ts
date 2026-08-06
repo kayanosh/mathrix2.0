@@ -98,6 +98,14 @@ export function reasonToDeclineNumericAnswer(
   builderId = "",
 ): string | null {
   const t = normalizeMathText(question);
+  // Builders that cannot represent a fraction operand. decimal_column belongs
+  // here too: it reads "0.3 + 2/5" as 0.3 + 2 and answers 2.3 (correct 0.7),
+  // and unlike the integer builders it DOES populate a top-level answer, so
+  // that wrong value would overwrite a correct stored one (DEF-030).
+  const isNonFractionBuilder =
+    /^(?:column_addition|column_subtraction|column_multiplication|long_division|decimal_column)$/.test(
+      builderId,
+    );
   const isIntegerArithmeticBuilder =
     /^(?:column_addition|column_subtraction|column_multiplication|long_division)$/.test(
       builderId,
@@ -162,8 +170,8 @@ export function reasonToDeclineNumericAnswer(
     /\\+frac/i.test(question) ||
     /\d\s*\/\s*\d/.test(t) ||
     /[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/.test(t);
-  if (isIntegerArithmeticBuilder && (hasFractionNotation || /%|\bpercent/i.test(t))) {
-    return "fraction/percentage question routed to an integer-only builder";
+  if (isNonFractionBuilder && (hasFractionNotation || /%|\bpercent/i.test(t))) {
+    return "fraction/percentage question routed to a builder that cannot represent fractions";
   }
   return null;
 }

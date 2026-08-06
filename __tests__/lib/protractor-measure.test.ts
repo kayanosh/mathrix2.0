@@ -18,10 +18,34 @@ describe("protractor measuring (DEF-028)", () => {
   it("emits a protractor block that satisfies the measure_angles contract", () => {
     const b = built("A protractor shows an angle of $65°$. Measure and classify the angle.");
     expect(b?.builderId).toBe("protractor_measure");
-    expect(b?.answer).toBe("65°");
+    // "classify" is asked, so the answer is the classification, not a bare
+    // reading — see the DEF-028 classify test below.
+    expect(b?.answer).toContain("acute");
     const types = [b!.block.type, ...(b!.extraBlocks ?? []).map((x) => x.type)];
     expect(types).toContain("protractor");
     expect(satisfiesSkillVisuals(types, "measure_angles")).toBe(true);
+  });
+
+  it("answers a CLASSIFY question with the classification, not a bare number", () => {
+    // Answering "An angle measures 42°. Classify it." with "42°" would have
+    // overwritten correct pupil-facing prose with a number (the DEF-025
+    // failure mode). The sentence produced must be at least as informative.
+    const b = built("An angle measures $42°$. Classify it.");
+    expect(b?.answer).toMatch(/acute/i);
+    expect(b?.answer).toMatch(/90/);
+    expect(b?.answer).not.toBe("42°");
+    expect(built("An angle measures $146°$. Classify it.")?.answer).toMatch(/obtuse/i);
+    expect(built("An angle measures $90°$. Classify it.")?.answer).toMatch(/right angle/i);
+  });
+
+  it("answers a pure MEASURE question with the reading itself", () => {
+    // These four were live with supplementary (180 - x) answers — an artefact
+    // of angle_diagram treating them as missing-angle problems.
+    const b = built(
+      "A protractor is centred on vertex P. Arm PQ starts at $0°$, and arm PR crosses the same scale at $120°$. Measure angle QPR.",
+    );
+    expect(b?.answer).toBe("120°");
+    expect(b?.answer).not.toBe("60°");
   });
 
   it("reads the arm's reading rather than the 0° baseline", () => {

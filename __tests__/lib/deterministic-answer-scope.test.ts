@@ -96,6 +96,18 @@ describe("reasonToDeclineNumericAnswer — refuses questions it wasn't asked (DE
     );
   });
 
+  it("declines a fraction operand routed to decimal_column (DEF-030)", () => {
+    // decimal_column reads "0.3 + 2/5" as 0.3 + 2 and answers 2.3 (correct
+    // 0.7). Unlike the integer builders it DOES populate a top-level answer,
+    // so that wrong value would have overwritten a correct stored one.
+    for (const q of ["$0.3 + \\frac{2}{5}$", "0.3 + 2/5", "$1.5 + \\frac{1}{2}$"]) {
+      expect(deterministicMathsAnswer(q)).toBeNull();
+    }
+    // Pure decimal arithmetic must still be verified.
+    expect(deterministicMathsAnswer("3.4 + 1.25")?.answer).toBe("4.65");
+    expect(deterministicMathsAnswer("0.8 - 0.35")?.answer).toBe("0.45");
+  });
+
   it("does not decline a plain computation", () => {
     for (const q of ["24 \\times 13", "47,586 + 28,749", "3,696 \\div 4", "2,347 \\times 6"]) {
       expect(reasonToDeclineNumericAnswer(q, "column_addition")).toBeNull();

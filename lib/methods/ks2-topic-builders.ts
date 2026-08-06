@@ -1163,6 +1163,8 @@ void normalizeMathText;
 export interface ProtractorMeasureProblem {
   degrees: number;
   vertex?: string;
+  /** The question asks for a CLASSIFICATION, not just a reading. */
+  classify: boolean;
 }
 
 export function classifyAngle(deg: number): string {
@@ -1191,7 +1193,7 @@ export function parseProtractorMeasure(
   const degrees = Math.max(...all);
   const vertex = t.match(/\bvertex\s+([A-Z])\b/i)?.[1]?.toUpperCase()
     ?? t.match(/\bangle\s+([A-Z])([A-Z])([A-Z])\b/)?.[2];
-  return { degrees, vertex };
+  return { degrees, vertex, classify: /\bclassif\w*/i.test(t) };
 }
 
 export function buildProtractorMeasure(
@@ -1249,7 +1251,16 @@ export function buildProtractorMeasure(
     extraBlocks: [measureBlock],
     teachingSteps,
     captions: teachingSteps.map((s) => s.explanation),
-    answer: `${degrees}°`,
+    // "Classify it" wants the CLASSIFICATION, not a bare reading. Answering
+    // such a question with "45°" would have overwritten correct pupil-facing
+    // prose ("It is an acute angle because 42° < 90°") with a number — the
+    // exact DEF-025 failure mode. A full sentence is correct for the classify
+    // form and at least as rich as what it replaces (DEF-028).
+    answer: problem.classify
+      ? `It is ${family}, because ${degrees}° is ${
+          degrees < 90 ? "less than" : degrees === 90 ? "exactly" : "greater than"
+        } 90°.`
+      : `${degrees}°`,
     intro: "Estimate the angle first, then measure it with the protractor.",
   };
 }
