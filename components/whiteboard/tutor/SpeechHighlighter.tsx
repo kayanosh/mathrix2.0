@@ -49,6 +49,12 @@ export default function SpeechHighlighter({
         return (
           <motion.span
             key={i}
+            // The spoken word is otherwise distinguishable only by an animated
+            // colour, which the cursor audit cannot read reliably. Marking it
+            // explicitly lets that audit check the cursor against the word
+            // actually being said (DEF-004).
+            data-speech-word={thisWord}
+            data-speech-active={isActive ? "true" : undefined}
             animate={{
               color: isActive ? "#1d4ed8" : isPast ? "#0f172a" : "#64748b",
               backgroundColor: isActive

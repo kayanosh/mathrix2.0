@@ -40,14 +40,29 @@ export interface TutorStepModel {
  */
 export function teacherFocusPath(step: {
   focusTargetIds?: string[];
+  noteKeys?: string[];
   cellKeys?: string[];
   carryKeys?: string[];
 }): string[] | undefined {
   if (step.focusTargetIds?.length) return step.focusTargetIds;
-  const derived = [
-    ...(step.cellKeys ?? []).map((k) => `cell:${k}`),
-    ...(step.carryKeys ?? []).map((k) => `carry:${k}`),
-  ];
+  const derived: string[] = [];
+  const seen = new Set<string>();
+  const push = (id: string) => {
+    // Dedupe: a borrow mark and the digit it applies to share one box, so two
+    // anchors would make the cursor "move" to where it already is, burning a
+    // narration segment on a journey of zero distance.
+    if (seen.has(id)) return;
+    seen.add(id);
+    derived.push(id);
+  };
+  // Notes are exchange/borrow marks. They render INSIDE the cell div rather
+  // than in an element of their own, so they resolve through the same
+  // `cell:` id — but they must come first, because the exchange is written
+  // before the digit. Omitting them left column subtraction pointing at the
+  // result while the tutor said "we exchange a ten" (DEF-004).
+  (step.noteKeys ?? []).forEach((k) => push(`cell:${k}`));
+  (step.cellKeys ?? []).forEach((k) => push(`cell:${k}`));
+  (step.carryKeys ?? []).forEach((k) => push(`carry:${k}`));
   return derived.length > 0 ? derived : undefined;
 }
 

@@ -57,3 +57,29 @@ describe("teacherFocusPath (DEF-004)", () => {
     expect(teacherFocusPath({ cellKeys: [], carryKeys: [] })).toBeUndefined();
   });
 });
+
+describe("teacherFocusPath and exchange/borrow marks (DEF-004)", () => {
+  it("anchors notes first, because the exchange is written before the digit", () => {
+    expect(
+      teacherFocusPath({ noteKeys: ["r0c1"], cellKeys: ["r2c1"] }),
+    ).toEqual(["cell:r0c1", "cell:r2c1"]);
+  });
+
+  it("gives a borrow-only step a path instead of falling back to inference", () => {
+    // Column subtraction narrates the exchange as its own step. With noteKeys
+    // ignored this returned undefined, so the cursor was inferred — and landed
+    // on the result cell while the tutor said "we exchange a ten".
+    expect(teacherFocusPath({ noteKeys: ["r0c2", "r0c1"] })).toEqual([
+      "cell:r0c2",
+      "cell:r0c1",
+    ]);
+  });
+
+  it("does not anchor the same box twice", () => {
+    // A note and the digit it strikes through share one element; two anchors
+    // would spend a narration segment moving the cursor nowhere.
+    expect(
+      teacherFocusPath({ noteKeys: ["r0c1"], cellKeys: ["r0c1", "r2c1"] }),
+    ).toEqual(["cell:r0c1", "cell:r2c1"]);
+  });
+});

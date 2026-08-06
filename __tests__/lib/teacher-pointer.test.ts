@@ -1,5 +1,6 @@
 import {
   alignAnchorsToNarration,
+  pinAnchorsToNarration,
   teacherPointerPoint,
   teacherSpeechProgress,
   teacherTargetIndex,
@@ -137,5 +138,107 @@ describe("teacherTargetIndex with digit anchors (DEF-004)", () => {
     const silent = "first work through the ones and then the tens";
     expect(teacherTargetIndex(cells, silent, 0, "explain")).toBe(0);
     expect(teacherTargetIndex(cells, silent, 8, "explain")).toBe(1);
+  });
+});
+
+/**
+ * DEF-004, timing on real lessons.
+ *
+ * Both narrations below were captured live by scripts/audit-cursor-semantics.ts
+ * as MISSes — the cursor was on the wrong cell while the tutor spoke a digit
+ * that WAS one of that step's anchors. Exact alignment cannot save these: the
+ * anchors are individual digits but narration says the numbers whole ("36",
+ * "15"), and "10" is spoken as "a zero". One unmatchable anchor discarded every
+ * good pin and fell back to a proportional guess.
+ */
+describe("pinAnchorsToNarration on captured live narration (DEF-004)", () => {
+  const words = (narration: string) =>
+    narration
+      .toLowerCase()
+      .replace(/[^a-z0-9.+\-÷×=/%]+/g, " ")
+      .trim()
+      .split(/\s+/)
+      .map((w) => w.replace(/^\.+|\.+$/g, ""))
+      .filter(Boolean);
+
+  const indexAt = (labels: string[], narration: string, word: number) =>
+    teacherTargetIndex(
+      labels.map((label, sequence) => ({ label, sequence })),
+      narration,
+      word,
+      "explain",
+    );
+
+  it("still holds the carry cell when the tutor says the carry (long multiplication)", () => {
+    const narration =
+      "Write 36 on top and 15 underneath, lining up ones under ones. 5 × 6 = 30. " +
+      "Write 0 and carry 3. Here is why. Ones under ones, tens under tens. " +
+      "The arrow shows carry 3 moving to the tens.";
+    const labels = ["3", "1", "6", "5", "0", "3"];
+    const w = words(narration);
+    // Exact alignment genuinely cannot place these anchors.
+    expect(
+      alignAnchorsToNarration(
+        labels.map((label, sequence) => ({ label, sequence })),
+        w,
+      ),
+    ).toBeNull();
+
+    // "Write 0" -> the 0 cell (anchor 4). Previously the cursor was on "6".
+    const zeroWord = w.indexOf("0");
+    expect(zeroWord).toBeGreaterThan(-1);
+    expect(indexAt(labels, narration, zeroWord)).toBe(4);
+
+    // "carry 3" -> the carry (anchor 5, the last). Previously on "1".
+    const carryWord = w.indexOf("carry") + 1;
+    expect(indexAt(labels, narration, carryWord)).toBe(5);
+  });
+
+  it("moves to the 6 cell when the tutor says 'Write 6' (shifted partial product)", () => {
+    const narration =
+      "This digit is really 10, so put a zero in the ones and start one column " +
+      "further left. 1 × 6 = 6. Write 6. Here is why. The 1 is really 10, so " +
+      "every answer digit shifts 1 place left. Multiply the tens digit by 1.";
+    const labels = ["0", "6"];
+    const w = words(narration);
+    // "0" is never spoken as a bare word here — it is "a zero" and "10".
+    expect(w).not.toContain("0");
+
+    // Lead-in belongs to the zero cell...
+    expect(indexAt(labels, narration, 2)).toBe(0);
+    // ...and the cursor reaches the 6 cell once a "6" is actually spoken.
+    // Previously it sat on the zero for the whole step.
+    const sixWord = w.indexOf("6");
+    expect(sixWord).toBeGreaterThan(-1);
+    expect(indexAt(labels, narration, sixWord)).toBe(1);
+    expect(indexAt(labels, narration, w.length - 1)).toBe(1);
+  });
+
+  it("maximises pins rather than walking greedily", () => {
+    // Greedy would let anchor 0 ("3") claim the only "3", which sits at the very
+    // end in "carry 3" — after which nothing else can be placed and all pins are
+    // lost. Maximising keeps the pins for "0" and the carry "3".
+    const pins = pinAnchorsToNarration(
+      ["3", "1", "6", "5", "0", "3"].map((label, sequence) => ({ label, sequence })),
+      words("Write 36 and 15. Write 0 and carry 3."),
+    );
+    expect(pins).not.toBeNull();
+    // Non-decreasing, so the cursor can never travel backwards.
+    for (let i = 1; i < pins!.length; i++) {
+      expect(pins![i]).toBeGreaterThanOrEqual(pins![i - 1]);
+    }
+    // The two genuinely-spoken anchors land on their own words.
+    const w = words("Write 36 and 15. Write 0 and carry 3.");
+    expect(pins![4]).toBe(w.indexOf("0"));
+    expect(pins![5]).toBe(w.lastIndexOf("3"));
+  });
+
+  it("returns null when not one anchor can be pinned", () => {
+    expect(
+      pinAnchorsToNarration(
+        ["7", "8"].map((label, sequence) => ({ label, sequence })),
+        words("now look carefully at the next column"),
+      ),
+    ).toBeNull();
   });
 });

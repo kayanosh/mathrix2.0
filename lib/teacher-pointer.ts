@@ -98,6 +98,108 @@ export function alignAnchorsToNarration(
 }
 
 /**
+ * Pin the anchors that CAN be found in the narration, and interpolate the rest
+ * between those pins.
+ *
+ * Exact alignment above is all-or-nothing, which turned out to be too brittle
+ * on real lessons: a step's anchors are individual digits, but narration says
+ * the numbers whole. "Write 36 on top and 15 underneath... Write 0 and carry 3."
+ * has anchors [3,1,6,5,0,3] and never speaks "3","1","6" or "5" as bare words,
+ * so one unmatchable anchor discarded the perfectly good pins for "0" and "3"
+ * and fell back to spreading the cursor proportionally — which put it on the
+ * wrong cell while the tutor said "0". Measured live, not hypothesised.
+ *
+ * The pins are chosen to maximise how many anchors get a real word, subject to
+ * staying in order. Maximising matters: a greedy left-to-right walk lets anchor
+ * 0 claim the only "3" in the sentence (at "carry 3", near the END), after
+ * which nothing else can be placed and every pin is lost. Unpinned anchors are
+ * then spread evenly between their neighbouring pins, so they still advance
+ * with the narration but can never overrun a word that is known.
+ *
+ * Returns null when nothing at all could be pinned, leaving the caller's
+ * proportional fallback to handle it.
+ */
+export function pinAnchorsToNarration(
+  targets: PointerTargetDescriptor[],
+  narrationWords: string[],
+): number[] | null {
+  const n = targets.length;
+  const total = narrationWords.length;
+  if (n === 0 || total === 0) return null;
+
+  const candidates = targets.map((target) => {
+    const labelWords = normalizedWords(target.label).filter(
+      (word) => !STOP_WORDS.has(word),
+    );
+    if (labelWords.length === 0) return [] as number[];
+    const found: number[] = [];
+    narrationWords.forEach((word, index) => {
+      if (labelWords.some((lw) => word === lw)) found.push(index);
+    });
+    return found;
+  });
+
+  // best[i][w] = most anchors pinnable among anchors i.. given the previous pin
+  // was at word w. Small inputs (a handful of anchors, one sentence), so the
+  // straightforward table is cheaper than being clever.
+  type Choice = { count: number; pin: number | null };
+  const memo = new Map<string, Choice>();
+  const solve = (i: number, after: number): Choice => {
+    if (i >= n) return { count: 0, pin: null };
+    const key = `${i}:${after}`;
+    const cached = memo.get(key);
+    if (cached) return cached;
+    // Option A: leave anchor i unpinned.
+    let best: Choice = { count: solve(i + 1, after).count, pin: null };
+    // Option B: pin it at its earliest valid word — earliest leaves the most
+    // room for the anchors that follow.
+    const word = candidates[i].find((w) => w > after);
+    if (word !== undefined) {
+      const withPin = 1 + solve(i + 1, word).count;
+      if (withPin > best.count) best = { count: withPin, pin: word };
+    }
+    memo.set(key, best);
+    return best;
+  };
+
+  const pins: (number | null)[] = [];
+  let after = -1;
+  for (let i = 0; i < n; i++) {
+    const choice = solve(i, after);
+    pins.push(choice.pin);
+    if (choice.pin !== null) after = choice.pin;
+  }
+  if (pins.every((pin) => pin === null)) return null;
+
+  // Fill the gaps: spread unpinned anchors evenly between the surrounding pins.
+  const starts = new Array<number>(n).fill(0);
+  let cursor = 0;
+  while (cursor < n) {
+    if (pins[cursor] !== null) {
+      starts[cursor] = pins[cursor]!;
+      cursor++;
+      continue;
+    }
+    let end = cursor;
+    while (end < n && pins[end] === null) end++;
+    const lowerWord = cursor === 0 ? 0 : starts[cursor - 1];
+    const upperWord = end < n ? pins[end]! : total;
+    const gapCount = end - cursor + 1;
+    for (let k = cursor; k < end; k++) {
+      const fraction = (k - cursor + 1) / gapCount;
+      starts[k] = Math.min(
+        Math.max(lowerWord, Math.round(lowerWord + (upperWord - lowerWord) * fraction)),
+        Math.max(lowerWord, upperWord - 1),
+      );
+    }
+    cursor = end;
+  }
+  // The first anchor owns the lead-in words, exactly as in exact alignment.
+  starts[0] = 0;
+  return starts;
+}
+
+/**
  * Select the visual anchor that best matches the currently narrated word.
  * A nearby label match wins (for example "gravity" or "8"); otherwise the
  * cursor advances through the anchors in their teaching order.
@@ -137,6 +239,19 @@ export function teacherTargetIndex(
   // every anchor is a single digit — semantic matching is noise. Follow the
   // authored pen order instead, advancing with the narration. `targets` is
   // already sorted by `sequence` by the caller.
+  // Next best: pin the anchors that ARE spoken and interpolate the rest. Real
+  // narration says "36" and "15", not the individual digits those cells hold,
+  // so exact alignment usually cannot place every anchor — but the anchors it
+  // CAN place are still the truth about timing.
+  const pinned = pinAnchorsToNarration(targets, narrationWords);
+  if (pinned) {
+    let index = 0;
+    for (let i = 0; i < pinned.length; i++) {
+      if (currentWord >= pinned[i]) index = i;
+    }
+    return index;
+  }
+
   const anyDistinctive = targets.some((t) => isDistinctiveLabel(t.label));
   if (!anyDistinctive) {
     const progress = (currentWord + 0.5) / narrationWords.length;

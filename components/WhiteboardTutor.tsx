@@ -220,7 +220,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         return rect.width > 0 && rect.height > 0;
       });
 
-    const findTargets = (): HTMLElement[] => {
+    const findTargets = (): { targets: HTMLElement[]; authored: boolean } => {
       // DEF-004: an authored path wins over anything inferred from the board.
       // The step names the anchors it teaches, in order; we resolve each by
       // `data-teacher-id`. Ids that match nothing are skipped rather than
@@ -239,28 +239,43 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
             const rect = el.getBoundingClientRect();
             return rect.width > 0 && rect.height > 0;
           });
-        if (resolved.length > 0) return resolved;
+        if (resolved.length > 0) return { targets: resolved, authored: true };
       }
 
       const equationTargets = visibleTargets('[id$="-from"], [id$="-to"]');
       if (equationTargets.length > 0) {
-        return equationTargets;
+        return { targets: equationTargets, authored: false };
       }
 
       const primary = visibleTargets('[data-teacher-target="primary"]');
-      if (primary.length > 0) return primary;
+      if (primary.length > 0) return { targets: primary, authored: false };
       const detail = visibleTargets('[data-teacher-target="detail"]');
-      if (detail.length > 0) return detail;
+      if (detail.length > 0) return { targets: detail, authored: false };
       const visual = focusEl.querySelector<HTMLElement>(
         '[data-teacher-target="visual"]',
       );
-      return visual ? [visual] : [];
+      return { targets: visual ? [visual] : [], authored: false };
     };
 
     const place = () => {
       frame = 0;
-      const targets = findTargets();
+      const { targets, authored: authoredPath } = findTargets();
       const playback = pointerPlaybackRef.current;
+      // Which branch actually supplied the anchors. Read by the cursor audit
+      // so it can tell "the authored path works" from "the authored path is
+      // dormant and inference happened to agree".
+      focusEl.dataset.teacherPath = authoredPath ? "authored" : "inferred";
+      focusEl.dataset.teacherResolved = `${targets.length}/${
+        playback.focusTargetIds?.length ?? 0
+      }`;
+      // The anchors this step actually teaches. The cursor audit needs these to
+      // ask the only question with an objective answer: when the tutor speaks a
+      // digit that IS one of this step's anchors, is the cursor on it? A digit
+      // belonging to an earlier step is not a miss — the cursor is meant to rest
+      // on what it is about to write.
+      focusEl.dataset.teacherAnchors = targets
+        .map((el) => el.dataset.teacherId ?? "")
+        .join("|");
       const descriptors: PointerTargetDescriptor[] = targets.map((target, index) => ({
         label:
           target.dataset.teacherLabel ||
@@ -276,8 +291,10 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         })(),
       }));
       // An authored path is already in teaching order; re-sorting it by the
-      // renderer's own sequence would scramble the author's intent.
-      const authoredPath = Boolean(playback.focusTargetIds?.length);
+      // renderer's own sequence would scramble the author's intent. This must
+      // key off whether the authored ids RESOLVED, not merely whether they
+      // exist: when authored ids all fail to resolve we fall back to inferred
+      // anchors, and those still need the sequence sort to be in pen order.
       const paired = targets.map((target, index) => ({
         target,
         descriptor: descriptors[index],
