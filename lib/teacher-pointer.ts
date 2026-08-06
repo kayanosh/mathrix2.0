@@ -38,19 +38,6 @@ function normalizedWords(text: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * A label worth matching narration against — "gravity" or "numerator", not a
- * bare digit. Column-method anchors are labelled with single digits, which
- * repeat across cells, so matching on them picks a cell by coincidence. Those
- * anchors already carry an authored pen order in `sequence`, which is the real
- * teaching order and a far better signal than a digit collision (DEF-004).
- */
-function isDistinctiveLabel(label: string): boolean {
-  return normalizedWords(label).some(
-    (word) => /[a-z]/.test(word) && word.length > 2 && !STOP_WORDS.has(word),
-  );
-}
-
 export interface PointerTargetDescriptor {
   label: string;
   sequence: number;
@@ -207,9 +194,13 @@ export function pinAnchorsToNarration(
 }
 
 /**
- * Select the visual anchor that best matches the currently narrated word.
- * A nearby label match wins (for example "gravity" or "8"); otherwise the
- * cursor advances through the anchors in their teaching order.
+ * Which anchor the cursor should be on for the word currently being spoken.
+ *
+ * In order of preference: an exact in-order alignment of every anchor to the
+ * narration; failing that, pinning the anchors that ARE spoken and interpolating
+ * the rest; failing that, an even spread across the sentence. `targets` arrives
+ * in teaching order — authored pen order for column methods — and every branch
+ * preserves it, so the cursor only ever moves forwards.
  */
 export function teacherTargetIndex(
   targets: PointerTargetDescriptor[],
@@ -259,48 +250,17 @@ export function teacherTargetIndex(
     return index;
   }
 
-  const anyDistinctive = targets.some((t) => isDistinctiveLabel(t.label));
-  if (!anyDistinctive) {
-    const progress = (currentWord + 0.5) / narrationWords.length;
-    return Math.min(targets.length - 1, Math.floor(progress * targets.length));
-  }
-
-  let bestIndex = -1;
-  let bestScore = Number.NEGATIVE_INFINITY;
-
-  targets.forEach((target, targetIndex) => {
-    // Only distinctive labels may win on a word match; a bare digit anchor can
-    // still be reached through the sequence fallback below.
-    if (!isDistinctiveLabel(target.label)) return;
-    const labelWords = normalizedWords(target.label).filter(
-      (word) => !STOP_WORDS.has(word) && (word.length > 1 || /^\d/.test(word)),
-    );
-    if (labelWords.length === 0) return;
-
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    let matchedLength = 0;
-    labelWords.forEach((labelWord) => {
-      narrationWords.forEach((word, wordIndex) => {
-        if (word === labelWord) {
-          const distance = Math.abs(wordIndex - currentWord);
-          if (distance < nearestDistance) nearestDistance = distance;
-          matchedLength = Math.max(matchedLength, labelWord.length);
-        }
-      });
-    });
-
-    // Only use a semantic match while the tutor is actually speaking near it.
-    if (nearestDistance <= 4) {
-      const score = 100 - nearestDistance * 15 + matchedLength - targetIndex * 0.001;
-      if (score > bestScore) {
-        bestScore = score;
-        bestIndex = targetIndex;
-      }
-    }
-  });
-
-  if (bestIndex >= 0) return bestIndex;
-
+  // Nothing in the narration names any anchor, so there is no timing signal at
+  // all: spread the anchors evenly across the sentence.
+  //
+  // A distance-weighted scoring pass used to sit here, picking the anchor whose
+  // label was spoken nearest the current word. Pinning subsumes it entirely, and
+  // not just in practice — `pinAnchorsToNarration` returns null ONLY when no
+  // anchor label matches any narration word, and that scoring pass required
+  // exactly such a match under a strictly narrower label filter. So by the time
+  // control reached it, it could never find anything and always fell through to
+  // this same proportional line. It was removed rather than left to read like
+  // live logic.
   const progress = (currentWord + 0.5) / narrationWords.length;
   return Math.min(targets.length - 1, Math.floor(progress * targets.length));
 }
