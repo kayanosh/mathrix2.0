@@ -628,6 +628,17 @@ export interface VerificationStatus {
 }
 
 export interface WhiteboardResponse {
+  /**
+   * Set when generation could not produce a teachable lesson and this payload is
+   * an apology, not a lesson.
+   *
+   * Without it the failure notice travelled through the UI as an ordinary
+   * lesson, so everything downstream congratulated the pupil for it: the closing
+   * line was rendered in the green tick "Answer" card, a "Method learned! +10 XP
+   * +5 coins, streak up" toast fired, the progress bar read 100%, and two "Watch
+   * on Whiteboard" buttons offered to play a lesson that did not exist.
+   */
+  generationFailed?: boolean;
   /** Friendly opening sentence */
   intro: string;
   /** Visual blocks rendered in order on the whiteboard */

@@ -15,6 +15,7 @@ import TextRenderer from "./blocks/TextRenderer";
 import { estimateMathWriteMs } from "@/lib/handwriting";
 import { getVerificationBadge, type VerificationBadge } from "@/lib/verification-badge";
 import { useLessonProgress } from "@/lib/hooks/useLessonProgress";
+import { lessonPresentation } from "@/lib/lesson-presentation";
 
 // ── Card types ────────────────────────────────────────────────────────────────
 
@@ -49,12 +50,18 @@ function buildCards(data: WhiteboardResponse): Card[] {
     blockIndex++;
   }
 
-  cards.push({
-    kind: "answer",
-    conclusion: data.conclusion,
-    groundTruth: data.sympyAnswer,
-    badge: getVerificationBadge(data),
-  });
+  // A failed generation has no answer to show. Giving it an "answer" card put the
+  // apology inside the green tick card AND triggered the celebration toast, which
+  // keys off the answer card being revealed — so the pupil was congratulated for
+  // a lesson that never generated.
+  if (lessonPresentation(data).showAnswerCard) {
+    cards.push({
+      kind: "answer",
+      conclusion: data.conclusion,
+      groundTruth: data.sympyAnswer,
+      badge: getVerificationBadge(data),
+    });
+  }
 
   if (data.hint || data.keyTakeaway || data.examTip) {
     cards.push({
@@ -97,7 +104,10 @@ export default function WhiteboardRenderer({
   const answerIndex = cards.findIndex((c) => c.kind === "answer");
   const allRevealed = revealed >= cards.length;
 
-  const persistEnabled = persist && !revealAll;
+  // Never save a failed generation as lesson progress — otherwise "continue where
+  // you left off" resumes the apology.
+  const presentation = lessonPresentation(data);
+  const persistEnabled = persist && !revealAll && presentation.persistProgress;
 
   const handleResume = useCallback(
     (pos: number) => {
@@ -139,12 +149,12 @@ export default function WhiteboardRenderer({
   const revealNext = useCallback(() => {
     setRevealed((r) => {
       const next = r + 1;
-      if (next - 1 === answerIndex) {
+      if (next - 1 === answerIndex && presentation.showCelebration) {
         setTimeout(() => setShowCelebration(true), 400);
       }
       return next;
     });
-  }, [answerIndex]);
+  }, [answerIndex, presentation.showCelebration]);
 
   const restart = () => {
     setRevealed(1);
@@ -159,19 +169,23 @@ export default function WhiteboardRenderer({
   return (
     <div key={sessionKey} className="w-full max-w-2xl mx-auto">
       {/* ── Progress bar ───────────────────────────────────────────── */}
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-indigo-400 rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${progressPct}%` }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          />
+      {/* Nothing was taught, so there is no progress through it. A failure notice
+          used to read 100% complete. */}
+      {presentation.showProgress && (
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-indigo-400 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPct}%` }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            />
+          </div>
+          <span className="text-[11px] text-gray-400 tabular-nums w-9 text-right">
+            {progressPct}%
+          </span>
         </div>
-        <span className="text-[11px] text-gray-400 tabular-nums w-9 text-right">
-          {progressPct}%
-        </span>
-      </div>
+      )}
 
       {/* ── Cards ──────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-3">

@@ -679,13 +679,18 @@ export async function POST(req: NextRequest) {
       const pupilLesson: WhiteboardResponse = lessonIsSafe && lessonData
         ? lessonData
         : {
-            intro: "I need to rebuild this lesson before teaching it.",
+            generationFailed: true,
+            // Pupil-facing copy. The conclusion is no longer rendered for a failed
+            // generation (it was appearing in the green tick "Answer" card), so the
+            // text block has to carry the whole message, including what to do next.
+            intro: "Sorry — I could not put this lesson together properly.",
             blocks: [{
               type: "text",
-              heading: "Please try this topic again",
-              content: "I could not produce a lesson that passed the structure and accuracy checks. Your draft has been hidden so it cannot confuse you.",
+              heading: "Let us try that again",
+              content:
+                "I check every lesson before teaching it, and this one did not pass, so I have not shown it — I would rather give you nothing than teach you something wrong. Ask for the same topic again and I will build it from scratch.",
             }],
-            conclusion: "Try again and I will generate a fresh, checked lesson.",
+            conclusion: "",
           };
 
       const lessonWarnings = [

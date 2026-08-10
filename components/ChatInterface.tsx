@@ -30,6 +30,7 @@ import {
 } from "@/lib/file-input";
 import { wrapLatexForSend } from "@/lib/latex-input";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
+import { lessonPresentation } from "@/lib/lesson-presentation";
 
 const ANON_PROMPT_KEY = "mathrix_anon_prompts";
 const FREE_DAILY_LIMIT = 5;
@@ -1529,7 +1530,9 @@ function MessageBubble({
         {whiteboardResponse ? (
           <>
             <WhiteboardRenderer data={whiteboardResponse} persist />
-            {onWatchWhiteboard && (
+            {/* Don't offer to play a lesson that failed to generate — there is
+                nothing to watch, and the offer reads as though there were. */}
+            {onWatchWhiteboard && lessonPresentation(whiteboardResponse).showWatchWhiteboard && (
               <motion.button
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
