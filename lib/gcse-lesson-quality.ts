@@ -135,14 +135,26 @@ export function validateGcseLessonQuality(
     }
   }
 
-  const geometryTopic = /pythag|trig|angle|polygon|circle|geometry|area|perimeter/i.test(topic);
-  if (geometryTopic) {
-    const shapes = lesson.blocks.filter(
-      (block): block is LabeledShapeBlock => block.type === "labeled_shape",
-    );
-    if (shapes.length === 0) {
-      errors.push("This geometry lesson needs a topic-relevant labelled diagram.");
-    }
+  // Whether a lesson MUST carry a diagram is decided by the required-visuals map
+  // (lib/prompts/teacher.ts) — the one place that also tells the model what to
+  // draw, and which validateRequiredVisuals() already enforces as a hard error.
+  //
+  // A `/pythag|trig|angle|polygon|circle|geometry|area|perimeter/` regex used to
+  // make that demand here, independently of the prompt, and it was unsatisfiable
+  // for anything the map does not cover: "Trigonometric identities" and "Area
+  // under a curve" are A-Level algebra and calculus, yet both matched, so the
+  // model was rejected for omitting a labelled diagram it was never asked for and
+  // that the topic does not want. A misspelling did the same thing to GCSE —
+  // "circle theorm" misses the map key, so the instruction to draw the circle is
+  // dropped while the regex still judges it as geometry. That is precisely the
+  // reported intermittent failure.
+  //
+  // The accuracy checks below stay: any labelled shape a lesson DOES contain must
+  // still be correct. Only the "you must have one" demand moved to its owner.
+  const shapes = lesson.blocks.filter(
+    (block): block is LabeledShapeBlock => block.type === "labeled_shape",
+  );
+  {
     for (const shape of shapes) {
       if (shape.shape === "triangle") errors.push(...validateTriangle(shape, topic));
       if (shape.shape === "circle") {

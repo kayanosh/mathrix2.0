@@ -71,18 +71,121 @@ const TEACHER_VISUAL_MAP: Record<string, TeacherVisual> = {
  * Look up required visual blocks for a given subtopic.
  * Uses case-insensitive matching and tries progressively shorter prefixes.
  */
+/** Lowercase, strip punctuation and possessives, collapse whitespace. */
+function normaliseTopic(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/['’]s\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+const TOPIC_STOP_WORDS = new Set([
+  "a", "an", "and", "for", "in", "of", "on", "the", "to", "with", "using",
+  "teach", "me", "lesson", "maths", "math",
+]);
+
+function topicTokens(text: string): string[] {
+  return normaliseTopic(text)
+    .split(" ")
+    .filter((word) => word.length > 0 && !TOPIC_STOP_WORDS.has(word));
+}
+
+/** Levenshtein distance, capped — only used to forgive a typo in one word. */
+function editDistance(a: string, b: string): number {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  let prev = Array.from({ length: cols }, (_, j) => j);
+  for (let i = 1; i < rows; i++) {
+    const curr = [i, ...new Array<number>(cols - 1).fill(0)];
+    for (let j = 1; j < cols; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    prev = curr;
+  }
+  return prev[cols - 1];
+}
+
+/** Same word, allowing a small misspelling in longer words ("theorm"/"theorems"). */
+function tokensMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length >= 5 && b.length >= 5) {
+    if (a.startsWith(b) || b.startsWith(a)) return true;
+    if (editDistance(a, b) <= 2) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolve a topic to the visuals its lesson must include.
+ *
+ * This used to take the FIRST map key that was a substring of the topic or vice
+ * versa. Two problems, both of which reached pupils. Object key order decided
+ * which of several plausible entries won, so the result depended on where a key
+ * happened to sit in the literal; and a substring test is all-or-nothing, so a
+ * single mistyped letter ("circle theorm") matched nothing and the model was
+ * never told to draw the circle — while the quality gate still judged the lesson
+ * as geometry and rejected it.
+ *
+ * Now: normalise both sides, then score every entry by how much of it the topic
+ * actually covers, forgiving a typo per word, and take the best. Scoring by
+ * coverage rather than by position means a longer, more specific key ("circle
+ * theorems") beats a broad one ("angles") on merit rather than by luck.
+ */
 export function getTeacherRequiredVisuals(subtopic: string): TeacherVisual {
-  const key = subtopic.toLowerCase().trim();
+  const normalised = normaliseTopic(subtopic);
+  if (!normalised) return { blocks: [], hint: "" };
 
-  // Exact match first
-  if (TEACHER_VISUAL_MAP[key]) return TEACHER_VISUAL_MAP[key];
+  const exact = TEACHER_VISUAL_MAP[normalised] ?? TEACHER_VISUAL_MAP[subtopic.toLowerCase().trim()];
+  if (exact) return exact;
 
-  // Partial match — check if any map key is contained in the subtopic or vice versa
+  const wanted = topicTokens(subtopic);
+  if (wanted.length === 0) return { blocks: [], hint: "" };
+
+  let best: {
+    visual: TeacherVisual;
+    score: number;
+    specificity: number;
+    exact: boolean;
+  } | null = null;
   for (const [mapKey, visual] of Object.entries(TEACHER_VISUAL_MAP)) {
-    if (key.includes(mapKey) || mapKey.includes(key)) return visual;
+    const keyTokens = topicTokens(mapKey);
+    if (keyTokens.length === 0) continue;
+    const matched = keyTokens.filter((kt) => wanted.some((w) => tokensMatch(kt, w)));
+    // Every word of the map key must be accounted for, so a one-word key cannot
+    // hijack a topic that merely mentions it.
+    if (matched.length === 0 || matched.length < keyTokens.length) continue;
+    const exact = keyTokens.every((kt) => wanted.includes(kt));
+    const score = matched.length / wanted.length;
+    const specificity = keyTokens.length;
+    if (
+      !best ||
+      score > best.score ||
+      (score === best.score && specificity > best.specificity)
+    ) {
+      best = { visual, score, specificity, exact };
+    }
   }
 
-  return { blocks: [], hint: "" };
+  if (!best) return { blocks: [], hint: "" };
+
+  // A fuzzy match may SUGGEST a diagram but must never REQUIRE one, because
+  // `blocks` becomes a hard rejection via validateRequiredVisuals. Typo tolerance
+  // that is helpful for "circle theorm" also brings "trigonometric" within reach
+  // of the "trigonometry" key — and A-Level "Trigonometric identities" is algebra
+  // that wants no triangle at all. Demanding one there would recreate exactly the
+  // unsatisfiable-requirement bug this lookup was rewritten to remove.
+  //
+  // So require a diagram only on a confident match: every word of the key present
+  // verbatim and covering at least half the topic, or the whole topic accounted
+  // for (which is how a single misspelling still keeps its diagram). Otherwise
+  // pass the hint along and let the model decide.
+  const confident = best.score >= 1 || (best.exact && best.score >= 0.5);
+  return confident ? best.visual : { blocks: [], hint: best.visual.hint };
 }
 
 /**

@@ -439,6 +439,67 @@ function validateRequiredVisuals(
 }
 
 /**
+ * Language models write `null` where a schema wants the key simply absent —
+ * "no LaTeX here", "this angle is the unknown". Zod reads that as a type error,
+ * and because one bad leaf fails the whole parse, a single stray null threw away
+ * an ENTIRE lesson and the pupil got "I need to rebuild this lesson before
+ * teaching it". Measured on a real generation for "circle theorem": three nulls
+ * (`blocks.11.latex`, `blocks.13.latex`, `blocks.10.angles.1.degrees`) discarded
+ * every one of the lesson's blocks.
+ *
+ * So drop null-valued keys before validating: an optional field is then
+ * correctly absent, and a genuinely required one produces "required" — a message
+ * the retry loop can act on — instead of a type mismatch.
+ */
+function dropNullFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.filter((entry) => entry !== null).map(dropNullFields);
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (entry === null) continue;
+      out[key] = dropNullFields(entry);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * An angle arc with no measure is the UNKNOWN one — the "x" the lesson exists to
+ * find. `degrees` is required by the schema, so a model that nulls it (entirely
+ * reasonably) would fail validation and lose the whole lesson.
+ *
+ * Zero is already this codebase's idiom for "no numeric measure": the renderer
+ * skips such arcs when positioning vertices (LabeledShapeRenderer guards on
+ * `degrees > 0`) and then INFERS the missing angle from the other two. So coerce
+ * to 0 rather than dropping the entry, which keeps the "x" label on the diagram.
+ * The triangle angle-sum check only runs when all three angles are present, so
+ * it is unaffected.
+ */
+function repairAngleArcs(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(repairAngleArcs);
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(record)) {
+    if (key === "angles" && Array.isArray(entry)) {
+      out[key] = entry.map((angle) => {
+        if (!angle || typeof angle !== "object") return angle;
+        const arc = angle as Record<string, unknown>;
+        return typeof arc.degrees === "number" && Number.isFinite(arc.degrees)
+          ? arc
+          : { ...arc, degrees: 0 };
+      });
+      continue;
+    }
+    out[key] = repairAngleArcs(entry);
+  }
+  return out;
+}
+
+/**
  * Validate Claude's raw text response into a typed WhiteboardResponse.
  *
  * @param rawText - The raw text from the LLM
@@ -464,6 +525,10 @@ export function validateResponse(
   } catch (e) {
     return { ok: false, errors: [`JSON parse error: ${String(e)}`] };
   }
+
+  // 2b. Repair the two things models reliably get wrong about the schema, so a
+  // cosmetic mismatch cannot cost the pupil the whole lesson.
+  parsed = repairAngleArcs(dropNullFields(parsed));
 
   // 3. Zod validation
   const result = WhiteboardResponseSchema.safeParse(parsed);

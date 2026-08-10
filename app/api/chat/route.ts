@@ -548,7 +548,7 @@ export async function POST(req: NextRequest) {
         if (
           cachedValidation.ok &&
           cachedData &&
-          cachedContract?.ok &&
+          cachedContract?.teachable &&
           cachedQuality?.ok
         ) {
           console.log(`[LessonMode] Valid cache HIT for "${lessonTopic}"`);
@@ -656,7 +656,7 @@ export async function POST(req: NextRequest) {
             const retryData = normalizeLessonForDisplay(retryResult.data);
             const retryContract = validateLessonContract(retryData);
             const retryQuality = validateGcseLessonQuality(retryData, lessonTopic);
-            if (retryResult.ok && retryContract.ok && retryQuality.ok) {
+            if (retryResult.ok && retryContract.teachable && retryQuality.ok) {
               lessonRaw = retryRaw;
               lessonResult = retryResult;
               lessonData = retryData;
@@ -669,7 +669,13 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const lessonIsSafe = !!lessonData && lessonResult.ok && contract.ok && quality.ok;
+      // Show the lesson when it is TEACHABLE, not only when it is perfect. The
+      // full contract is still demanded of the model and still retried above —
+      // but a lesson whose only flaw is an untagged "vocabulary" heading used to
+      // be replaced wholesale by "I need to rebuild this lesson before teaching
+      // it", so a cosmetic omission cost the pupil the entire lesson. Any missing
+      // supporting section is reported through validationWarnings instead.
+      const lessonIsSafe = !!lessonData && lessonResult.ok && contract.teachable && quality.ok;
       const pupilLesson: WhiteboardResponse = lessonIsSafe && lessonData
         ? lessonData
         : {
@@ -686,6 +692,9 @@ export async function POST(req: NextRequest) {
         ...(lessonResult.errors || []),
         ...(contract.missing.length > 0
           ? [`Lesson missing sections: ${contract.missing.join(", ")}`]
+          : []),
+        ...(contract.missingCore.length > 0
+          ? [`Lesson missing core teaching sections: ${contract.missingCore.join(", ")}`]
           : []),
         ...contract.errors,
         ...contract.warnings,

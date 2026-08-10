@@ -29,12 +29,24 @@ export interface LessonSectionSpec {
   instruction: string;
   /** Minimum number of tagged blocks required for this section to count. */
   min: number;
+  /**
+   * Whether a pupil can still be taught without this section.
+   *
+   * "core" sections carry the teaching itself — state the method, show it worked,
+   * give the pupil something to do. Without one of those there is no lesson.
+   * "supporting" sections are real scaffolding and are still asked for and
+   * retried, but a model that forgets to tag a vocabulary heading has not made
+   * the lesson unteachable, and blanking the whole thing over it means the pupil
+   * gets nothing at all. Defaults to "core" when omitted.
+   */
+  importance?: "core" | "supporting";
 }
 
 /** The ordered lesson contract every topic lesson must satisfy. */
 export const LESSON_CONTRACT: LessonSectionSpec[] = [
   {
     section: "objective",
+    importance: "supporting",
     label: "🎯 What you'll learn",
     instruction:
       "State the lesson objective in one or two short sentences: what the student will be able to do by the end.",
@@ -42,6 +54,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "prerequisites",
+    importance: "supporting",
     label: "🧠 What you need first",
     instruction:
       "List the prior knowledge the student should already have. Keep it to the essentials they truly need for this topic.",
@@ -49,6 +62,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "vocabulary",
+    importance: "supporting",
     label: "📖 Key words",
     instruction:
       "Define the key terms in plain English. Prefer a `table` block with a 'Word' and 'What it means' column, or a short text list. Every new term used later must be defined here.",
@@ -70,6 +84,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "guided",
+    importance: "supporting",
     label: "🤝 We do — guided practice",
     instruction:
       "Give one fresh question. Ask the student to identify the first move, then show a short hint and the remaining method in a structured block. Do not simply repeat a worked example.",
@@ -91,6 +106,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "mistakes",
+    importance: "supporting",
     label: "⚠️ Common mistakes",
     instruction:
       "Describe the 1–3 mistakes students most often make on this topic and how to avoid each one.",
@@ -98,6 +114,7 @@ export const LESSON_CONTRACT: LessonSectionSpec[] = [
   },
   {
     section: "recap",
+    importance: "supporting",
     label: "🔁 Quick recap",
     instruction:
       "Summarise the key points in three short, plain-English sentences the student can remember.",
@@ -121,9 +138,17 @@ export const LESSON_SECTION_ORDER: LessonSection[] = LESSON_CONTRACT.map(
 );
 
 export interface LessonContractResult {
+  /** Every section present and no structural errors — the full contract met. */
   ok: boolean;
+  /**
+   * Good enough to put in front of a pupil: the teaching core is present and
+   * there are no structural errors. Only supporting sections may be missing.
+   */
+  teachable: boolean;
   /** Sections that are missing or under the required count. */
   missing: LessonSection[];
+  /** Missing sections without which there is no lesson to teach. */
+  missingCore: LessonSection[];
   /** Non-blocking notes (e.g. sections out of the expected order). */
   warnings: string[];
   /** Blocking structure problems inside otherwise present sections. */
@@ -195,9 +220,15 @@ export function validateLessonContract(
     }
   });
 
+  const missingCore = missing.filter(
+    (section) => (LESSON_SECTION_SPECS[section].importance ?? "core") === "core",
+  );
+
   return {
     ok: missing.length === 0 && errors.length === 0,
+    teachable: missingCore.length === 0 && errors.length === 0,
     missing,
+    missingCore,
     warnings,
     errors,
     counts,
