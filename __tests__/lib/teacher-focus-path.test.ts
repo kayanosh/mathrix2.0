@@ -83,3 +83,58 @@ describe("teacherFocusPath and exchange/borrow marks (DEF-004)", () => {
     ).toEqual(["cell:r0c1", "cell:r2c1"]);
   });
 });
+
+/**
+ * The `column` cue used to drop the anchor keys.
+ *
+ * `buildColumnRevealTimeline` produces steps carrying cellKeys/carryKeys/
+ * noteKeys, and column_method is the only block type in the codebase whose
+ * renderer emits `data-teacher-id`. The teaching_step branch of buildTutorSteps
+ * passed those through; the column branch did not, so the one place with a
+ * fully authored cursor path fell back to guessing from the DOM.
+ */
+import { buildTutorSteps } from "@/lib/tutor-steps";
+import { buildNarrationPlan } from "@/lib/narration";
+
+describe("buildTutorSteps: column cues keep their authored cursor path", () => {
+  // Shape taken from a real cached lesson — an invented one silently produces
+  // an empty reveal timeline and the test passes for the wrong reason.
+  const data = {
+    intro: "Let us multiply these together.",
+    blocks: [
+      {
+        type: "column_method",
+        method: "column_multiplication",
+        rows: ["347", "\u00d76", "2082"],
+        answer: "2082",
+        carries: [
+          { col: 2, row: 0, value: "4" },
+          { col: 1, row: 0, value: "2" },
+        ],
+        moves: [
+          { kind: "carry", label: "carry 4", fromRow: 0, fromCol: 3, toRow: 0, toCol: 2 },
+          { kind: "carry", label: "carry 2", fromRow: 0, fromCol: 2, toRow: 0, toCol: 1 },
+        ],
+      },
+    ],
+    conclusion: "So 347 \u00d7 6 = 2082.",
+  } as never;
+
+  it("emits focusTargetIds for at least one column step", () => {
+    const steps = buildTutorSteps(data, buildNarrationPlan(data));
+    const column = steps.filter((s) => s.kind === "column");
+    expect(column.length).toBeGreaterThan(0);
+    const withPath = column.filter((s) => (s.focusTargetIds?.length ?? 0) > 0);
+    expect(withPath.length).toBeGreaterThan(0);
+  });
+
+  it("uses ids the ColumnMethodRenderer actually emits", () => {
+    // Renderer emits `cell:<row>-<col>` and `carry:<row>-<col>`; an id in any
+    // other shape resolves to nothing and silently degrades to inference.
+    for (const step of buildTutorSteps(data, buildNarrationPlan(data))) {
+      for (const id of step.focusTargetIds ?? []) {
+        expect(id).toMatch(/^(cell|carry):\d+-\d+$/);
+      }
+    }
+  });
+});

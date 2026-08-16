@@ -12,7 +12,9 @@
     "validate:ks2-lessons": "npx tsx scripts/validate-ks2-lessons.ts",
     "audit:ks2-maths-runtime": "npx tsx scripts/audit-ks2-maths-runtime.ts",
     "regenerate:ks2-lessons": "npx tsx scripts/regenerate-ks2-lessons.ts",
-    "warm:ks2-lessons": "npx tsx scripts/warm-ks2-lessons.ts"
+    "warm:ks2-lessons": "npx tsx scripts/warm-ks2-lessons.ts",
+    "audit:ks2-health": "npx tsx scripts/audit-ks2-cache-health.ts",
+    "audit:ks2-health:check": "npx tsx scripts/audit-ks2-cache-health.ts --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

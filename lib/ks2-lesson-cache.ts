@@ -53,6 +53,16 @@ export interface CachedKS2Lesson {
   reviewStatus?: "unreviewed" | "approved" | "rejected";
   teacherReviewer?: string;
   sourceReferences?: string[];
+  /**
+   * Non-blocking validator issue codes this lesson was cached with.
+   *
+   * A lesson whose only faults are cosmetic is now cached and served rather
+   * than regenerated on every request, so the shortfall has to travel WITH the
+   * lesson — otherwise the quality debt goes invisible the moment it stops
+   * being expensive. The review queue reads this to prioritise real repairs
+   * instead of facing an undifferentiated backlog.
+   */
+  qualityIssues?: string[];
 }
 
 /** Stable cache key. v18 = multi-subject teaching engine (English/Science/Computing/Arabic). */

@@ -209,6 +209,13 @@ export function buildTutorSteps(
       let title = `Working · part ${(cue.subIndex ?? 0) + 1}`;
       let explanation = narration;
       let why: string | undefined;
+      // The reveal step already knows exactly which cells this part of the
+      // method writes. Without passing them on, a column cue rendered a
+      // column_method — the ONE block type with a fully authored cursor path —
+      // and then made the teacher's hand guess its way around the board from
+      // the DOM. The teaching_step branch above does this correctly; this
+      // branch silently dropped the keys.
+      let focusTargetIds: string[] | undefined;
       if (block?.type === "column_method") {
         const timeline = buildColumnRevealTimeline(block);
         const step = timeline[cue.subIndex ?? 0];
@@ -216,6 +223,7 @@ export function buildTutorSteps(
           if (step.title) title = step.title;
           if (step.explanation) explanation = step.explanation;
           why = step.why;
+          focusTargetIds = teacherFocusPath(step);
         }
       }
       return {
@@ -225,6 +233,7 @@ export function buildTutorSteps(
         explanation,
         why,
         narration,
+        focusTargetIds,
         visual: {
           type: "column",
           blockIndex: cue.blockIndex,

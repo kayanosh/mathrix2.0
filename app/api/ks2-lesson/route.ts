@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 import { getOpenAI } from "@/lib/openai";
 import { KS2_PROMPT_VERSION } from "@/lib/ks2-lesson-version";
+import { BLOCKING_LESSON_ISSUES } from "@/lib/ks2-lesson-issues";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 import { scienceLessonExtra } from "@/lib/ks2-science";
@@ -75,31 +76,8 @@ const LESSON_FALLBACK_MODEL =
 const FAST_FALLBACK_MODEL =
   process.env.OPENAI_KS2_FAST_FALLBACK_MODEL || "gpt-5.4-mini";
 
-const BLOCKING_LESSON_ISSUES = new Set([
-  "answer_before_reasoning",
-  "uk_gcd_forbidden",
-  "mistake_mismatch",
-  "hcf_not_explained",
-  "rounding_not_explained",
-  "mixed_skill",
-  "missing_visual",
-  "unfit_visual",
-  "visual_mismatch",
-  "number_line_no_markers",
-  "fraction_bar_invalid",
-  "fraction_grid_invalid",
-  "fraction_wall_empty",
-  "bar_model_empty",
-  "hundred_square_invalid",
-  "area_model_invalid",
-  "cuboid_array_invalid",
-  "key_info_empty",
-  "force_diagram_invalid",
-  "subject_visual_mismatch",
-  "multiples_sequence_invalid",
-  "math_answer_mismatch",
-  "equation_steps_incomplete",
-]);
+// Single source of truth, shared with scripts/audit-ks2-cache-health.ts so a
+// health report can never disagree with the serving path.
 
 interface LessonSection {
   heading: string;
@@ -992,12 +970,36 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             ),
             { subject: subjectId, requireVisual: isMaths },
           );
-          if (cachedValidation.ok) {
-            return NextResponse.json({ lesson: enriched, cached: true });
+          // Discard only what is genuinely unfit to teach.
+          //
+          // This used to gate on `cachedValidation.ok`, and that returns
+          // `issues.length === 0` — ANY issue, including cosmetic ones like
+          // `sentence_too_long` or `missing_recap`. So a single stylistic
+          // shortfall threw away a good lesson, spent up to three fresh LLM
+          // calls regenerating it, and then — because a soft failure sets
+          // `cacheable = false` below — never wrote the result back. That
+          // combination was permanently cold: every request paid full
+          // generation, which in a classroom is a 30-90s stall in front of
+          // thirty children, repeatedly. Measured across the live cache, this
+          // was discarding 33% of all lessons and 46% of maths.
+          //
+          // Non-blocking issues now ride along in `qualityWarnings`, which the
+          // staff view already surfaces, so quality stays visible and fixable
+          // without costing the pupil the lesson.
+          const cachedCodes = cachedValidation.issues.map((issue) => issue.code);
+          const cachedBlockers = cachedCodes.filter((code) =>
+            BLOCKING_LESSON_ISSUES.has(code),
+          );
+          if (cachedBlockers.length === 0) {
+            return NextResponse.json({
+              lesson: enriched,
+              cached: true,
+              qualityWarnings: cachedCodes,
+            });
           }
           console.warn(
-            "[ks2-lesson] ignoring invalid cached lesson:",
-            cachedValidation.issues.map((issue) => issue.code).join(", "),
+            "[ks2-lesson] ignoring cached lesson with blocking issues:",
+            cachedBlockers.join(", "),
           );
         } else {
           return NextResponse.json({ lesson: cached, cached: true });
@@ -1316,7 +1318,10 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
       );
     }
 
-    let cacheable = true;
+    // Everything that reaches this point is fit to teach: a lesson with
+    // blocking issues has already returned 422 above. So it gets cached, and
+    // any remaining non-blocking issues are recorded on the row rather than
+    // being used as a reason to throw the work away.
     let qualityWarnings: string[] = [];
 
     if (teachingSubject) {
@@ -1436,9 +1441,14 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
               { status: 422 },
             );
           }
-          cacheable = false;
+          // Cache it anyway. Refusing to cache a lesson whose only faults are
+          // cosmetic is what made those combinations permanently cold — every
+          // request regenerating from scratch, forever, because the good-enough
+          // result was thrown away each time. The issue list is stored with the
+          // row so /admin/lesson-review can prioritise real repairs instead of
+          // facing an undifferentiated backlog.
           console.warn(
-            "[ks2-lesson] serving recoverable lesson without caching:",
+            "[ks2-lesson] caching lesson with non-blocking quality issues:",
             qualityWarnings.join(", "),
           );
         }
@@ -1460,8 +1470,9 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
     (lesson as CachedKS2Lesson).modelVersion = lastUsedModel;
     (lesson as CachedKS2Lesson).promptVersion = KS2_PROMPT_VERSION;
     (lesson as CachedKS2Lesson).reviewStatus = "unreviewed";
+    (lesson as CachedKS2Lesson).qualityIssues = qualityWarnings;
 
-    if (topicId && cacheable) {
+    if (topicId) {
       await writeKS2LessonCache({
         cacheKey: ks2LessonCacheKey(topicId, target, tier, kind, focusSkill),
         topicId,
@@ -1477,7 +1488,9 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
     return NextResponse.json({
       lesson,
       cached: false,
-      cacheable,
+      // Retained for the client cache contract (LessonPanel skips storing when
+      // false). Nothing sets it false now that non-blocking issues are cached.
+      cacheable: true,
       qualityWarnings,
     });
   } catch (err) {
