@@ -43,10 +43,16 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { createClient } from "@supabase/supabase-js";
-import { validateKS2TeachingLesson } from "@/lib/ks2-lesson-validator";
+import {
+  normalizeToTeachingLesson,
+  validateKS2TeachingLesson,
+} from "@/lib/ks2-lesson-validator";
+import { enrichTeachingFields } from "@/app/api/ks2-lesson/route";
 import { hardenKS2MathsPracticeAnswers } from "@/lib/ks2-maths-accuracy";
+import { normalizeEquationStepsDialect } from "@/lib/ks2-visual-fitness";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import { listAllKS2Topics, getKS2TopicById } from "@/lib/ks2";
+import { resolveKS2Taxonomy } from "@/lib/ks2-taxonomy";
 import {
   BLOCKING_LESSON_ISSUES,
   ENRICH_BACKFILLED_ISSUES,
@@ -77,6 +83,7 @@ function loadEnv(): Record<string, string> {
 interface Row {
   cache_key: string;
   topic_id: string | null;
+  topic_name: string | null;
   tier: string | null;
   kind: string | null;
   target: string | null;
@@ -105,8 +112,13 @@ function codesOf(issues: unknown[]): string[] {
   return issues.map((i) => (i as { code?: string }).code ?? String(i));
 }
 
-function assess(row: Row, subject: string): Assessed {
+function assess(
+  row: Row,
+  subject: string,
+  subtopics: string[],
+): Assessed {
   const json = (row.lesson_json ?? {}) as Record<string, any>;
+  const requestedSkill: string = typeof json.skill === "string" ? json.skill : "";
   // vr/nvr are now structurally validated on serve too (they used to be
   // returned completely unchecked), just without the teaching-engine visual
   // requirements.
@@ -120,6 +132,14 @@ function assess(row: Row, subject: string): Assessed {
       validateKS2TeachingLesson(json as never, { subject, requireVisual }).issues,
     );
     let hardened = JSON.parse(JSON.stringify(json));
+    // The route's harden also normalises block dialects before validating. Run
+    // the same coercion here or the report keeps counting failures the serve
+    // path no longer has.
+    if (Array.isArray(hardened.workedExample?.whiteboard?.blocks)) {
+      hardened.workedExample.whiteboard.blocks = normalizeEquationStepsDialect(
+        hardened.workedExample.whiteboard.blocks,
+      );
+    }
     if (subject === "maths") {
       try {
         if (hardened.workedExample) {
@@ -141,14 +161,47 @@ function assess(row: Row, subject: string): Assessed {
         /* ditto */
       }
     }
+    // Run the route's OWN enrich, not an approximation of it. It backfills the
+    // taxonomy fields and pads a thin worked example to three steps, so skipping
+    // it made few_steps and answer_before_reasoning look far more common than
+    // production ever sees.
+    // Mirror the route's call EXACTLY: the topic NAME and the topic's real
+    // subtopic list, not the lesson's own strand/skill. Substituting those
+    // changes which taxonomy resolves, which changes the detected visual family
+    // — and so invents visual_mismatch / mixed_skill failures production never
+    // sees.
+    const topicName = row.topic_name ?? "";
+    try {
+      hardened = enrichTeachingFields(
+        hardened,
+        topicName,
+        subtopics,
+        String(row.topic_id ?? ""),
+        subject,
+      ) as typeof hardened;
+    } catch {
+      /* an un-enrichable row is reported as-is rather than skipped */
+    }
+    const taxonomy = row.topic_id
+      ? resolveKS2Taxonomy(String(row.topic_id), requestedSkill || undefined)
+      : null;
     hardenedIssues = codesOf(
-      validateKS2TeachingLesson(hardened as never, { subject, requireVisual }).issues,
+      validateKS2TeachingLesson(
+        normalizeToTeachingLesson(hardened as Record<string, unknown>, {
+          topic: topicName,
+          skill: requestedSkill || taxonomy?.skill,
+          yearGroup: taxonomy?.yearGroup,
+          strand: taxonomy?.strand,
+          method: taxonomy?.method,
+        }) as never,
+        { subject, requireVisual },
+      ).issues,
     );
   }
 
-  // Discounting ENRICH_BACKFILLS is what makes this the LOWER bound: the route
-  // fills those in before validating, so they cannot be a reason to discard.
-  const effective = hardenedIssues.filter((c) => !ENRICH_BACKFILLS.has(c));
+  // enrich now runs for real, so nothing needs discounting — any backfilled code
+  // that still appears is one enrich genuinely could not fill.
+  const effective = hardenedIssues;
   const steps: any[] = Array.isArray(json.workedExample?.teachingSteps)
     ? json.workedExample.teachingSteps
     : [];
@@ -212,7 +265,7 @@ async function main() {
   for (let from = 0; ; from += 500) {
     const { data, error } = await db
       .from("ks2_lesson_cache")
-      .select("cache_key,topic_id,tier,kind,target,hit_count,lesson_json")
+      .select("cache_key,topic_id,topic_name,tier,kind,target,hit_count,lesson_json")
       .range(from, from + 499);
     if (error) {
       console.error("Cache read failed:", error.message);
@@ -223,7 +276,11 @@ async function main() {
   }
 
   const assessed = rows.map((r) =>
-    assess(r, String(subjectOf.get(String(r.topic_id)) ?? "unknown")),
+    assess(
+      r,
+      String(subjectOf.get(String(r.topic_id)) ?? "unknown"),
+      getKS2TopicById(String(r.topic_id))?.topic.subtopics ?? [],
+    ),
   );
   const n = assessed.length;
   const discarded = assessed.filter((a) => a.discarded);

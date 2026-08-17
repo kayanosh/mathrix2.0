@@ -36,6 +36,7 @@ import {
 } from "@/lib/methods/roman-numerals";
 import {
   filterFitBlocks,
+  normalizeEquationStepsDialect,
   normalizeShapeDialect,
 } from "@/lib/ks2-visual-fitness";
 import { deepRepairStrings } from "@/lib/validate";
@@ -131,7 +132,17 @@ function tierPhrase(tier: string): string {
       : "Expected Standard (typical year-group difficulty)";
 }
 
-function enrichTeachingFields(
+/**
+ * Backfills objective / prerequisites / commonMistakes / recap from the taxonomy
+ * and pads a thin worked example up to three teaching steps.
+ *
+ * Exported for the cache-health audit, which must run the SAME code the serve
+ * path runs — otherwise it reports issues that production never sees. This
+ * matters concretely: because enrich pads steps, `few_steps` and
+ * `answer_before_reasoning` looked far more common than they are.
+ * (Next.js ignores non-handler exports from a route module.)
+ */
+export function enrichTeachingFields(
   lesson: KS2Lesson,
   topic: string,
   subtopics: string[],
@@ -653,7 +664,14 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
       ...next,
       whiteboard: {
         ...next.whiteboard,
-        blocks: normalizeShapeDialect(next.whiteboard.blocks),
+        // Equation-step dialects too: a model that writes {expression: "7 x 6 =
+        // 42"} instead of {latexBefore, latexAfter} was having the whole block
+        // rejected and the lesson regenerated on every request over a key name.
+        // Measured on 35 cached lessons, 48 of 49 failing blocks contained real
+        // teaching. Runs before fitness, like the shape dialect above.
+        blocks: normalizeEquationStepsDialect(
+          normalizeShapeDialect(next.whiteboard.blocks),
+        ),
       },
     };
   }

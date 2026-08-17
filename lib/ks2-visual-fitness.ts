@@ -455,3 +455,148 @@ export function filterFitBlocks(
   if (!Array.isArray(blocks)) return [];
   return blocks.filter((b) => isBlockFit(b, question));
 }
+
+/**
+ * Accept the dialects models actually use for `equation_steps`.
+ *
+ * The validator requires each step to carry `latexBefore` or `latexAfter`, and
+ * rejects the whole block otherwise (`equation_steps_incomplete`). Measured
+ * across the live cache, that fired on 35 lessons — and in 48 of 49 failing
+ * blocks the teaching was PRESENT, just in a different shape:
+ *
+ *   { expression: "$7 \\times 6 = 42$", explanation: "Write 2; carry 4." }
+ *   "$8 + 7 = 15$"                                  (a bare string)
+ *
+ * So those lessons were being thrown away and regenerated on every request over
+ * a key name. This maps the equivalent shapes onto the canonical one. It does
+ * not write mathematics: every character comes from the model's own step.
+ *
+ * Deliberately all-or-nothing. If any step cannot be converted the block is
+ * returned UNCHANGED and left to fail validation, rather than shipping a
+ * silently thinner block that looks repaired. Declining is the house rule here —
+ * five separate wrong-answer defects came from a repair that guessed.
+ *
+ * Splitting on the last `=` is safe on this path: KS2 lessons never run the
+ * algebra continuity check (which requires each step's `latexBefore` to equal
+ * the previous `latexAfter`), and a computational sub-step like "7 × 6 = 42" is
+ * a self-contained fact rather than a link in a chain. before/after mirrors the
+ * existing house style, where a transforming step has different sides and a
+ * stating step has identical ones.
+ */
+interface CanonicalEquationStep {
+  latexBefore: string;
+  latexAfter: string;
+  explanation?: string;
+}
+
+/** Strip `$…$` wrappers and surrounding whitespace; keep the LaTeX itself. */
+function stripMathDelimiters(text: string): string {
+  return text
+    .trim()
+    .replace(/^\$+/, "")
+    .replace(/\$+$/, "")
+    .trim();
+}
+
+function looksMathematical(text: string): boolean {
+  return /\d/.test(text) || /\\[a-zA-Z]+/.test(text);
+}
+
+/** Convert one step of any known dialect, or null when it cannot be done. */
+function canonicaliseEquationStep(step: unknown): CanonicalEquationStep | null {
+  if (typeof step === "string") {
+    return fromExpression(stripMathDelimiters(step));
+  }
+  if (!step || typeof step !== "object") return null;
+  const s = step as Record<string, unknown>;
+
+  // Already canonical — leave every other field intact.
+  if (
+    (typeof s.latexBefore === "string" && s.latexBefore.trim()) ||
+    (typeof s.latexAfter === "string" && s.latexAfter.trim())
+  ) {
+    return {
+      latexBefore: typeof s.latexBefore === "string" ? s.latexBefore : "",
+      latexAfter: typeof s.latexAfter === "string" ? s.latexAfter : "",
+      explanation: typeof s.explanation === "string" ? s.explanation : undefined,
+    };
+  }
+
+  const source =
+    typeof s.expression === "string"
+      ? s.expression
+      : typeof s.latex === "string"
+        ? s.latex
+        : typeof s.equation === "string"
+          ? s.equation
+          : null;
+  if (!source) return null;
+
+  const converted = fromExpression(stripMathDelimiters(source));
+  if (!converted) return null;
+  return {
+    ...converted,
+    explanation:
+      typeof s.explanation === "string"
+        ? s.explanation
+        : typeof s.text === "string"
+          ? s.text
+          : undefined,
+  };
+}
+
+function fromExpression(text: string): CanonicalEquationStep | null {
+  if (!text || !looksMathematical(text)) return null;
+  // Split on the LAST "=" so "a = b = c" keeps "a = b" on the left.
+  const at = text.lastIndexOf("=");
+  if (at > 0) {
+    const before = text.slice(0, at).trim();
+    const after = text.slice(at + 1).trim();
+    if (before && after) return { latexBefore: before, latexAfter: after };
+  }
+  // No usable "=": this step STATES an expression rather than transforming one.
+  // Identical sides is the existing convention for that (the "Start" step).
+  return { latexBefore: text, latexAfter: text };
+}
+
+export function normalizeEquationStepsDialect(
+  blocks: VisualBlock[],
+): VisualBlock[] {
+  if (!Array.isArray(blocks)) return blocks;
+  return blocks.map((block) => {
+    try {
+      if (!block || typeof block !== "object" || block.type !== "equation_steps") {
+        return block;
+      }
+      const raw = block as unknown as Record<string, unknown>;
+      const steps = Array.isArray(raw.steps) ? raw.steps : [];
+      if (steps.length === 0) return block; // nothing to work from — decline
+
+      const converted: CanonicalEquationStep[] = [];
+      for (const step of steps) {
+        const next = canonicaliseEquationStep(step);
+        if (!next) return block; // all-or-nothing
+        converted.push(next);
+      }
+      // Nothing changed? Return the original object so identity is preserved.
+      const changed = steps.some(
+        (step, i) =>
+          typeof step !== "object" ||
+          step === null ||
+          (step as Record<string, unknown>).latexBefore !== converted[i].latexBefore ||
+          (step as Record<string, unknown>).latexAfter !== converted[i].latexAfter,
+      );
+      if (!changed) return block;
+
+      return {
+        ...raw,
+        steps: steps.map((step, i) => ({
+          ...(typeof step === "object" && step !== null ? step : {}),
+          ...converted[i],
+        })),
+      } as unknown as VisualBlock;
+    } catch {
+      return block;
+    }
+  });
+}
