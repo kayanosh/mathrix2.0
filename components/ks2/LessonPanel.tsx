@@ -7,6 +7,10 @@ import InlineMath from "@/components/InlineMath";
 import BlockRenderer from "@/components/whiteboard/BlockRenderer";
 import WhiteboardTutor from "@/components/WhiteboardTutor";
 import StepController from "@/components/ks2/StepController";
+import {
+  classifyLessonFailure,
+  type LessonFailure,
+} from "@/lib/ks2-lesson-failure";
 import { getTopicVisual } from "@/lib/ks2-visuals";
 import type { KS2SubjectId } from "@/lib/ks2";
 import { targetMeta, tierMeta, type KS2Target, type KS2Tier } from "@/lib/ks2-pathway";
@@ -93,8 +97,15 @@ function asTeachingSteps(value: unknown): TeachingStep[] {
   return Array.isArray(value) ? (value as TeachingStep[]) : [];
 }
 
-function cacheKey(p: Props): string {
-  return `${CACHE_PREFIX}${p.topicId}|${p.skillName}|${p.target}|${p.tier}|${p.kind}`;
+/**
+ * The staff flag is part of the key because the two audiences now receive
+ * DIFFERENT lessons — a pupil's copy has the answer keys removed server-side.
+ * Classroom devices are shared, so without this a teacher viewing a lesson would
+ * leave their full copy in localStorage for the next pupil to load, defeating the
+ * server-side strip entirely.
+ */
+function cacheKey(p: Props, staff: boolean): string {
+  return `${CACHE_PREFIX}${staff ? "staff|" : ""}${p.topicId}|${p.skillName}|${p.target}|${p.tier}|${p.kind}`;
 }
 
 function readCache(key: string): KS2Lesson | null {
@@ -130,19 +141,23 @@ export default function LessonPanel(props: Props) {
   const { subjectId, subjectName, topicId, topicName, skillName, subtopics, target, tier, kind, accentHex } = props;
   const [lesson, setLesson] = useState<KS2Lesson | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [failure, setFailure] = useState<LessonFailure | null>(null);
   const [showTryAnswer, setShowTryAnswer] = useState(false);
   const [includeTryAnswer, setIncludeTryAnswer] = useState(true);
   const [fromLibrary, setFromLibrary] = useState(false);
   const [watchMode, setWatchMode] = useState(false);
   const [tryWatchMode, setTryWatchMode] = useState(false);
   const [staffMode, setStaffMode] = useState(false);
+  // Presentation only. The server withholds answer keys from non-staff
+  // regardless (lib/ks2-staff-content.ts), so this hides a control that would
+  // reveal nothing rather than being the thing that protects the answers.
+  const [isStaff, setIsStaff] = useState(false);
   const [qualityWarnings, setQualityWarnings] = useState<string[]>([]);
 
   const { Icon, accent } = getTopicVisual(topicId, topicName, subjectId);
 
   async function load(force = false, attempt = 0) {
-    const key = cacheKey(props);
+    const key = cacheKey(props, isStaff);
     if (!force) {
       const cached = readCache(key);
       if (cached) {
@@ -152,7 +167,7 @@ export default function LessonPanel(props: Props) {
       }
     }
     setLoading(true);
-    setError(false);
+    setFailure(null);
     setShowTryAnswer(false);
     setFromLibrary(false);
     setQualityWarnings([]);
@@ -175,7 +190,13 @@ export default function LessonPanel(props: Props) {
             force,
           }),
         }).then(async (res) => {
-          if (!res.ok) throw new Error("failed");
+          if (!res.ok) {
+            // Keep the status AND body: the 422 carries the validator's issue
+            // codes, which is the only thing that can tell a teacher whether
+            // retrying is worth it.
+            const body = await res.json().catch(() => null);
+            throw classifyLessonFailure(res.status, body);
+          }
           return (await res.json()) as {
             lesson: KS2Lesson;
             cached?: boolean;
@@ -194,29 +215,59 @@ export default function LessonPanel(props: Props) {
       setFromLibrary(data.cached === true);
       setQualityWarnings(data.qualityWarnings || []);
       if (data.cacheable !== false) writeCache(key, data.lesson);
-    } catch {
-      // A teacher in front of a class must not have to press "Try again"
-      // for a transient generation failure: retry once automatically with a
-      // fresh generation before showing the error state.
-      if (attempt === 0) {
+    } catch (err) {
+      const info: LessonFailure =
+        err && typeof err === "object" && "kind" in err
+          ? (err as LessonFailure)
+          : classifyLessonFailure(null, null);
+      // A teacher in front of a class must not have to press "Try again" for a
+      // transient failure — but only retry when a retry could plausibly help.
+      // This used to fire for every failure, including a 429, where retrying is
+      // precisely what caused the problem.
+      if (attempt === 0 && info.retryable) {
         setTimeout(() => {
           void load(true, 1);
         }, 1500);
         return; // keep the loading state during the automatic retry
       }
-      setError(true);
+      setFailure(info);
       setLoading(false);
       return;
     }
     setLoading(false);
   }
 
+  // Resolve the caller's role BEFORE loading. Loading first would cache the
+  // lesson under the wrong audience's key and then need a second fetch to
+  // correct it.
+  const [roleResolved, setRoleResolved] = useState(false);
   useEffect(() => {
+    let active = true;
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!active) return;
+        setIsStaff(!!d?.isStaff);
+      })
+      .catch(() => {
+        /* treat an unknown role as a pupil — least privilege */
+      })
+      .finally(() => {
+        if (active) setRoleResolved(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!roleResolved) return;
     setShowTryAnswer(false);
     setTryWatchMode(false);
+    setStaffMode(false);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicName, skillName, target, tier, kind]);
+  }, [topicName, skillName, target, tier, kind, roleResolved, isStaff]);
 
   const displayExample = useMemo(() => {
     if (!lesson?.workedExample?.question) return lesson?.workedExample;
@@ -292,13 +343,44 @@ export default function LessonPanel(props: Props) {
     );
   }
 
-  if (error || !lesson) {
+  if (failure || !lesson) {
+    const info = failure ?? classifyLessonFailure(null, null);
     return (
-      <div className="text-center py-10">
-        <p className="text-gray-600 mb-3">Sorry, the lesson couldn&rsquo;t load.</p>
-        <button onClick={() => load(true)} className="inline-flex items-center gap-2 text-indigo-600 font-medium">
-          <RotateCcw size={15} /> Try again
-        </button>
+      <div className="text-center py-10" role="alert">
+        <p className="text-gray-800 font-medium mb-1">{info.message}</p>
+        <p className="text-sm text-gray-500 mb-4">{info.action}</p>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <button
+            onClick={() => load(true)}
+            className="inline-flex items-center gap-2 text-indigo-600 font-medium"
+          >
+            <RotateCcw size={15} /> Try again
+          </button>
+          <a
+            href={`mailto:support@mathrix.co.uk?subject=${encodeURIComponent(
+              `Lesson failed: ${topicName} — ${skillName}`,
+            )}&body=${encodeURIComponent(
+              [
+                `Topic: ${topicName} (${topicId})`,
+                `Skill: ${skillName}`,
+                `Target/tier/kind: ${target} / ${tier} / ${kind}`,
+                `Problem: ${info.kind} — ${info.message}`,
+                info.issues?.length ? `Checks: ${info.issues.join(", ")}` : "",
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            )}`}
+            className="text-sm text-gray-500 underline hover:text-gray-700"
+          >
+            Report this
+          </a>
+        </div>
+        {/* Issue codes are diagnostic, not pupil-facing. */}
+        {isStaff && info.issues?.length ? (
+          <p className="mt-4 text-[12px] text-gray-400">
+            Failed checks: {info.issues.join(", ")}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -337,6 +419,7 @@ export default function LessonPanel(props: Props) {
               Include try-this answer
             </label>
           )}
+          {isStaff && (
           <button
             type="button"
             onClick={() => setStaffMode((shown) => !shown)}
@@ -349,6 +432,7 @@ export default function LessonPanel(props: Props) {
           >
             <Eye size={14} /> {staffMode ? "Hide staff guide" : "Staff guide"}
           </button>
+          )}
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-gray-800"

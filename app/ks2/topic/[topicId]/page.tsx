@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Lock, Star } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Star } from "lucide-react";
 import {
   getKS2TopicById,
   getNextKS2Topic,
@@ -413,11 +413,22 @@ export default function KS2TopicPage({ params }: { params: Promise<{ topicId: st
                 <span className="block text-[12px] font-semibold text-indigo-200">Next topic</span>
                 <span className="text-lg font-extrabold">{next.topic.name}</span>
               </span>
+              {/*
+                This showed a padlock and "Earn your star first" while remaining a
+                live link, so the one place the mastery model is made visible was
+                also the place it was demonstrably not enforced — a pupil learns in
+                one click that the star does not matter.
+
+                Made honest rather than enforced: moving on is still allowed,
+                because gating progression is a pedagogical decision for the
+                school, not something to change quietly. The copy now encourages
+                the star without claiming to require it.
+              */}
               {isMastered ? (
                 <ArrowRight size={22} />
               ) : (
                 <span className="flex items-center gap-1.5 text-indigo-200 text-sm font-semibold">
-                  <Lock size={16} /> Earn your star first
+                  Star not earned yet <ArrowRight size={18} />
                 </span>
               )}
             </Link>

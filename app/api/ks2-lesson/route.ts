@@ -3,6 +3,8 @@ import * as Sentry from "@sentry/nextjs";
 import { getOpenAI } from "@/lib/openai";
 import { KS2_PROMPT_VERSION } from "@/lib/ks2-lesson-version";
 import { BLOCKING_LESSON_ISSUES } from "@/lib/ks2-lesson-issues";
+import { getCallerProfile } from "@/lib/centre";
+import { isStaffRole, lessonForRole } from "@/lib/ks2-staff-content";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 import { scienceLessonExtra } from "@/lib/ks2-science";
@@ -793,6 +795,13 @@ export async function POST(req: NextRequest) {
     if (!allowRequest(`ks2-lesson:${requestClientKey(req.headers)}`, 120, 600_000)) {
       return NextResponse.json({ error: "Too many lesson requests" }, { status: 429 });
     }
+    // This route has no authentication of its own, so resolve the caller purely
+    // to decide whether answer keys may be included. getCallerProfile() returns
+    // null when nobody is signed in and defaults an unreadable profile to
+    // "student", so the failure mode is least-privilege.
+    const callerRole = (await getCallerProfile().catch(() => null))?.role ?? null;
+    const callerIsStaff = isStaffRole(callerRole);
+
     const body = await req.json().catch(() => ({}));
     const subject: string = String(body.subject || "Mathematics").slice(0, 80);
     const topic: string = String(body.topic || "general").slice(0, 160);
@@ -992,8 +1001,12 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
           );
           if (cachedBlockers.length === 0) {
             return NextResponse.json({
-              lesson: enriched,
+              lesson: lessonForRole(
+                enriched as unknown as Record<string, unknown>,
+                callerRole,
+              ),
               cached: true,
+              isStaff: callerIsStaff,
               qualityWarnings: cachedCodes,
             });
           }
@@ -1002,7 +1015,39 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
             cachedBlockers.join(", "),
           );
         } else {
-          return NextResponse.json({ lesson: cached, cached: true });
+          // vr/nvr sit outside the teaching engine, so this branch used to
+          // return cached content with NO validation whatsoever — the one path
+          // where a stored lesson reached a child completely unchecked. The
+          // full teaching-engine ruleset does not apply (there is no method or
+          // required visual for a non-verbal reasoning puzzle), but the
+          // structural checks do, so run those and treat a blocking failure the
+          // same way every other subject does.
+          const reasoningValidation = validateKS2TeachingLesson(
+            normalizeToTeachingLesson(
+              cached as unknown as Record<string, unknown>,
+              { topic, skill: requestedSkill || undefined },
+            ),
+            { subject: subjectId, requireVisual: false },
+          );
+          const reasoningCodes = reasoningValidation.issues.map((i) => i.code);
+          const reasoningBlockers = reasoningCodes.filter((code) =>
+            BLOCKING_LESSON_ISSUES.has(code),
+          );
+          if (reasoningBlockers.length === 0) {
+            return NextResponse.json({
+              lesson: lessonForRole(
+                cached as unknown as Record<string, unknown>,
+                callerRole,
+              ),
+              cached: true,
+              isStaff: callerIsStaff,
+              qualityWarnings: reasoningCodes,
+            });
+          }
+          console.warn(
+            "[ks2-lesson] ignoring cached reasoning lesson with blocking issues:",
+            reasoningBlockers.join(", "),
+          );
         }
       }
     }
@@ -1486,8 +1531,9 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
     }
 
     return NextResponse.json({
-      lesson,
+      lesson: lessonForRole(lesson as unknown as Record<string, unknown>, callerRole),
       cached: false,
+      isStaff: callerIsStaff,
       // Retained for the client cache contract (LessonPanel skips storing when
       // false). Nothing sets it false now that non-blocking issues are cached.
       cacheable: true,

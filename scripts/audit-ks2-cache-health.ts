@@ -107,7 +107,10 @@ function codesOf(issues: unknown[]): string[] {
 
 function assess(row: Row, subject: string): Assessed {
   const json = (row.lesson_json ?? {}) as Record<string, any>;
-  const validated = TEACHING_SUBJECTS.has(subject);
+  // vr/nvr are now structurally validated on serve too (they used to be
+  // returned completely unchecked), just without the teaching-engine visual
+  // requirements.
+  const validated = TEACHING_SUBJECTS.has(subject) || subject === "vr" || subject === "nvr";
   const requireVisual = subject === "maths";
 
   let storedIssues: string[] = [];
@@ -157,7 +160,6 @@ function assess(row: Row, subject: string): Assessed {
     validated,
     storedIssues,
     hardenedIssues,
-    // vr/nvr bypass validation entirely (route.ts), so they are never discarded.
     // Current gate: blocking issues only.
     discarded: validated && blocking.length > 0,
     // What the OLD gate discarded (`validation.ok`, i.e. ANY issue), kept so the

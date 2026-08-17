@@ -116,10 +116,15 @@ describe("TEACHING_SUBJECTS", () => {
     }
   });
 
-  it("excludes vr/nvr, which currently bypass validation entirely", () => {
-    // Documenting a real gap rather than asserting it is correct — cached vr
-    // and nvr lessons are returned unchecked (route.ts). Phase 1 closes this.
+  it("excludes vr/nvr from the teaching engine, but they are no longer unchecked", () => {
+    // These sit outside the teaching engine — there is no method or required
+    // visual for a non-verbal reasoning puzzle — so they stay out of this set.
+    // They used to be returned from cache with NO validation at all, which was
+    // the one path by which stored content reached a child completely
+    // unchecked; the route now runs the structural ruleset on them.
     expect(TEACHING_SUBJECTS.has("vr")).toBe(false);
     expect(TEACHING_SUBJECTS.has("nvr")).toBe(false);
+    const route = readFileSync("app/api/ks2-lesson/route.ts", "utf-8");
+    expect(route).toContain("ignoring cached reasoning lesson with blocking issues");
   });
 });
