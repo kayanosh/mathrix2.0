@@ -957,6 +957,16 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
         cached = null;
       }
       if (cached) {
+        // Repair mangled LaTeX escapes in stored content.
+        //
+        // A model emitting JSON sometimes single-escapes its LaTeX, so "\frac"
+        // arrives as a form feed followed by "rac" and "\times" as a tab
+        // followed by "imes" — the pupil would read "rac{9}{4}" and
+        // "3456 imes 7". repairMangledBackslashes already handles this, but it
+        // only ever ran on FRESH model output, so 8 of 440 cached lessons (29
+        // corrupted strings) stayed broken on every read. Repairing here makes
+        // them self-heal on serve, exactly as the maths harden below does.
+        cached = deepRepairStrings(cached);
         if (isMaths && cached.workedExample?.question) {
           cached.workedExample = hardenWorkedExample(
             cached.workedExample,

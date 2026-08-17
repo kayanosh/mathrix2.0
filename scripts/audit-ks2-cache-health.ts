@@ -50,6 +50,7 @@ import {
 import { enrichTeachingFields } from "@/app/api/ks2-lesson/route";
 import { hardenKS2MathsPracticeAnswers } from "@/lib/ks2-maths-accuracy";
 import { normalizeEquationStepsDialect } from "@/lib/ks2-visual-fitness";
+import { deepRepairStrings } from "@/lib/validate";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import { listAllKS2Topics, getKS2TopicById } from "@/lib/ks2";
 import { resolveKS2Taxonomy } from "@/lib/ks2-taxonomy";
@@ -131,7 +132,9 @@ function assess(
     storedIssues = codesOf(
       validateKS2TeachingLesson(json as never, { subject, requireVisual }).issues,
     );
-    let hardened = JSON.parse(JSON.stringify(json));
+    // The serve path repairs mangled LaTeX escapes on cache read (a form feed
+    // where "\frac" was single-escaped), so the report must too.
+    let hardened = deepRepairStrings(JSON.parse(JSON.stringify(json)));
     // The route's harden also normalises block dialects before validating. Run
     // the same coercion here or the report keeps counting failures the serve
     // path no longer has.

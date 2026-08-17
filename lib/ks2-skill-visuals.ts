@@ -72,6 +72,22 @@ export function detectSkillVisualFamily(
   if (/\bratio\b|proportion|scale factor/.test(t)) return "ratio";
   if (/convert(?:ing)? units?|unit conversion|metric measures?/.test(t))
     return "measures";
+  // A 2D area/perimeter skill must not be dragged into the volume family by its
+  // TOPIC's name. `t` merges topic and skill, and the Year 6 topic is called
+  // "Area, Perimeter & Volume" — so that topic was hijacking its own
+  // area/perimeter skills and demanding a `cuboid_array` for "Area of
+  // triangles". Three real curriculum skills were affected ("Area and
+  // perimeter", "Area of triangles", "Area of parallelograms"), while Year 5's
+  // "Perimeter & Area" topic classified them correctly, which is what made the
+  // inconsistency visible. The skill is the more specific signal, so when it
+  // names a 2D measure and says nothing about volume, trust it.
+  const skillOnly = skill.toLowerCase();
+  if (
+    /\b(?:area|perimeter)\b/.test(skillOnly) &&
+    !/\bvolume\b|\bcapacit\w*\b|\bcuboids?\b|\bcubic\b/.test(skillOnly)
+  ) {
+    return "geometry";
+  }
   if (/\bvolume\b|\bcuboids?\b|\bcubic units?\b/.test(t)) return "volume";
   if (/order of operations|bidmas|bodmas/.test(t)) return "order_operations";
   if (
