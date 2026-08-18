@@ -50,6 +50,7 @@ import {
 } from "@/lib/ks2-required-visuals";
 import { applyMethodBuilderToWhiteboard } from "@/lib/methods/apply-builder";
 import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
+import { checkAnonAllowance, recordAnonUse } from "@/lib/anon-usage";
 import { mathsAnswersEquivalent } from "@/lib/ks2-maths-accuracy";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
@@ -222,9 +223,30 @@ export async function POST(req: NextRequest) {
           return;
         }
       }
+    } else {
+      // Anonymous visitors were enforced ONLY in localStorage — this branch used
+      // to read "server allows the request through (no user row to check)". So
+      // clearing site data reset the quota and gave unlimited free Claude,
+      // GPT-4o and TTS. The counter is now server-side, keyed on a SALTED HASH of
+      // the IP: these visitors are children and an IP is personal data under UK
+      // GDPR, so we store enough to count and nothing that identifies anyone
+      // (see lib/anon-usage.ts).
+      const allowance = await checkAnonAllowance(req.headers);
+      if (!allowance.allowed) {
+        send("error", {
+          error: "anon_limit_reached",
+          message:
+            "You've used today's free questions. Create a free account for more, or upgrade for unlimited.",
+          used: allowance.used,
+          limit: allowance.limit,
+        });
+        controller.close();
+        return;
+      }
+      // Counted before the model call, not after: an abandoned or failed request
+      // still spent the money, which is the thing being bounded.
+      void recordAnonUse(req.headers);
     }
-    // Anonymous users: client-side enforces 1-prompt limit;
-    // server allows the request through (no user row to check).
 
     // ── Stage 0: Parse input ──────────────────────────────────────────
     const hasImage = messages.some(

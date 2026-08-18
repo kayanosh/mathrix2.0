@@ -509,6 +509,14 @@ export default function ChatInterface() {
               setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
               return;
             }
+            // An anonymous visitor out of free questions. Offer the free
+            // account, not the paywall — signing in is the cheaper next step for
+            // them and the better conversion for us.
+            if (parsed.error === "anon_limit_reached") {
+              setShowAuthModal(true);
+              setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+              return;
+            }
             throw new Error(parsed.error || "Request failed");
           }
 

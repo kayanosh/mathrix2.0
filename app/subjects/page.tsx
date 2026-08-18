@@ -107,11 +107,23 @@ export default function PracticeHub() {
         }),
       });
       const data = await res.json();
-      if (data.question) {
+      if (res.ok && data.question) {
         setAiQuestion(data.question);
+      } else if (data.reason === "auth_required") {
+        // The endpoint now requires a session so the spend can be metered.
+        // Say so plainly instead of showing a generic failure.
+        setAiQuestion(
+          "Sign in to generate extra practice questions — you've worked through every saved question in this band.",
+        );
+      } else if (data.reason === "limit_reached") {
+        setAiQuestion(
+          "You've used today's free questions. Upgrade for unlimited practice, or come back tomorrow.",
+        );
+      } else {
+        setAiQuestion(data.error || "Couldn't generate a question. Try again.");
       }
     } catch {
-      setAiQuestion("Failed to generate question. Try again.");
+      setAiQuestion("Couldn't reach the question service. Check your connection and try again.");
     } finally {
       setAiLoading(false);
     }
