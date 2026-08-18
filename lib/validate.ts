@@ -192,6 +192,24 @@ function extractConstantMagnitudes(side: string): number[] {
  */
 function stepHasTermCrossing(step: EquationStep): boolean {
   if (!step.latexBefore || !step.latexAfter) return false;
+
+  // A step that yields MORE THAN ONE equation is a split, not a rearrangement,
+  // and nothing crosses the = sign. The null factor law is the common case:
+  //
+  //   (x + 2)(x + 3) = 0   ->   x + 2 = 0  or  x + 3 = 0
+  //
+  // splitOnEquals only splits on the FIRST "=", so the second equation's
+  // constants landed in "after RHS" and looked like they had crossed. That
+  // reported a missing arrow on a step where an arrow would be actively
+  // misleading — there is no term transfer to draw. Note "x^2 - 9 = 0" escaped
+  // by luck, because both of its factor constants are 3 and the magnitudes
+  // matched on both sides.
+  const equalsCount = (latex: string) =>
+    (stripHtmlIds(latex).match(/=/g) ?? []).length;
+  if (equalsCount(step.latexAfter) > 1 || equalsCount(step.latexBefore) > 1) {
+    return false;
+  }
+
   const before = splitOnEquals(step.latexBefore);
   const after = splitOnEquals(step.latexAfter);
   if (!before || !after) return false;

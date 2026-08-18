@@ -4,7 +4,10 @@
 
 import type { ColumnMethodBlock, ColumnMethodMove } from "@/types/whiteboard";
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
-import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+import {
+  containsAlgebraicUnknown,
+  normalizeMathText,
+} from "@/lib/methods/normalize-math-text";
 
 function cellKey(row: number, col: number): string {
   return `${row}-${col}`;
@@ -232,6 +235,10 @@ function digitAt(numStr: string, gridCols: number, col: number): number {
 export function parseAdditionOperands(
   text: string,
 ): { a: number; b: number } | null {
+  // Decline algebra outright: this regex matches digits either side of a "+"
+  // ANYWHERE, so "2x^2 + 7x + 3 = 0" yielded 2 + 7 and drew a column-addition
+  // board for a quadratic.
+  if (containsAlgebraicUnknown(text)) return null;
   const m = normalizeMathText(text).match(/(\d{1,6})\s*\+\s*(\d{1,6})/);
   if (!m) return null;
   return { a: parseInt(m[1], 10), b: parseInt(m[2], 10) };
@@ -240,6 +247,7 @@ export function parseAdditionOperands(
 export function parseSubtractionOperands(
   text: string,
 ): { a: number; b: number } | null {
+  if (containsAlgebraicUnknown(text)) return null;
   const m = normalizeMathText(text).match(/(\d{1,6})\s*-\s*(\d{1,6})/);
   if (!m) return null;
   const a = parseInt(m[1], 10);

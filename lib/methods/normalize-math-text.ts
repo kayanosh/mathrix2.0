@@ -43,3 +43,26 @@ export function normalizeMathText(text: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * Does this text contain algebra, rather than plain arithmetic?
+ *
+ * The column builders parse with regexes that match ANYWHERE in the string, so
+ * "solve 2x^2 + 7x + 3 = 0" matched the digits either side of a "+" and produced
+ * a COLUMN ADDITION board (2 + 7) for a quadratic equation. Same substring-match
+ * class as the linear-parser defect.
+ *
+ * Deliberately narrow, because a false positive silently removes a correct column
+ * method from a KS2 lesson. Only two signals, both unambiguous:
+ *   - a power ("x^2", "2^3") — not column work in any case
+ *   - a coefficient bound to a letter with no space ("2x", "7y")
+ *
+ * A bare "5 m + 3 m" is NOT treated as algebra (the space matters), and a lone
+ * "a" in prose is not either — "a total of 24 + 13" must keep working.
+ */
+export function containsAlgebraicUnknown(text: string): boolean {
+  const t = normalizeMathText(text);
+  if (/\^\s*\d/.test(t)) return true;
+  if (/\d[a-zA-Z]\b/.test(t)) return true;
+  return false;
+}
