@@ -32,6 +32,11 @@ const REQUIRED_TABLES = [
   "students",
   "student_topics",
   "tutor_lesson_cache",
+  // Server-side counter for anonymous free usage. Ships as
+  // scripts/sql/anon-usage.sql; until applied, lib/anon-usage.ts falls back to a
+  // per-instance in-memory limiter and logs, so anonymous use is bounded but not
+  // durably.
+  "anon_usage",
 ];
 
 async function main() {
@@ -83,10 +88,30 @@ async function main() {
   console.log("\n────────────────────────────────────────────────────");
   console.log("  Some things are missing. One-time fix (about 2 minutes):");
   console.log("────────────────────────────────────────────────────\n");
+  // Name the file that actually creates each missing object. This used to print
+  // one hardcoded filename regardless of what was missing, so following the
+  // instructions applied the wrong migration.
+  const SOURCE_FILE = {
+    anon_usage: "scripts/sql/anon-usage.sql",
+    centres: "scripts/sql/tuition-centre-migration.sql",
+    students: "scripts/sql/tuition-centre-migration.sql",
+    student_topics: "scripts/sql/tuition-centre-migration.sql",
+    tutor_lesson_cache: "scripts/sql/tuition-centre-migration.sql",
+    classes: "scripts/sql/mathrix-missing-tables.sql",
+    assignments: "scripts/sql/mathrix-missing-tables.sql",
+    skill_progress: "scripts/sql/mathrix-missing-tables.sql",
+  };
+  const files = [...new Set(missing.map((t) => SOURCE_FILE[t]).filter(Boolean))];
+  const unknown = missing.filter((t) => !SOURCE_FILE[t]);
+
   console.log("1. Open the SQL Editor link above");
-  console.log("2. Open this file in the project:");
-  console.log("     scripts/sql/tuition-centre-migration.sql");
-  console.log("   (or scripts/sql/mathrix-missing-tables.sql if KS2/school tables are missing)");
+  console.log("2. Open and run each of these, in order:");
+  for (const f of files.length ? files : ["supabase-schema.sql"]) {
+    console.log(`     ${f}`);
+  }
+  if (unknown.length) {
+    console.log(`   (no known source file for: ${unknown.join(", ")} — check supabase-schema.sql)`);
+  }
   console.log("3. Copy ALL of it → paste into SQL Editor → click RUN");
   console.log("4. Run again:  node scripts/check-supabase.mjs\n");
 }
