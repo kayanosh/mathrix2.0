@@ -27,6 +27,8 @@ export interface ToolCheckResult {
 export interface VerificationReport {
   /** Overall pass / fail */
   allPassed: boolean;
+  /** Whether any check was applicable at all. `allPassed` is vacuously true when not. */
+  ran: boolean;
   /** Individual check results */
   checks: ToolCheckResult[];
   /** How many checks were run */
@@ -414,6 +416,11 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
   }
 
   const passed = checks.filter((c) => c.passed).length;
+  // NOTE the empty case: [].every() === true, so a response with NO applicable
+  // check used to report allPassed === true and was then counted as a passing
+  // verification SOURCE — i.e. "we checked nothing" scored the same as "we
+  // checked and it was right". `ran` makes the distinction explicit so callers
+  // cannot accidentally treat silence as agreement.
   const allPassed = checks.every((c) => c.passed);
 
   if (checks.length > 0) {
@@ -425,5 +432,5 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
     }
   }
 
-  return { allPassed, checks, total: checks.length, passed };
+  return { allPassed, ran: checks.length > 0, checks, total: checks.length, passed };
 }

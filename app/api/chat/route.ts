@@ -50,6 +50,7 @@ import {
 } from "@/lib/ks2-required-visuals";
 import { applyMethodBuilderToWhiteboard } from "@/lib/methods/apply-builder";
 import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
+import { mathsAnswersEquivalent } from "@/lib/ks2-maths-accuracy";
 
 // Critic still uses GPT-4o for cross-model verification (decorrelated errors)
 
@@ -384,7 +385,7 @@ export async function POST(req: NextRequest) {
             conclusion: "Does that help clarify things?",
           };
       send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
-      send("verification_done", { verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
+      send("verification_done", { verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
       logAiUsage({
         userId: user?.id,
         mode: "followup",
@@ -487,7 +488,7 @@ export async function POST(req: NextRequest) {
         validationWarnings: teacherResult.errors || [],
       });
       send("verification_done", {
-        verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+        verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false },
         whiteboard: teacherData,
       });
 
@@ -564,7 +565,7 @@ export async function POST(req: NextRequest) {
             validationWarnings: cachedValidation.errors || [],
           });
           send("verification_done", {
-            verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+            verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false },
             whiteboard: cachedData,
           });
           if (user) {
@@ -713,7 +714,7 @@ export async function POST(req: NextRequest) {
         validationWarnings: lessonWarnings,
       });
       send("verification_done", {
-        verification: { confidence: "high", casVerified: false, criticVerified: false, toolChecksPassed: false },
+        verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false },
         whiteboard: pupilLesson,
       });
 
@@ -843,15 +844,52 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    // NOTE on verification metadata in the modes above (safety redirect,
+    // follow-ups, teacher mode, lesson mode): these legitimately skip the
+    // verification pipeline, and they used to report `confidence: "high"` with
+    // every check flag false. getVerificationBadge mapped that to
+    // "Checked & consistent" — telling a student we had checked an answer we had
+    // not looked at. They now report "low", and the badge additionally refuses
+    // to render any claim with no passing check behind it.
+
     // ── Hint mode: append directive to last user message ─────────────
+    //
+    // This used to require `typeof last.content === "string"`, so it silently
+    // did nothing for a photo or PDF question — where the content is an array of
+    // blocks — and a student who asked for a hint got the full worked solution.
+    // Photographing the question is the most common way students ask, so "Hint
+    // only" was broken on the path that matters most.
+    const HINT_DIRECTIVE =
+      "\n\n[HINT MODE: Do NOT reveal the full solution. Give one guiding question or a small nudge toward the method. Maximum 1 text block — no worked answer.]";
     if (hintMode) {
       const lastIdx = formattedMessages.length - 1;
       const last = formattedMessages[lastIdx];
-      if (last && last.role === "user" && typeof last.content === "string") {
-        formattedMessages[lastIdx] = {
-          ...last,
-          content: last.content + "\n\n[HINT MODE: Do NOT reveal the full solution. Give one guiding question or a small nudge toward the method. Maximum 1 text block — no worked answer.]",
-        };
+      if (last && last.role === "user") {
+        if (typeof last.content === "string") {
+          formattedMessages[lastIdx] = {
+            ...last,
+            content: last.content + HINT_DIRECTIVE,
+          };
+        } else if (Array.isArray(last.content)) {
+          // Append to the final text part so the directive stays adjacent to the
+          // question; if the message is images only, add a text part for it.
+          const parts = [...(last.content as Array<Record<string, unknown>>)];
+          const lastTextIdx = parts.map((p) => p.type).lastIndexOf("text");
+          if (lastTextIdx >= 0) {
+            parts[lastTextIdx] = {
+              ...parts[lastTextIdx],
+              text: String(parts[lastTextIdx].text ?? "") + HINT_DIRECTIVE,
+            };
+          } else {
+            parts.push({ type: "text", text: HINT_DIRECTIVE.trim() });
+          }
+          // `role` is narrowed explicitly: the array-content branch of the
+          // message union is user-only.
+          formattedMessages[lastIdx] = {
+            role: "user",
+            content: parts as Extract<typeof last, { role: "user" }>["content"],
+          };
+        }
       }
     }
 
@@ -999,6 +1037,17 @@ export async function POST(req: NextRequest) {
         questionText,
         typeof topicContext === "string" ? topicContext : undefined,
         subtopicsArr,
+        {
+          // Free safety rail: groundTruth was already computed above from the
+          // ORIGINAL question by SymPy/nerdamer, so comparing costs nothing and
+          // catches a mis-parsing builder before it overwrites a correct answer.
+          agreesWithGroundTruth: groundTruth.verified && groundTruth.answers.length
+            ? (builderAnswer) =>
+                groundTruth.answers.some((truth) =>
+                  mathsAnswersEquivalent(builderAnswer, truth),
+                )
+            : undefined,
+        },
       );
     }
 
@@ -1069,7 +1118,9 @@ export async function POST(req: NextRequest) {
 
     // Post-CAS: verify the LLM's answer using nerdamer
     if (!solutionData.casVerified) {
-      const postCheck = postVerifyCAS(solutionData);
+      // Pass the original question so the check has an independent premise —
+      // the board is written by the pipeline being checked.
+      const postCheck = postVerifyCAS(solutionData, questionText);
       if (postCheck.attempted && postCheck.verified) {
         solutionData.casVerified = true;
         verification.postCasVerified = true;
@@ -1084,7 +1135,9 @@ export async function POST(req: NextRequest) {
 
     // ── Deterministic tool checks ─────────────────────────────────────
     const toolReport = runToolChecks(solutionData);
-    verification.toolChecksPassed = toolReport.allPassed;
+    // Only a check that actually RAN can count as verification. Many questions
+    // have no applicable deterministic check, and those used to score as a pass.
+    verification.toolChecksPassed = toolReport.ran && toolReport.allPassed;
     if (!toolReport.allPassed) {
       for (const c of toolReport.checks.filter((ch) => !ch.passed)) {
         verification.warnings.push(`Tool check failed: ${c.check} — ${c.detail}`);
@@ -1191,7 +1244,7 @@ export async function POST(req: NextRequest) {
 
           // Re-run tool checks
           const reToolReport = runToolChecks(solutionData);
-          verification.toolChecksPassed = reToolReport.allPassed;
+          verification.toolChecksPassed = reToolReport.ran && reToolReport.allPassed;
         } else {
           // Correction failed validation — keep original, mark as unverified by critic
           console.log("[Pass 2] Correction failed validation, keeping original draft");
@@ -1220,12 +1273,16 @@ export async function POST(req: NextRequest) {
 
     verification.agreementCount = verifiedCount;
 
+    // The >= 2 branch used to also return "high", making the >= 3 branch dead
+    // code — so two agreeing sources read the same as four. Combined with an
+    // empty tool-check counting as a source, "high" was reachable on a single
+    // real check. A student cannot tell the difference, so the badge has to.
     if (verifiedCount >= 3) {
       verification.confidence = "high";
-    } else if (verifiedCount >= 2) {
-      verification.confidence = "high";
-    } else if (verifiedCount === 1) {
+    } else if (verifiedCount === 2) {
       verification.confidence = "medium";
+    } else if (verifiedCount === 1) {
+      verification.confidence = "low";
     } else {
       verification.confidence = "low";
     }

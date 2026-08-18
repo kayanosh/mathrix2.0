@@ -41,6 +41,27 @@ export function getVerificationBadge(
   // Nothing to assert — no verification ran (teaching content / pre-verification).
   if (!v && !verified) return null;
 
+  // A confidence value with NO passing check behind it asserts nothing.
+  //
+  // Three code paths (lesson mode, teacher mode, follow-up answers) send
+  // `confidence: "high"` with casVerified/criticVerified/toolChecksPassed all
+  // false, and this function rendered that as "Checked & consistent" — a claim
+  // that nothing had been checked. A badge that is always green is worth less
+  // than no badge: it trains students to ignore it, and it turns a wrong answer
+  // into a wrong answer they were told to trust.
+  // Some callers send an ad-hoc `casVerified` rather than the typed
+  // pre/postCasVerified pair, so read both shapes.
+  const loose = v as (typeof v & { casVerified?: boolean }) | undefined;
+  const passingChecks = [
+    verified,
+    v?.preCasVerified === true,
+    v?.postCasVerified === true,
+    loose?.casVerified === true,
+    v?.criticVerified === true,
+    v?.toolChecksPassed === true,
+  ].filter(Boolean).length;
+  if (passingChecks === 0) return null;
+
   const detail =
     typeof agreement === "number" && agreement > 0
       ? `${agreement}/4 checks agreed`
@@ -51,8 +72,9 @@ export function getVerificationBadge(
     return { level: "verified", label: "Independently verified", detail };
   }
 
-  // Multiple checks agree even without a CAS stamp.
-  if (confidence === "high") {
+  // Multiple checks agree even without a CAS stamp. Requires at least two, so
+  // "checked" cannot be reached by a single source.
+  if (confidence === "high" && passingChecks >= 2) {
     return { level: "checked", label: "Checked & consistent", detail };
   }
 

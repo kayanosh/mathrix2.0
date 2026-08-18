@@ -608,11 +608,31 @@ export function applyMethodBuilderToWorkedExample<T extends WorkedExampleLike>(
  * For KS2 Ask AI chat: replace arithmetic column_method / place-value tables
  * with builder output when the question text parses cleanly.
  */
+/**
+ * Overlay a deterministic builder's working onto an LLM whiteboard.
+ *
+ * `agreesWithGroundTruth` is the safety rail, and it exists because of a real
+ * incident: the linear builder mis-parsed "4x + 3 = 2x + 11" as "4x + 3 = 2",
+ * REPLACED the model's correct x = 4 with x = -0.25, rewrote step 1 to the
+ * equation it had imagined, and the CAS post-check then confirmed that wrong
+ * answer against the wrong premise. A builder overriding a correct answer is
+ * strictly worse than not running at all, so when an independent CAS result is
+ * available and disagrees, the override is refused and the model's answer stands.
+ */
 export function applyMethodBuilderToWhiteboard(
   data: WhiteboardResponse,
   question: string,
   topic?: string,
   subtopics?: string[],
+  opts?: {
+    /**
+     * Returns false when an independent source contradicts the builder's answer.
+     * Omit it (or return true) when there is nothing to compare against — an
+     * absent ground truth must not block the overlay, or arrows disappear from
+     * every question CAS cannot solve.
+     */
+    agreesWithGroundTruth?: (builderAnswer: string) => boolean;
+  },
 ): WhiteboardResponse {
   const fake: WorkedExampleLike = {
     question,
@@ -626,6 +646,19 @@ export function applyMethodBuilderToWhiteboard(
   };
   const built = resolveBuild(fake, topic, subtopics);
   if (!built) return data;
+
+  if (
+    opts?.agreesWithGroundTruth &&
+    built.answer &&
+    !opts.agreesWithGroundTruth(String(built.answer))
+  ) {
+    console.warn(
+      `[method-builder] refusing override: ${built.builderId} answered ` +
+        `"${built.answer}" but the CAS ground truth disagrees — keeping the ` +
+        `model's answer for: ${question.slice(0, 120)}`,
+    );
+    return data;
+  }
 
   const applied = applyBuiltToExample(fake, built);
   return {

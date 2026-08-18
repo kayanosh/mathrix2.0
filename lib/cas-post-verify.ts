@@ -119,6 +119,30 @@ function stripHtmlId(latex: string): string {
 /**
  * Extract the original equation from the first equation_steps block.
  */
+/**
+ * Pull the equation out of the ORIGINAL question text.
+ *
+ * This exists because verifying against the whiteboard was self-referential. A
+ * deterministic builder rewrites step 1 to whatever it parsed, so when the
+ * linear builder mis-read "4x + 3 = 2x + 11" as "4x + 3 = 2" it also WROTE that
+ * into step 1 — and this module then confirmed the wrong answer against the
+ * wrong premise and reported "verified". The board cannot be its own witness.
+ */
+function extractEquationFromQuestion(question: string): string | null {
+  if (!question) return null;
+  const text = question
+    .replace(/\$+/g, " ")
+    .replace(/\\left|\\right/g, " ")
+    .replace(/\b(?:solve|find|calculate|work\s+out|determine|for|hence|simplify)\b/gi, " ");
+  // First "<expr> = <expr>" that mentions a variable; stop at sentence enders so
+  // trailing prose does not leak into the expression.
+  const m = text.match(/([^=,;.?\n]*[a-zA-Z][^=,;.?\n]*)=([^=,;.?\n]+)/);
+  if (!m) return null;
+  const eq = `${m[1].trim()}=${m[2].trim()}`;
+  if (!/[a-zA-Z]/.test(eq)) return null;
+  return normaliseLaTeX(stripHtmlId(eq));
+}
+
 function extractOriginalEquation(
   blocks: VisualBlock[]
 ): string | null {
@@ -211,11 +235,22 @@ function verifyBySolving(
  * - If the response doesn't contain equation_steps, returns attempted=false.
  * - If it does, tries substitution and/or re-solving.
  */
-export function postVerifyCAS(data: WhiteboardResponse): PostVerifyResult {
+export function postVerifyCAS(
+  data: WhiteboardResponse,
+  originalQuestion?: string,
+): PostVerifyResult {
   const warnings: string[] = [];
 
-  // 1. Extract original equation from first equation_steps block
-  const equation = extractOriginalEquation(data.blocks);
+  // 1. The equation to check against. The QUESTION wins when we have it: the
+  //    whiteboard is written by the same pipeline whose answer we are checking,
+  //    and a deterministic builder overwrites step 1 with whatever it parsed —
+  //    so checking the board against itself verified a mis-parse. The board is
+  //    still the fallback for image questions, where there is no question text
+  //    to read and post-verification is the only check available at all.
+  const fromQuestion = originalQuestion
+    ? extractEquationFromQuestion(originalQuestion)
+    : null;
+  const equation = fromQuestion ?? extractOriginalEquation(data.blocks);
   if (!equation) {
     return { verified: false, warnings: [], attempted: false };
   }
