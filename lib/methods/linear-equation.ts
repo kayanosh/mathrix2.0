@@ -30,58 +30,163 @@ function plainLinear(a: number, b: number, v: string, c: number): string {
   return `${latexLinear(a, b, v)} = ${c}`.replace(/\\/g, "");
 }
 
-/** Parse forms like 2x+4=10, x-3=7, -3x+1=10. Rejects quadratics. */
+/**
+ * Kill floating-point dust. 2/3 parses to 0.6666666666666666, so 4 ÷ (2/3)
+ * lands on 6.000000000000001 — and this builder's output is shown to a child as
+ * the answer. Twelve significant figures is well inside double precision and
+ * well outside anything a GCSE question needs.
+ */
+function tidy(n: number): number {
+  return Number(n.toPrecision(12));
+}
+
+/** One side of the equation, as `a·x + b`. */
+interface LinearSide {
+  a: number;
+  b: number;
+}
+
+/**
+ * Parse one side into `a·x + b`, or null if ANY of it is not understood.
+ *
+ * Full consumption is the whole point. The previous implementation matched a
+ * regex anywhere in the string, so "4x + 3 = 2x + 11" matched the *substring*
+ * "4x + 3 = 2" and silently answered a different equation. Here every character
+ * must belong to a recognised term, or the parse fails.
+ */
+function parseLinearSide(raw: string, variable: string): LinearSide | null {
+  // Collapse fractions to decimals first: normalizeMathText turns \frac{2}{3}
+  // into (2)/(3), and a bare "2/3 x" is just as common in typed input.
+  let text = raw
+    .replace(/\((-?\d+(?:\.\d+)?)\)\s*\/\s*\((-?\d+(?:\.\d+)?)\)/g, (_m, n, d) =>
+      Number(d) === 0 ? "NaN" : String(Number(n) / Number(d)),
+    )
+    .replace(/(?<![\d.])(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g, (_m, n, d) =>
+      Number(d) === 0 ? "NaN" : String(Number(n) / Number(d)),
+    )
+    .replace(/\s+/g, "");
+
+  if (!text) return null;
+  // Brackets survive only if a fraction failed to collapse, or the question has
+  // a bracketed expression like 3(x+2) — which this builder cannot expand, so it
+  // declines rather than mis-reading it.
+  if (/[()]/.test(text) || text.includes("NaN")) return null;
+
+  let a = 0;
+  let b = 0;
+  let consumed = 0;
+  let sawTerm = false;
+  // A signed term: an optional coefficient with the variable, or a bare number.
+  // Groups: sign | coeff? var (/divisor)? | bare number
+  const term =
+    /([+-]?)(?:(\d+(?:\.\d+)?)?\*?([a-zA-Z])(?:\/(\d+(?:\.\d+)?))?|(\d+(?:\.\d+)?))/g;
+  let m: RegExpExecArray | null;
+  while ((m = term.exec(text)) !== null) {
+    if (m.index !== consumed) return null; // a gap means something unparsed
+    consumed = m.index + m[0].length;
+    if (m[0] === "") return null; // zero-width match: bail rather than loop
+    const sign = m[1] === "-" ? -1 : 1;
+    if (m[3] !== undefined) {
+      if (m[3] !== variable) return null; // a second unknown — not linear in one variable
+      const coeff = m[2] === undefined ? 1 : Number(m[2]);
+      // "x/3" and "2x/3" are ordinary GCSE forms; a zero divisor is not.
+      const divisor = m[4] === undefined ? 1 : Number(m[4]);
+      if (!Number.isFinite(coeff) || !Number.isFinite(divisor) || divisor === 0) {
+        return null;
+      }
+      a += (sign * coeff) / divisor;
+    } else {
+      const value = Number(m[5]);
+      if (!Number.isFinite(value)) return null;
+      b += sign * value;
+    }
+    sawTerm = true;
+  }
+  if (!sawTerm || consumed !== text.length) return null;
+  // Deliberately NOT tidied here: rounding a coefficient BEFORE the division
+  // loses precision rather than gaining it (tidying 2/3 to 0.666666666667 makes
+  // 4 ÷ it land on 5.999999999997). The answer is tidied at the point of
+  // division instead.
+  return { a, b };
+}
+
+/**
+ * Parse a single-variable linear equation into `a·x + b = c`.
+ *
+ * Returns null — deliberately and often — rather than risk a wrong answer. This
+ * builder OVERRIDES the language model's answer on the solve path, so a
+ * mis-parse does not merely produce a worse explanation: it replaces a correct
+ * answer with an incorrect one, draws confident arrows on it, and (because the
+ * CAS post-check re-reads the equation from the board the builder just wrote)
+ * gets it stamped "verified".
+ *
+ * Measured before this rewrite, all four of these were shown to students:
+ *   4x + 3 = 2x + 11  ->  x = -0.25   (correct: 4)
+ *   7 - 2x = 1        ->  x = 0.5     (correct: 3)
+ *   0.5x + 1 = 4      ->  x = 0.6     (correct: 6)
+ *   2/3 x = 4         ->  x = 1.33    (correct: 6)
+ *
+ * The same "decline rather than guess" rule was written into the KS2 answer
+ * layer after five wrong-answer defects (see reasonToDeclineNumericAnswer in
+ * lib/ks2-maths-accuracy.ts); it had never been applied to algebra.
+ */
 export function parseLinearEquation(text: string): LinearProblem | null {
   const normalized = normalizeMathText(text)
     .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
     .replace(/²/g, "^2");
 
-  if (/[a-zA-Z]\s*\^\s*2|[a-zA-Z]²/.test(normalized)) return null;
+  // Powers, inequalities and multi-equation input are all out of scope.
+  if (/\^\s*[2-9]|²/.test(normalized)) return null;
+  if (/[<>≤≥]/.test(normalized)) return null;
 
-  // Prefer an explicit equation substring
-  const slice =
-    normalized.match(/(-?\d*)\s*([a-zA-Z])\s*([+\-]\s*\d+)?\s*=\s*(-?\d+(?:\.\d+)?)/)?.[0] ||
-    normalized;
+  // Strip the instruction words so "Solve 3x + 5 = 20 for x" reduces to the
+  // equation itself; anything left that is not part of the equation will fail
+  // full consumption below.
+  const stripped = normalized
+    // "for x" must go as a UNIT. Removing just the word "for" leaves a stray
+    // "x" that then reads as a second unknown on the right-hand side, so
+    // "Solve 3x + 5 = 20 for x" was declined as unknowns-both-sides.
+    .replace(/\bfor\s+(?:the\s+(?:variable|value\s+of)\s+)?[a-zA-Z]\b/gi, " ")
+    .replace(/\b(?:solve|simplify|find|calculate|work\s+out|determine|hence)\b/gi, " ")
+    .replace(/[.,;:?]+\s*$/, "")
+    .trim();
 
-  const eq = slice.match(
-    /(-?\d*)\s*([a-zA-Z])\s*([+\-]\s*\d+)?\s*=\s*(-?\d+(?:\.\d+)?)/,
-  );
-  if (!eq) {
-    const flipped = normalized.match(
-      /(-?\d+)\s*([+\-])\s*(-?\d*)\s*([a-zA-Z])\s*=\s*(-?\d+(?:\.\d+)?)/,
-    );
-    if (!flipped) return null;
-    const constant = parseInt(flipped[1], 10);
-    const varSign = flipped[2] === "-" ? -1 : 1;
-    let aCoeff = 1;
-    if (flipped[3] === "" || flipped[3] === "+") aCoeff = 1;
-    else if (flipped[3] === "-") aCoeff = -1;
-    else aCoeff = parseInt(flipped[3], 10);
-    aCoeff *= varSign;
-    return {
-      variable: flipped[4],
-      a: aCoeff,
-      b: constant,
-      c: parseFloat(flipped[5]),
-    };
+  const sides = stripped.split("=");
+  if (sides.length !== 2) return null;
+
+  // Exactly one unknown, and it must be a single letter.
+  const letters = [...new Set(stripped.replace(/[^a-zA-Z]/g, "").split(""))];
+  if (letters.length !== 1) return null;
+  const variable = letters[0];
+
+  let left = parseLinearSide(sides[0], variable);
+  let right = parseLinearSide(sides[1], variable);
+  if (!left || !right) return null;
+
+  // "5 = 2x + 1" is the same equation written the other way round, and writing
+  // it as "2x + 1 = 5" is what a teacher does at the board. Safe to swap; this
+  // is NOT the unknowns-both-sides case, which is declined below.
+  if (left.a === 0 && right.a !== 0) {
+    [left, right] = [right, left];
   }
 
-  let a = 1;
-  if (eq[1] === "" || eq[1] === "+") a = 1;
-  else if (eq[1] === "-") a = -1;
-  else a = parseInt(eq[1], 10);
+  // Collect the unknown on the left and the constants on the right.
+  const a = left.a - right.a;
+  const b = left.b;
+  const c = right.b;
 
-  let b = 0;
-  if (eq[3]) {
-    b = parseInt(eq[3].replace(/\s+/g, ""), 10);
-  }
+  // No unknown left (0 = 0, or 3 = 5) — not a linear equation to solve.
+  if (a === 0) return null;
 
-  const c = parseFloat(eq[4]);
-  if (!Number.isFinite(a) || a === 0 || !Number.isFinite(b) || !Number.isFinite(c)) {
-    return null;
-  }
+  // Unknowns on BOTH sides are declined for now. The value is correct either
+  // way, but this builder's steps would jump straight to the collected form and
+  // silently skip the "subtract 2x from both sides" move — which is exactly the
+  // step a GCSE student needs to see, and the arrow that shows it. Better the
+  // model teaches it in full than that we teach it with a step missing.
+  if (right.a !== 0) return null;
 
-  return { variable: eq[2], a, b, c };
+  if (![a, b, c].every(Number.isFinite)) return null;
+  return { variable, a, b, c };
 }
 
 export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
@@ -93,7 +198,9 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
   let stepNumber = 1;
 
   const start = `${latexLinear(a, b, v)} = ${c}`;
-  const solution = (c - b) / a;
+  // tidy(): 2/3 is 0.6666666666666666 as a double, so 4 ÷ it is
+  // 6.000000000000001 — and this value is shown to a child as the answer.
+  const solution = tidy((c - b) / a);
   if (!Number.isFinite(solution)) throw new Error("no finite solution");
 
   const pushTeaching = (
