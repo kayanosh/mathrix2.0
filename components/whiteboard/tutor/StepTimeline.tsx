@@ -15,6 +15,8 @@ interface Props {
   data: WhiteboardResponse;
   runId: number;
   playbackPhase: PlaybackPhase;
+  /** Marks written so far in the active step's pen order (player's word clock). */
+  keysRevealed?: number;
   setActiveStepRef: (el: HTMLElement | null) => void;
   onSelectStep?: (index: number) => void;
 }
@@ -30,6 +32,7 @@ export default function StepTimeline({
   data,
   runId,
   playbackPhase,
+  keysRevealed,
   setActiveStepRef,
   onSelectStep,
 }: Props) {
@@ -74,6 +77,7 @@ export default function StepTimeline({
           data={data}
           runId={runId}
           playbackPhase={playbackPhase}
+          keysRevealed={keysRevealed}
           variant="active"
           setStepRef={setActiveStepRef}
         />

@@ -7,17 +7,25 @@ import WhiteboardTutor from "@/components/WhiteboardTutor";
 import { estimateTextWriteMs } from "@/lib/handwriting";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 
+/** Records transport calls so a test can tell resume from re-speak. */
+const audioLog: { pauses: number; plays: number } = { pauses: 0, plays: 0 };
+
 class FakeAudio {
   readyState = 1;
   duration = 0.02;
+  currentTime = 0;
+  playbackRate = 1;
   src = "";
   onended: (() => void) | null = null;
   onerror: (() => void) | null = null;
 
-  pause() {}
+  pause() {
+    audioLog.pauses += 1;
+  }
   addEventListener() {}
   removeEventListener() {}
   play() {
+    audioLog.plays += 1;
     setTimeout(() => this.onended?.(), 20);
     return Promise.resolve();
   }
@@ -50,6 +58,8 @@ async function tick(ms: number) {
 describe("WhiteboardTutor playback", () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    audioLog.pauses = 0;
+    audioLog.plays = 0;
     Object.defineProperty(globalThis, "Audio", {
       configurable: true,
       value: FakeAudio,
@@ -123,16 +133,14 @@ describe("WhiteboardTutor playback", () => {
       "point",
     );
 
+    // `write` and `explain` are one `perform` phase now. The old sequence sat
+    // in a silent `write` for the full ink estimate before any audio began; the
+    // player must not wait for ink before speaking, so there is deliberately no
+    // estimateTextWriteMs tick between `point` and speech starting.
     await tick(480);
     expect(screen.getByRole("dialog")).toHaveAttribute(
       "data-playback-phase",
-      "write",
-    );
-
-    await tick(estimateTextWriteMs(data.teachingSteps![0].explanation));
-    expect(screen.getByRole("dialog")).toHaveAttribute(
-      "data-playback-phase",
-      "explain",
+      "perform",
     );
 
     await tick(25);
@@ -165,5 +173,54 @@ describe("WhiteboardTutor playback", () => {
       "data-playback-phase",
       phase,
     );
+  });
+
+  /**
+   * Pausing used to call cancel(), which bumped the speech generation and left
+   * resume with no option but to speak() the line again — so a pupil who
+   * paused half way through a sentence heard it restart from the beginning.
+   * The clip is now held and resumed in place, which is observable as: no new
+   * narration request on resume, and a second play() on the same element.
+   */
+  it("resumes a paused sentence instead of re-speaking it", async () => {
+    render(React.createElement(WhiteboardTutor, { data, onClose: jest.fn() }));
+
+    // Counting /api/tts calls would NOT distinguish the two behaviours: the
+    // blob is already in the module-level audio cache, so even a full re-speak
+    // fetches nothing. Attaching a clip to the element is what differs —
+    // speak() always creates a fresh object URL and reassigns `src`, resume()
+    // touches neither.
+    const clipAttachments = () =>
+      (globalThis.URL.createObjectURL as jest.Mock).mock.calls.length;
+
+    fireEvent.click(screen.getByLabelText("Next step"));
+    fireEvent.click(screen.getByLabelText("Play"));
+    await tick(260);
+    await tick(480);
+    expect(screen.getByRole("dialog")).toHaveAttribute(
+      "data-playback-phase",
+      "perform",
+    );
+
+    const attachmentsBeforePause = clipAttachments();
+    const playsBeforePause = audioLog.plays;
+
+    fireEvent.click(screen.getByLabelText("Pause"));
+    await tick(5);
+
+    // Still on the same step, and the element was actually paused.
+    expect(screen.getByRole("dialog")).toHaveAttribute(
+      "data-playback-phase",
+      "perform",
+    );
+    expect(audioLog.pauses).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByLabelText("Play"));
+    await tick(5);
+
+    // The decisive assertion: no new clip was attached, so the existing audio
+    // was continued in place rather than the sentence being started again.
+    expect(clipAttachments()).toBe(attachmentsBeforePause);
+    expect(audioLog.plays).toBeGreaterThan(playsBeforePause);
   });
 });

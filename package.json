@@ -16,7 +16,11 @@
     "audit:ks2-health": "npx tsx scripts/audit-ks2-cache-health.ts",
     "audit:ks2-health:check": "npx tsx scripts/audit-ks2-cache-health.ts --check",
     "db:migrate": "node scripts/apply-migration.mjs",
-    "db:check": "node scripts/check-supabase.mjs"
+    "db:check": "node scripts/check-supabase.mjs",
+    "triage:ks2-review": "npx tsx scripts/triage-ks2-lesson-review.ts",
+    "audit:ks2-angles": "npx tsx scripts/audit-ks2-angle-answers.ts",
+    "triage:ks2-review:dump": "npx tsx scripts/dump-triage-top.ts",
+    "audit:cursor": "npx tsx scripts/audit-cursor-semantics.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

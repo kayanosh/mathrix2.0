@@ -26,6 +26,11 @@ interface Props {
   data: WhiteboardResponse;
   runId: number;
   playbackPhase?: PlaybackPhase;
+  /**
+   * How many marks of this step have been written. Only meaningful for the
+   * active card — a completed step always shows its full working.
+   */
+  keysRevealed?: number;
   setStepRef?: (el: HTMLElement | null) => void;
   /** Active = highlighted current; completed = still fully visible with check */
   variant?: "active" | "completed";
@@ -41,6 +46,7 @@ export default function ActiveStepCard({
   data,
   runId,
   playbackPhase = "complete",
+  keysRevealed,
   setStepRef,
   variant = "active",
   celebrating = false,
@@ -48,8 +54,13 @@ export default function ActiveStepCard({
 }: Props) {
   const isActive = variant === "active";
   const isCompleted = variant === "completed";
-  const writingStarted = phaseHasReached(playbackPhase, "write");
-  const explanationVisible = phaseHasReached(playbackPhase, "explain");
+  // Writing and explaining are now one phase, so the prose is on screen while
+  // the ink appears rather than after it — a pupil who prefers to read can
+  // follow the same words the teacher is speaking. How far through the writing
+  // we are is no longer a boolean; it arrives as `revealProgress` from the
+  // player's word clock.
+  const writingStarted = phaseHasReached(playbackPhase, "perform");
+  const explanationVisible = phaseHasReached(playbackPhase, "perform");
   const checkVisible = phaseHasReached(playbackPhase, "check");
 
   const body = (
@@ -119,6 +130,9 @@ export default function ActiveStepCard({
             data={data}
             runId={runId}
             animateWrite={isActive && writingStarted}
+            // A completed card always shows its full working — only the step
+            // being taught right now writes itself out mark by mark.
+            keysRevealed={isCompleted ? undefined : keysRevealed}
           />
         </div>
 
@@ -221,11 +235,14 @@ function StepVisual({
   data,
   runId,
   animateWrite,
+  keysRevealed,
 }: {
   step: TutorStepModel;
   data: WhiteboardResponse;
   runId: number;
   animateWrite: boolean;
+  /** Undefined reveals the whole step at once (completed cards, static use). */
+  keysRevealed?: number;
 }) {
   const v = step.visual;
 
@@ -271,6 +288,7 @@ function StepVisual({
         block={block as ColumnMethodBlock}
         baseDelay={0}
         revealStep={v.revealStep}
+        keysRevealed={keysRevealed}
       />
     );
   }

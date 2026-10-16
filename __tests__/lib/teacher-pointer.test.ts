@@ -16,21 +16,36 @@ describe("teacher pointer synchronisation", () => {
   it("points to the semantic visual named near the spoken word", () => {
     const narration = "The apple falls because gravity pulls it downwards.";
 
-    expect(teacherTargetIndex(targets, narration, 1, "explain")).toBe(0);
-    expect(teacherTargetIndex(targets, narration, 5, "explain")).toBe(1);
+    expect(teacherTargetIndex(targets, narration, 1, "perform")).toBe(0);
+    expect(teacherTargetIndex(targets, narration, 5, "perform")).toBe(1);
   });
 
   it("advances through ordered anchors when labels do not occur in speech", () => {
     const narration = "First compare each part and then finish the method.";
 
-    expect(teacherTargetIndex(targets, narration, 0, "explain")).toBe(0);
-    expect(teacherTargetIndex(targets, narration, 4, "explain")).toBe(1);
-    expect(teacherTargetIndex(targets, narration, 8, "explain")).toBe(2);
+    expect(teacherTargetIndex(targets, narration, 0, "perform")).toBe(0);
+    expect(teacherTargetIndex(targets, narration, 4, "perform")).toBe(1);
+    expect(teacherTargetIndex(targets, narration, 8, "perform")).toBe(2);
   });
 
-  it("uses the first anchor while writing and the last for pupil pause", () => {
-    expect(teacherTargetIndex(targets, "", -1, "write")).toBe(0);
+  /**
+   * This assertion is deliberately inverted from its original form, which was
+   * `teacherTargetIndex(targets, "", -1, "write") === 0` — the cursor parked on
+   * the first anchor for the whole silent writing phase. Writing and speaking
+   * are now one `perform` phase, so parking would freeze the cursor through the
+   * part of the step where it most needs to move. Settling phases still park.
+   */
+  it("parks on the first anchor only while settling, and ends on the last", () => {
+    expect(teacherTargetIndex(targets, "", -1, "focus")).toBe(0);
+    expect(teacherTargetIndex(targets, "", -1, "point")).toBe(0);
     expect(teacherTargetIndex(targets, "", -1, "pupil_pause")).toBe(2);
+  });
+
+  it("follows the word clock from the first word of the performing phase", () => {
+    const narration = "First compare each part and then finish the method.";
+    // Previously the cursor would not have moved at all until writing finished.
+    expect(teacherTargetIndex(targets, narration, 0, "perform")).toBe(0);
+    expect(teacherTargetIndex(targets, narration, 8, "perform")).toBe(2);
   });
 
   it("moves across a large visual with narration progress", () => {
@@ -40,8 +55,8 @@ describe("teacher pointer synchronisation", () => {
 
     expect(end.x).toBeGreaterThan(start.x);
     expect(end.y).toBe(start.y);
-    expect(teacherSpeechProgress("one two three four", 0, "explain")).toBeLessThan(
-      teacherSpeechProgress("one two three four", 3, "explain"),
+    expect(teacherSpeechProgress("one two three four", 0, "perform")).toBeLessThan(
+      teacherSpeechProgress("one two three four", 3, "perform"),
     );
   });
 
@@ -127,17 +142,17 @@ describe("teacherTargetIndex with digit anchors (DEF-004)", () => {
 
   it("holds the first cell until the carry is actually spoken", () => {
     for (const word of [0, 3, 6, 8]) {
-      expect(teacherTargetIndex(cells, narration, word, "explain")).toBe(0);
+      expect(teacherTargetIndex(cells, narration, word, "perform")).toBe(0);
     }
-    expect(teacherTargetIndex(cells, narration, 9, "explain")).toBe(1);
+    expect(teacherTargetIndex(cells, narration, 9, "perform")).toBe(1);
   });
 
   it("falls back to authored pen order when digits are never spoken", () => {
     // No digit appears, so alignment declines. Bare digits are not distinctive
     // enough to match semantically, so the cursor follows `sequence`.
     const silent = "first work through the ones and then the tens";
-    expect(teacherTargetIndex(cells, silent, 0, "explain")).toBe(0);
-    expect(teacherTargetIndex(cells, silent, 8, "explain")).toBe(1);
+    expect(teacherTargetIndex(cells, silent, 0, "perform")).toBe(0);
+    expect(teacherTargetIndex(cells, silent, 8, "perform")).toBe(1);
   });
 });
 
@@ -166,7 +181,7 @@ describe("pinAnchorsToNarration on captured live narration (DEF-004)", () => {
       labels.map((label, sequence) => ({ label, sequence })),
       narration,
       word,
-      "explain",
+      "perform",
     );
 
   it("still holds the carry cell when the tutor says the carry (long multiplication)", () => {
@@ -270,7 +285,7 @@ describe("pinAnchorsToNarration tie-breaking (DEF-004)", () => {
         labels.map((label, sequence) => ({ label, sequence })),
         narration,
         sixWord,
-        "explain",
+        "perform",
       ),
     ).toBe(2);
   });
@@ -315,7 +330,7 @@ describe("teacher pointer: recited-against-pen-order is monotonic (DEF-004)", ()
       "So far: 36 × 5 = 180. Here is why. Add the 3 we carried.";
     const targets = ["1", "8", "0"].map((label, sequence) => ({ label, sequence }));
     const indices = Array.from({ length: 24 }, (_, w) =>
-      teacherTargetIndex(targets, narration, w, "explain"),
+      teacherTargetIndex(targets, narration, w, "perform"),
     );
     // Never decreases: the hand only ever moves on.
     for (let i = 1; i < indices.length; i++) {

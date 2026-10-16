@@ -210,7 +210,12 @@ export function teacherTargetIndex(
 ): number {
   if (targets.length <= 1) return 0;
 
-  if (phase === "focus" || phase === "point" || phase === "write") return 0;
+  // `write` used to be listed here, parking the cursor on the first anchor for
+  // the whole silent writing phase. Writing and speaking are now the same
+  // phase, so during `perform` the cursor must follow the word clock from the
+  // first word — that is the entire point of the merge, and the reason the
+  // corresponding test assertion was inverted rather than preserved.
+  if (phase === "focus" || phase === "point") return 0;
   if (phase === "pupil_pause" || phase === "complete") return targets.length - 1;
 
   const narrationWords = normalizedWords(narration);
@@ -271,7 +276,7 @@ export function teacherSpeechProgress(
   activeWord: number,
   phase: PlaybackPhase,
 ): number {
-  if (phase === "focus" || phase === "point" || phase === "write") return 0;
+  if (phase === "focus" || phase === "point") return 0;
   if (phase === "pupil_pause" || phase === "complete") return 1;
   const words = normalizedWords(narration);
   if (words.length === 0 || activeWord < 0) return 0;

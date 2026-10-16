@@ -27,13 +27,13 @@ import { buildTutorSteps } from "@/lib/tutor-steps";
 import { useWhiteboardSpeech } from "@/lib/hooks/useWhiteboardSpeech";
 import {
   buildTeacherSpeechParts,
-  FOCUS_SETTLE_MS,
   nextPlaybackPhase,
+  pacingForTier,
   playbackPhaseLabel,
-  POINTER_SETTLE_MS,
   pupilPauseDurationMs,
   type PlaybackPhase,
 } from "@/lib/whiteboard-playback";
+import type { KS2Tier } from "@/lib/ks2-pathway";
 import WhiteboardCanvas from "@/components/whiteboard/tutor/WhiteboardCanvas";
 import StepTimeline from "@/components/whiteboard/tutor/StepTimeline";
 import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
@@ -53,13 +53,19 @@ import {
 interface Props {
   data: WhiteboardResponse;
   onClose: () => void;
+  /**
+   * Attainment tier, which sets the teaching pace. Omitted callers get the
+   * `secure` profile, i.e. exactly the timings this player has always used.
+   */
+  tier?: KS2Tier;
 }
 
 const WRITE_MS = 900;
 
 // ── Main tutor ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardTutor({ data, onClose }: Props) {
+export default function WhiteboardTutor({ data, onClose, tier }: Props) {
+  const pacing = useMemo(() => pacingForTier(tier), [tier]);
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
   const steps = useMemo(() => buildTutorSteps(data, plan), [data, plan]);
   const totalCues = plan.length;
@@ -141,6 +147,16 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const [justCompleted, setJustCompleted] = useState<number | null>(null);
   const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 });
   const [pointerVisible, setPointerVisible] = useState(false);
+  /**
+   * Which mark of the current step's pen order is being written right now,
+   * tagged with the step it belongs to. Shared with the pointer so the ink and
+   * the pen can never disagree.
+   *
+   * Tagged rather than reset in an effect: a value left over from the previous
+   * step is simply not read, so there is no render in which a new step briefly
+   * shows the old step's ink.
+   */
+  const [ink, setInk] = useState({ cue: 0, run: 0, index: 0 });
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -166,11 +182,15 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     activeWord: number;
     narration: string;
     focusTargetIds?: string[];
+    cue: number;
+    run: number;
   }>({
     phase,
     activeWord,
     narration: pointerSpeechText,
     focusTargetIds: pointerFocusIds,
+    cue: activeCue,
+    run: runId,
   });
   const schedulePointerPlaceRef = useRef<() => void>(() => undefined);
 
@@ -180,10 +200,14 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       activeWord,
       narration: pointerSpeechText,
       focusTargetIds: pointerFocusIds,
+      cue: activeCue,
+      run: runId,
     };
-  }, [activeWord, phase, pointerSpeechText, pointerFocusIds]);
+  }, [activeWord, phase, pointerSpeechText, pointerFocusIds, activeCue, runId]);
 
-  const { speak, prepare, cancel } = useWhiteboardSpeech();
+  const { speak, prepare, cancel, pause, resume } = useWhiteboardSpeech();
+  /** True while a clip is paused part-way through and should be resumed, not respoken. */
+  const resumeMidClip = useRef(false);
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutedFrame = useRef<number | null>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -312,6 +336,12 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         playback.activeWord,
         playback.phase,
       );
+      // The ink follows the SAME resolved index as the pen, deliberately. Any
+      // second derivation (a separate progress calculation, say) would let the
+      // pen point at a digit that has not been written, or a digit appear
+      // somewhere the pen is not — the two must agree by construction.
+      setInk({ cue: playback.cue, run: playback.run, index: targetIndex });
+
       const target = ordered[targetIndex]?.target;
       if (!target) {
         setPointerVisible(false);
@@ -392,15 +422,42 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       nextSpeechParts.explanation,
       nextSpeechParts.check,
     ].forEach((text) => {
-      if (text) void prepare(text, speed);
+      // No speed argument: narration is generated once and played back at the
+      // chosen rate, so the prefetch is speed-independent and a speed change
+      // no longer invalidates everything already fetched.
+      if (text) void prepare(text);
     });
-  }, [nextSpeechParts, prepare, speechParts, speed]);
+  }, [nextSpeechParts, prepare, speechParts]);
 
   useEffect(() => {
     clearTimers();
-    cancel();
-    if (!isPlaying) return;
 
+    // Pausing must hold the teacher's place, not tear the clip down. Calling
+    // cancel() here (as this effect used to, unconditionally) bumped the
+    // speech generation, so resuming had to speak() again and the sentence
+    // restarted from its first word.
+    const isSpeakingPhase = phase === "perform" || phase === "check";
+    if (!isPlaying) {
+      if (isSpeakingPhase && !isMuted) {
+        pause();
+        resumeMidClip.current = true;
+      } else {
+        cancel();
+      }
+      // Deliberately no teardown: the audio must survive until resume.
+      return;
+    }
+
+    if (resumeMidClip.current) {
+      resumeMidClip.current = false;
+      resume();
+      return () => {
+        cancel();
+        clearTimers();
+      };
+    }
+
+    cancel();
     let disposed = false;
     const moveTo = (next: PlaybackPhase) => {
       if (!disposed) {
@@ -413,23 +470,29 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     };
 
     if (phase === "focus") {
-      schedule("point", FOCUS_SETTLE_MS / speed);
+      schedule("point", pacing.focusSettleMs / speed);
     } else if (phase === "point") {
-      schedule("write", POINTER_SETTLE_MS / speed);
-    } else if (phase === "write") {
-      schedule(
-        "explain",
-        (writeMsPlan[activeCue] ?? WRITE_MS) / speed,
-      );
-    } else if (phase === "explain" || phase === "check") {
+      schedule("perform", pacing.pointerSettleMs / speed);
+    } else if (phase === "perform" || phase === "check") {
+      // Speech starts the moment the phase does. There is no silent write
+      // timer any more: the ink is driven from this clip's word clock (see the
+      // `revealProgress` effect below), so the teacher writes while talking.
       const text =
         phase === "check" ? speechParts.check || "" : speechParts.explanation;
       const next = nextPlaybackPhase(phase, !!speechParts.check);
+      // A beat after the step lands, so micro-steps do not run together. Only
+      // the developing tier asks for one.
+      const gapMs = phase === "perform" ? pacing.microBeatGapMs / speed : 0;
 
       if (!text) {
-        schedule(next, 0);
+        schedule(next, gapMs);
       } else if (isMuted) {
-        const durationMs = Math.max(1300, countWords(text) * 285) / speed;
+        // With no audio there is no real clock, so fall back to the word-count
+        // estimate — but never finish before the ink has had time to appear,
+        // or a muted pupil sees the step cut off mid-write.
+        const spokenMs = Math.max(1300, countWords(text) * 285);
+        const inkMs = phase === "perform" ? (writeMsPlan[activeCue] ?? WRITE_MS) : 0;
+        const durationMs = Math.max(spokenMs, inkMs) / speed;
         const startedAt = performance.now();
 
         const tick = () => {
@@ -441,7 +504,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           }
         };
         mutedFrame.current = requestAnimationFrame(tick);
-        schedule(next, durationMs);
+        schedule(next, durationMs + gapMs);
       } else {
         speak(
           text,
@@ -449,13 +512,17 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           () => {
             if (disposed) return;
             setActiveWord(-1);
-            moveTo(next);
+            if (gapMs > 0) schedule(next, gapMs);
+            else moveTo(next);
           },
           setActiveWord,
         );
       }
     } else if (phase === "pupil_pause") {
-      phaseTimer.current = setTimeout(advance, pupilPauseDurationMs(speed));
+      phaseTimer.current = setTimeout(
+        advance,
+        pupilPauseDurationMs(speed, pacing),
+      );
     }
 
     return () => {
@@ -470,7 +537,10 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     clearTimers,
     isMuted,
     isPlaying,
+    pacing,
+    pause,
     phase,
+    resume,
     speak,
     speechParts,
     speed,
@@ -509,10 +579,10 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setIsPlaying(true);
   };
   const handlePause = () => {
+    // The phase effect decides whether to hold the clip or cancel it; keeping
+    // the active word means the karaoke line stays where the teacher stopped
+    // instead of blanking.
     setIsPlaying(false);
-    cancel();
-    clearTimers();
-    setActiveWord(-1);
   };
   const handlePrev = () => {
     cancel();
@@ -554,9 +624,13 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const cycleSpeed = () =>
     setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1) as 1 | 1.5 | 2);
 
+  // Only trust the ink position if it belongs to the step on screen.
+  const inkIndex =
+    ink.cue === activeCue && ink.run === runId ? ink.index : 0;
+
   const isLast = activeCue === totalCues - 1;
   const isSpeaking =
-    isPlaying && (phase === "explain" || phase === "check");
+    isPlaying && (phase === "perform" || phase === "check");
   const narrationText =
     phase === "check"
       ? speechParts.check || speechParts.explanation
@@ -565,8 +639,11 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           ? "Pause and answer the quick check before we move on."
           : "Pause and say this step back in your own words."
         : speechParts.explanation;
+  // The pen is "writing" throughout `perform` now, because that is exactly when
+  // ink is appearing — previously this only lit up during the silent write
+  // phase, so the mode was never on while anything was actually being written.
   const pointerMode =
-    phase === "write"
+    phase === "perform"
       ? "write"
       : phase === "check" || phase === "pupil_pause"
         ? "check"
@@ -639,6 +716,16 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           data={data}
           runId={runId}
           playbackPhase={phase}
+          // `inkIndex` is which mark is being written now, so the count
+          // written is one more than that. Settling phases pass 0 so the step
+          // starts blank; once the step is done everything is on the board.
+          keysRevealed={
+            phase === "focus" || phase === "point"
+              ? 0
+              : phase === "perform"
+                ? inkIndex + 1
+                : undefined
+          }
           setActiveStepRef={setActiveStepRef}
           onSelectStep={handleSelectStep}
         />

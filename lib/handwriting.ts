@@ -37,30 +37,59 @@ export function visibleLatexLength(latex: string): number {
   return s.length;
 }
 
+/**
+ * Per-tier pace overrides.
+ *
+ * Only the fields these estimators need; `lib/whiteboard-playback.ts`'s
+ * `PacingProfile` is assignable to it. Kept structural rather than importing
+ * that type so this module stays free of playback concerns — it is also used
+ * by the write-in components, which know nothing about phases.
+ */
+export interface WritePace {
+  handCharMs: number;
+  mathCharMs: number;
+  cellWriteMs: number;
+}
+
+const DEFAULT_PACE: WritePace = {
+  handCharMs: HAND_CHAR_MS,
+  mathCharMs: MATH_CHAR_MS,
+  cellWriteMs: CELL_WRITE_MS,
+};
+
 /** How long the KaTeX left-to-right ink sweep takes for a LaTeX string. */
-export function estimateMathWriteMs(latex: string): number {
-  return clamp(visibleLatexLength(latex) * MATH_CHAR_MS, 250, 2500);
+export function estimateMathWriteMs(
+  latex: string,
+  pace: WritePace = DEFAULT_PACE,
+): number {
+  return clamp(visibleLatexLength(latex) * pace.mathCharMs, 250, 2500);
 }
 
 /**
  * How long a mixed text string (may contain $...$ maths) takes to handwrite.
  */
-export function estimateTextWriteMs(text: string): number {
+export function estimateTextWriteMs(
+  text: string,
+  pace: WritePace = DEFAULT_PACE,
+): number {
   if (!text) return 300;
   const parts = text.split(/\$([^$]+?)\$/g);
   let ms = 0;
   parts.forEach((part, i) => {
     ms +=
       i % 2 === 0
-        ? part.length * HAND_CHAR_MS
-        : visibleLatexLength(part) * MATH_CHAR_MS;
+        ? part.length * pace.handCharMs
+        : visibleLatexLength(part) * pace.mathCharMs;
   });
   return clamp(ms, 300, 3500);
 }
 
 /** How long writing `keyCount` grid cells/carries/notes of a column step takes. */
-export function estimateColumnStepWriteMs(keyCount: number): number {
-  return clamp(250 + keyCount * CELL_WRITE_MS, 400, 2500);
+export function estimateColumnStepWriteMs(
+  keyCount: number,
+  pace: WritePace = DEFAULT_PACE,
+): number {
+  return clamp(250 + keyCount * pace.cellWriteMs, 400, 2500);
 }
 
 /** True when the user asked the OS to minimise motion — skip write-in effects. */

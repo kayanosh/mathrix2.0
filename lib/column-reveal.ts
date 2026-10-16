@@ -175,6 +175,52 @@ export function revealStateAt(
   return state;
 }
 
+/**
+ * The pen order within a single step: notes, then digits, then carries.
+ *
+ * Matches `teacherFocusPath()` in lib/tutor-steps.ts exactly — the cursor and
+ * the ink must agree about what is written first, or the pen points at a digit
+ * that has not appeared yet. The exchange/borrow mark comes before the digit it
+ * applies to because that is the order a teacher writes them.
+ */
+export function stepWriteOrder(step: ColumnRevealStep): string[] {
+  return [...step.noteKeys, ...step.cellKeys, ...step.carryKeys];
+}
+
+/**
+ * Reveal state part-way through a step.
+ *
+ * `revealStateAt` can only answer "which steps have finished", so an entire
+ * step's digits appeared at once the moment writing began. A teacher writes one
+ * mark at a time while talking, so this reveals only the first `keysRevealed`
+ * marks of `step`'s pen order, with every earlier step complete behind it.
+ *
+ * `keysRevealed` is clamped, so a caller that over-counts (a long narration
+ * against a two-digit step) simply lands on "step fully written".
+ */
+export function revealStateWithin(
+  steps: ColumnRevealStep[],
+  step: number,
+  keysRevealed: number,
+): ColumnRevealState {
+  const state = revealStateAt(steps, step - 1);
+  const current = steps[Math.min(Math.max(step, 0), steps.length - 1)];
+  if (!current) return state;
+
+  const order = stepWriteOrder(current);
+  const take = Math.max(0, Math.min(keysRevealed, order.length));
+  const written = new Set(order.slice(0, take));
+
+  state.active = new Set(written);
+  current.cellKeys.forEach((k) => written.has(k) && state.cells.add(k));
+  current.carryKeys.forEach((k) => written.has(k) && state.carries.add(k));
+  current.noteKeys.forEach((k) => written.has(k) && state.notes.add(k));
+  // The answer line is the last thing to land, so it waits for the whole step.
+  if (current.showAnswer && take >= order.length) state.showAnswer = true;
+
+  return state;
+}
+
 // ── Timeline builder ─────────────────────────────────────────────────────────
 
 /**

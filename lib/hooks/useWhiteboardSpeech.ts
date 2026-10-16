@@ -18,8 +18,29 @@ const MAX_AUDIO_CACHE = 100;
 const segmentsCache = new Map<string, TranscriptSegment[]>();
 const pendingSegments = new Map<string, Promise<TranscriptSegment[]>>();
 
-function audioKey(text: string, rate: number): string {
-  return `${rate}|${text}`;
+/**
+ * The one speed narration is ever generated at.
+ *
+ * Playback speed is applied with `audio.playbackRate`, not by asking the TTS
+ * API for a different clip. Two reasons, and the first matters more:
+ *
+ *  1. SYNC. Segment timestamps from Whisper are media-time, and
+ *     `audio.currentTime` reports media-time, so a rate change needs no
+ *     scaling anywhere — the same timestamps stay correct at 1x, 1.5x and 2x.
+ *     Generating a separate clip per speed meant three independent
+ *     transcriptions whose sentence boundaries could disagree with each other.
+ *  2. COST AND WARMING. `lib/tts-cache.ts` keys on text+voice+speed, so three
+ *     speeds meant 3x the TTS generations and 3x the Whisper transcriptions
+ *     per line, and made pre-warming narration impractical.
+ *
+ * 1.1 rather than 1.0 because the client has always sent `rate * 1.1` and the
+ * UI's "1x" has therefore always been TTS 1.1 — keeping it means every clip
+ * already cached stays a hit, and the teacher's voice does not suddenly change.
+ */
+export const NARRATION_TTS_SPEED = 1.1;
+
+function audioKey(text: string): string {
+  return text;
 }
 
 /** Cloud narration with browser speech fallback and ahead-of-time preloading. */
@@ -29,6 +50,10 @@ export function useWhiteboardSpeech() {
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generationRef = useRef(0);
+  /** Restarts the word ticker at the audio's real position after a pause. */
+  const resumeProgress = useRef<
+    ((segments?: TranscriptSegment[] | null) => void) | null
+  >(null);
 
   const getAudio = useCallback((): HTMLAudioElement => {
     if (!audioRef.current) audioRef.current = new Audio();
@@ -82,8 +107,8 @@ export function useWhiteboardSpeech() {
     [clearProgress],
   );
 
-  const loadTiming = useCallback(async (text: string, rate: number) => {
-    const key = audioKey(text, rate);
+  const loadTiming = useCallback(async (text: string) => {
+    const key = audioKey(text);
     const cached = segmentsCache.get(key);
     if (cached) return cached;
 
@@ -93,7 +118,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts-timing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, speed: rate * 1.1 }),
+      body: JSON.stringify({ text, speed: NARRATION_TTS_SPEED }),
     })
       .then(async (res) => {
         if (!res.ok) return [];
@@ -109,8 +134,8 @@ export function useWhiteboardSpeech() {
     return request;
   }, []);
 
-  const loadCloudAudio = useCallback(async (text: string, rate: number) => {
-    const key = audioKey(text, rate);
+  const loadCloudAudio = useCallback(async (text: string) => {
+    const key = audioKey(text);
     const cached = audioBlobCache.get(key);
     if (cached) return cached;
 
@@ -120,7 +145,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, speed: rate * 1.1 }),
+      body: JSON.stringify({ text, speed: NARRATION_TTS_SPEED }),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("TTS API error");
@@ -139,13 +164,13 @@ export function useWhiteboardSpeech() {
   }, []);
 
   const prepare = useCallback(
-    async (text: string, rate: number): Promise<void> => {
+    async (text: string): Promise<void> => {
       if (!text.trim()) return;
       try {
-        await loadCloudAudio(text, rate);
+        await loadCloudAudio(text);
         // Best-effort: timing isn't required for playback to start, only for
         // the improved (segment-aware) sync once it's ready.
-        void loadTiming(text, rate);
+        void loadTiming(text);
       } catch {
         // The live speak call will use the browser voice if cloud TTS is down.
       }
@@ -227,7 +252,7 @@ export function useWhiteboardSpeech() {
 
       void (async () => {
         try {
-          const blob = await loadCloudAudio(text, rate);
+          const blob = await loadCloudAudio(text);
           if (generation !== generationRef.current) return;
 
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -237,6 +262,10 @@ export function useWhiteboardSpeech() {
           const audio = getAudio();
           audio.pause();
           audio.src = url;
+          // Speed is a playback concern, not a generation one — see
+          // NARRATION_TTS_SPEED. Media-time stays media-time, so the segment
+          // timestamps below need no adjusting for rate.
+          audio.playbackRate = rate;
 
           await new Promise<void>((resolve, reject) => {
             let settled = false;
@@ -257,19 +286,36 @@ export function useWhiteboardSpeech() {
           });
 
           if (generation !== generationRef.current) return;
+          // Both of these are MEDIA time, which playbackRate does not change —
+          // and getElapsedMs below reads media time too, so speed needs no
+          // compensating anywhere. The estimate is deliberately not divided by
+          // rate for the same reason.
           const durationMs =
             Number.isFinite(audio.duration) && audio.duration > 0
               ? audio.duration * 1000
-              : Math.max(1400, countWords(text) * 300) / rate;
+              : Math.max(1400, countWords(text) * 300);
 
           const getElapsedMs = () => audio.currentTime * 1000;
+          // Remembered so resume() can restart the word ticker from wherever
+          // the audio actually is. Because getElapsedMs reads currentTime
+          // rather than a JS timer, restarting it recovers the exact position.
+          resumeProgress.current = (segments?: TranscriptSegment[] | null) =>
+            startWordProgress(text, durationMs, generation, onWord, {
+              getElapsedMs,
+              segments,
+            });
           startWordProgress(text, durationMs, generation, onWord, { getElapsedMs });
           // Segments usually arrive well before this (prepare() fetches them
           // ahead of time for the current AND next step); when they land,
           // swap to segment-aware tracking without losing playback position —
           // getElapsedMs reads the real <audio> position, not a restarted timer.
-          void loadTiming(text, rate).then((segments) => {
+          void loadTiming(text).then((segments) => {
             if (generation !== generationRef.current || !segments.length) return;
+            resumeProgress.current = () =>
+              startWordProgress(text, durationMs, generation, onWord, {
+                getElapsedMs,
+                segments,
+              });
             startWordProgress(text, durationMs, generation, onWord, {
               getElapsedMs,
               segments,
@@ -299,6 +345,7 @@ export function useWhiteboardSpeech() {
   const cancel = useCallback(() => {
     generationRef.current += 1;
     clearProgress();
+    resumeProgress.current = null;
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -311,6 +358,37 @@ export function useWhiteboardSpeech() {
     }
   }, [clearProgress]);
 
+  /**
+   * Stop speaking but keep the place.
+   *
+   * Deliberately NOT `cancel()`: that bumps the generation, which invalidates
+   * the clip's onended/onword callbacks and forces the caller to `speak()`
+   * again — restarting the sentence from its first word. Pausing a teacher
+   * mid-sentence and having them start the sentence over is exactly the
+   * behaviour this replaces.
+   */
+  const pause = useCallback(() => {
+    clearProgress();
+    audioRef.current?.pause();
+    if (typeof window !== "undefined" && window.speechSynthesis?.speaking) {
+      window.speechSynthesis.pause();
+    }
+  }, [clearProgress]);
+
+  /** Carry on from wherever the audio was paused. */
+  const resume = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && audio.src && audio.currentTime < audio.duration) {
+      void audio.play().catch(() => {
+        /* a rejected resume (no gesture yet) leaves the player paused */
+      });
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis?.paused) {
+      window.speechSynthesis.resume();
+    }
+    resumeProgress.current?.();
+  }, []);
+
   useEffect(
     () => () => {
       cancel();
@@ -319,5 +397,5 @@ export function useWhiteboardSpeech() {
     [cancel],
   );
 
-  return { speak, prepare, cancel };
+  return { speak, prepare, cancel, pause, resume };
 }

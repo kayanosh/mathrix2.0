@@ -2,6 +2,7 @@ import {
   buildTeacherSpeechParts,
   nextPlaybackPhase,
   phaseHasReached,
+  pacingForTier,
   pupilPauseDurationMs,
 } from "@/lib/whiteboard-playback";
 import type { TutorStepModel } from "@/lib/tutor-steps";
@@ -21,14 +22,13 @@ function step(overrides: Partial<TutorStepModel> = {}): TutorStepModel {
 describe("whiteboard playback", () => {
   it("runs the complete teacher sequence and skips a missing check", () => {
     expect(nextPlaybackPhase("focus", false)).toBe("point");
-    expect(nextPlaybackPhase("point", false)).toBe("write");
-    expect(nextPlaybackPhase("write", false)).toBe("explain");
-    expect(nextPlaybackPhase("explain", false)).toBe("pupil_pause");
+    expect(nextPlaybackPhase("point", false)).toBe("perform");
+    expect(nextPlaybackPhase("perform", false)).toBe("pupil_pause");
     expect(nextPlaybackPhase("pupil_pause", false)).toBe("complete");
   });
 
   it("inserts the check phase when the pupil has a question", () => {
-    expect(nextPlaybackPhase("explain", true)).toBe("check");
+    expect(nextPlaybackPhase("perform", true)).toBe("check");
     expect(nextPlaybackPhase("check", true)).toBe("pupil_pause");
   });
 
@@ -59,13 +59,58 @@ describe("whiteboard playback", () => {
   });
 
   it("reports when writing and checking content should be visible", () => {
-    expect(phaseHasReached("point", "write")).toBe(false);
-    expect(phaseHasReached("write", "write")).toBe(true);
-    expect(phaseHasReached("check", "explain")).toBe(true);
+    expect(phaseHasReached("point", "perform")).toBe(false);
+    expect(phaseHasReached("perform", "perform")).toBe(true);
+    expect(phaseHasReached("check", "perform")).toBe(true);
   });
 
   it("keeps enough pupil thinking time at faster playback speeds", () => {
     expect(pupilPauseDurationMs(1)).toBe(2200);
     expect(pupilPauseDurationMs(2)).toBe(1400);
+  });
+
+  /**
+   * `secure` must reproduce the original constants exactly — that equivalence
+   * is what makes the pacing change safe to land without re-tuning every
+   * existing lesson.
+   */
+  it("leaves the secure tier on the original timings", () => {
+    const secure = pacingForTier("secure");
+    expect(secure.focusSettleMs).toBe(260);
+    expect(secure.pointerSettleMs).toBe(480);
+    expect(secure.pupilPauseMs).toBe(2200);
+    expect(secure.pupilPauseFloorMs).toBe(1400);
+    expect(pupilPauseDurationMs(1, secure)).toBe(2200);
+    expect(pupilPauseDurationMs(2, secure)).toBe(1400);
+    // An unknown or absent tier must behave like secure, not like a gap.
+    expect(pacingForTier(undefined)).toEqual(secure);
+    expect(pacingForTier(null)).toEqual(secure);
+  });
+
+  it("slows down for developing and tightens up for greater depth", () => {
+    const developing = pacingForTier("developing");
+    const secure = pacingForTier("secure");
+    const greater = pacingForTier("greater_depth");
+
+    for (const key of [
+      "focusSettleMs",
+      "pointerSettleMs",
+      "pupilPauseMs",
+      "handCharMs",
+      "mathCharMs",
+      "cellWriteMs",
+    ] as const) {
+      expect(developing[key]).toBeGreaterThan(secure[key]);
+      expect(greater[key]).toBeLessThan(secure[key]);
+    }
+
+    // Only the developing tier gets an extra beat between micro-steps.
+    expect(developing.microBeatGapMs).toBeGreaterThan(0);
+    expect(secure.microBeatGapMs).toBe(0);
+    expect(greater.microBeatGapMs).toBe(0);
+
+    // The floor still holds at speed, and is higher for a pupil who needs it.
+    expect(pupilPauseDurationMs(4, developing)).toBe(developing.pupilPauseFloorMs);
+    expect(developing.pupilPauseFloorMs).toBeGreaterThan(secure.pupilPauseFloorMs);
   });
 });

@@ -29,7 +29,40 @@ export interface TeachingStep {
    * on the board is skipped rather than freezing the cursor.
    */
   focusTargetIds?: string[];
+  /**
+   * Things on the board this step talks about, named rather than positioned.
+   *
+   * `cellKeys` can only ever name a grid cell ("row-col"), which is why 30-odd
+   * non-grid builders satisfy that contract with `[]`. A label can name
+   * anything a renderer has labelled — the 3/4 tick on a number line, the
+   * shaded third of a bar, a side of a shape — and `teacherTargetIndex()`
+   * already matches anchors to narration **by label**, so this reuses the
+   * existing alignment rather than adding a second mechanism. Resolved at
+   * runtime against `[data-teacher-label]` inside the focused block when no
+   * `id` is given.
+   */
+  anchors?: TeachingAnchor[];
+  /**
+   * A separate question for the pupil, spoken after the explanation. Drives the
+   * player's `check` phase and the pause that follows it.
+   *
+   * Present on the runtime shape (`types/whiteboard.ts`) but previously absent
+   * here, so no deterministic builder could ever produce one and builder-built
+   * lessons silently lost the "Your turn" beat.
+   */
+  check?: string;
+  /** Which whiteboard block this step belongs to, when a board has several. */
+  blockIndex?: number;
+  /** Progressive-reveal position within that block. */
+  revealStep?: number;
   showAnswer?: boolean;
+}
+
+export interface TeachingAnchor {
+  /** Exact `data-teacher-id` when the renderer emits one (grid methods). */
+  id?: string;
+  /** Spoken label to match against `data-teacher-label`, e.g. "3/4", "700". */
+  label: string;
 }
 
 export type MethodBuilderId =
@@ -89,7 +122,20 @@ export function teachingStepsToCaptions(steps: TeachingStep[]): string[] {
     .map((s) => `${s.title}: ${s.explanation}`);
 }
 
-/** Preserve the whole method while keeping pupil-facing navigation to 3-6 cards. */
+/**
+ * Preserve the whole method while keeping pupil-facing navigation to 3-6 cards.
+ *
+ * NOTE this merges TEACHING ATOMS, which is the wrong level: the 3-6 cap is a
+ * navigation decision and belongs to presentation, not to the data. Grouping
+ * for display now lives in `lib/teaching-cards.ts`; this remains only so
+ * callers that have not moved over keep working, and because legacy cache rows
+ * were written through it.
+ *
+ * It also used to rebuild the step object field-by-field and silently omit
+ * `focusTargetIds`, so any authored cursor path was deleted the moment a method
+ * exceeded six steps — a latent bug that would have fired the instant anything
+ * started authoring them. Every field is now carried through.
+ */
 export function compactTeachingSteps(
   steps: TeachingStep[],
   maxSteps = 6,
@@ -115,6 +161,30 @@ export function compactTeachingSteps(
       cellKeys: unique(group.flatMap((step) => step.cellKeys)),
       carryKeys: unique(group.flatMap((step) => step.carryKeys)),
       noteKeys: unique(group.flatMap((step) => step.noteKeys)),
+      // Carried, not dropped. Pen order across a merge boundary is the
+      // concatenation of each step's order, deduped the same way the keys are.
+      focusTargetIds: (() => {
+        const merged = unique(
+          group.flatMap((step) => step.focusTargetIds ?? []),
+        );
+        return merged.length > 0 ? merged : undefined;
+      })(),
+      anchors: (() => {
+        const merged = group.flatMap((step) => step.anchors ?? []);
+        const seen = new Set<string>();
+        const deduped = merged.filter((a) => {
+          const k = `${a.id ?? ""}|${a.label}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        return deduped.length > 0 ? deduped : undefined;
+      })(),
+      // The first check in the group wins: a merged card asks one question, and
+      // stacking several "Your turn" prompts into one pause teaches nothing.
+      check: group.find((step) => step.check)?.check,
+      blockIndex: first.blockIndex,
+      revealStep: first.revealStep,
       showAnswer: group.some((step) => step.showAnswer),
     };
   });

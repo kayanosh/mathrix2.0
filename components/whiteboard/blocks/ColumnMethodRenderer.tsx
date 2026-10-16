@@ -24,6 +24,7 @@ import {
   buildColumnRevealTimeline,
   cellKey,
   revealStateAt,
+  revealStateWithin,
   withResultRow,
 } from "@/lib/column-reveal";
 import { CELL_WRITE_MS } from "@/lib/handwriting";
@@ -38,6 +39,16 @@ interface Props {
    * undefined = show the whole working at once (chat/card mode).
    */
   revealStep?: number;
+  /**
+   * How many of this step's marks have been written so far, out of the step's
+   * pen order (notes, then digits, then carries).
+   *
+   * Without this the whole step's ink appeared the instant writing began, so
+   * "write the 5 and carry the 1" put both marks on the board before either was
+   * spoken. The player derives this from the narration's word clock, so the
+   * digit lands on the word that names it. Omit for all-at-once reveal.
+   */
+  keysRevealed?: number;
 }
 
 const CARRY_COLOR = "#f59e0b";
@@ -47,7 +58,12 @@ function noteKey(n: ColumnMethodCellNote): string {
   return `${n.row}-${n.col}`;
 }
 
-export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revealStep }: Props) {
+export default function ColumnMethodRenderer({
+  block: rawBlock,
+  baseDelay,
+  revealStep,
+  keysRevealed,
+}: Props) {
   // Synthesize the result row for add/sub so answer digits are written into
   // the grid column by column, like a teacher would.
   const block = useMemo(() => withResultRow(rawBlock), [rawBlock]);
@@ -78,10 +94,15 @@ export default function ColumnMethodRenderer({ block: rawBlock, baseDelay, revea
     () => (stepMode ? buildColumnRevealTimeline(rawBlock) : []),
     [stepMode, rawBlock],
   );
-  const reveal = useMemo(
-    () => (stepMode ? revealStateAt(timeline, revealStep ?? 0) : null),
-    [stepMode, timeline, revealStep],
-  );
+  const reveal = useMemo(() => {
+    if (!stepMode) return null;
+    const step = revealStep ?? 0;
+    // A supplied count means the player is driving the ink from the spoken
+    // word; without one, fall back to revealing the step whole.
+    return keysRevealed === undefined
+      ? revealStateAt(timeline, step)
+      : revealStateWithin(timeline, step, keysRevealed);
+  }, [stepMode, timeline, revealStep, keysRevealed]);
 
   const writeOrder = useMemo(() => {
     const map = new Map<string, number>();

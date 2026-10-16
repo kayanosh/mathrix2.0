@@ -1,6 +1,8 @@
 import {
   buildColumnRevealTimeline,
   revealStateAt,
+  revealStateWithin,
+  stepWriteOrder,
   withResultRow,
   cellKey,
   gridMaxCols,
@@ -255,5 +257,89 @@ describe("revealStateAt", () => {
   it("clamps past-the-end indices", () => {
     const full = revealStateAt(steps, 99);
     expect(full.showAnswer).toBe(true);
+  });
+});
+
+/**
+ * Intra-step reveal. `revealStateAt` can only say which steps have FINISHED, so
+ * every mark of a step appeared the instant writing began — "write 5 and carry
+ * 1" put both on the board before either was spoken. These cover writing one
+ * mark at a time, which is what lets the ink follow the narration.
+ */
+describe("revealStateWithin", () => {
+  const steps = buildColumnRevealTimeline(addition);
+  /** A step that writes more than one mark, so partial reveal is observable. */
+  const multiIndex = steps.findIndex((s) => stepWriteOrder(s).length > 1);
+  const multi = steps[multiIndex];
+
+  it("has a step whose marks can be written one at a time", () => {
+    expect(multiIndex).toBeGreaterThanOrEqual(0);
+    expect(stepWriteOrder(multi).length).toBeGreaterThan(1);
+  });
+
+  it("writes notes, then digits, then carries — the teacher's pen order", () => {
+    const order = stepWriteOrder(multi);
+    expect(order).toEqual([
+      ...multi.noteKeys,
+      ...multi.cellKeys,
+      ...multi.carryKeys,
+    ]);
+  });
+
+  it("reveals only the marks written so far", () => {
+    const order = stepWriteOrder(multi);
+    const first = revealStateWithin(steps, multiIndex, 1);
+    const all = [...first.cells, ...first.carries, ...first.notes];
+
+    // The first mark is on the board; the last is not.
+    expect(all).toContain(order[0]);
+    expect(all).not.toContain(order[order.length - 1]);
+    expect(first.active.has(order[0])).toBe(true);
+  });
+
+  it("keeps every earlier step complete behind the one being written", () => {
+    const partial = revealStateWithin(steps, multiIndex, 1);
+    const before = revealStateAt(steps, multiIndex - 1);
+    for (const key of before.cells) expect(partial.cells.has(key)).toBe(true);
+  });
+
+  it("reveals nothing of the step at zero and all of it when written out", () => {
+    const order = stepWriteOrder(multi);
+    const none = revealStateWithin(steps, multiIndex, 0);
+    expect(none.active.size).toBe(0);
+
+    const done = revealStateWithin(steps, multiIndex, order.length);
+    const written = [...done.cells, ...done.carries, ...done.notes];
+    for (const key of order) expect(written).toContain(key);
+  });
+
+  it("matches revealStateAt once the step is fully written", () => {
+    const order = stepWriteOrder(multi);
+    const within = revealStateWithin(steps, multiIndex, order.length);
+    const at = revealStateAt(steps, multiIndex);
+    expect([...within.cells].sort()).toEqual([...at.cells].sort());
+    expect([...within.carries].sort()).toEqual([...at.carries].sort());
+    expect(within.showAnswer).toBe(at.showAnswer);
+  });
+
+  /**
+   * A long narration against a two-mark step would otherwise index past the
+   * end; over-counting must land on "fully written", never throw or blank.
+   */
+  it("clamps an over-counted mark index", () => {
+    const order = stepWriteOrder(multi);
+    const over = revealStateWithin(steps, multiIndex, 999);
+    const exact = revealStateWithin(steps, multiIndex, order.length);
+    expect([...over.cells].sort()).toEqual([...exact.cells].sort());
+  });
+
+  it("holds the answer line back until the step is complete", () => {
+    const last = steps.length - 1;
+    const order = stepWriteOrder(steps[last]);
+    expect(steps[last].showAnswer).toBe(true);
+    if (order.length > 1) {
+      expect(revealStateWithin(steps, last, 1).showAnswer).toBe(false);
+    }
+    expect(revealStateWithin(steps, last, order.length).showAnswer).toBe(true);
   });
 });
