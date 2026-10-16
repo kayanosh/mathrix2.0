@@ -53,6 +53,12 @@ export interface TeachingStep {
   check?: string;
   /** Which whiteboard block this step belongs to, when a board has several. */
   blockIndex?: number;
+  /**
+   * The model's own words for what this step does on the board, e.g. "circle
+   * the tens column". Used to pick the right block when `blockIndex` is absent,
+   * in place of guessing from narration keywords.
+   */
+  blockHint?: string;
   /** Progressive-reveal position within that block. */
   revealStep?: number;
   showAnswer?: boolean;

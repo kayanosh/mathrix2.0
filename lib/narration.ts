@@ -52,6 +52,40 @@ export interface NarrationCue {
 
 type TeachingStep = NonNullable<WhiteboardResponse["teachingSteps"]>[number];
 
+/**
+ * Match the model's `visualInstruction` to a block by naming the block type.
+ *
+ * Deliberately narrow: it only matches when the hint names a block type
+ * explicitly, so an unhelpful hint falls through to the keyword rules rather
+ * than confidently selecting the wrong diagram.
+ */
+function hintedBlockIndex(data: WhiteboardResponse, hint: string): number {
+  const h = hint.toLowerCase();
+  const named: Array<[RegExp, WhiteboardResponse["blocks"][number]["type"]]> = [
+    [/column|grid|carry|borrow|bus.?stop/, "column_method"],
+    [/number\s?line/, "number_line"],
+    [/place.?value|table/, "table"],
+    [/fraction\s?bar/, "fraction_bar"],
+    [/fraction\s?grid/, "fraction_grid"],
+    [/fraction\s?wall/, "fraction_wall"],
+    [/bar\s?model/, "bar_model"],
+    [/hundred\s?square/, "hundred_square"],
+    [/coordinate|graph|plot/, "coordinate_graph"],
+    [/protractor/, "protractor"],
+    [/angle/, "angle_scale"],
+    [/shape|polygon|rectangle|triangle|circle/, "labeled_shape"],
+    [/cuboid|cube|volume/, "cuboid_array"],
+    [/chart|bar\s?graph|pie/, "chart"],
+    [/equation|step/, "equation_steps"],
+  ];
+  for (const [pattern, type] of named) {
+    if (!pattern.test(h)) continue;
+    const index = data.blocks.findIndex((block) => block.type === type);
+    if (index >= 0) return index;
+  }
+  return -1;
+}
+
 function findTeachingVisualIndex(
   data: WhiteboardResponse,
   step: TeachingStep,
@@ -64,7 +98,24 @@ function findTeachingVisualIndex(
     return step.blockIndex;
   }
 
-  const searchable = `${step.title} ${step.explanation} ${step.narration}`.toLowerCase();
+  // The model's own description of what this step does on the board, when it
+  // gave one. It is a far better signal than guessing from the narration:
+  // `blockHint` says "write 5 in the ones column", whereas the keyword rules
+  // below infer a column method from the mere word "ones" appearing anywhere in
+  // a sentence. Searched first, and only falls through if it matches nothing.
+  const searchable = [
+    step.blockHint,
+    step.title,
+    step.explanation,
+    step.narration,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (step.blockHint?.trim()) {
+    const hinted = hintedBlockIndex(data, step.blockHint);
+    if (hinted >= 0) return hinted;
+  }
   const preferredTypes: Array<WhiteboardResponse["blocks"][number]["type"]> = [];
 
   if (/carry|borrow|exchange|partial product|bus.?stop|bring down|ones|tens|hundreds/.test(searchable)) {

@@ -25,6 +25,10 @@ import {
 } from "@/lib/handwriting";
 import { getVerificationBadge } from "@/lib/verification-badge";
 import { buildTutorSteps } from "@/lib/tutor-steps";
+import {
+  cardIndexForStep,
+  groupTeachingStepsIntoCards,
+} from "@/lib/teaching-cards";
 import { useWhiteboardSpeech } from "@/lib/hooks/useWhiteboardSpeech";
 import {
   buildTeacherSpeechParts,
@@ -91,6 +95,13 @@ export default function WhiteboardTutor({
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
   const steps = useMemo(() => buildTutorSteps(data, plan), [data, plan]);
   const totalCues = plan.length;
+  /**
+   * Navigable stops. Autoplay walks every cue so the pen writes one mark per
+   * spoken phrase; prev/next and the timeline move between CARDS, so a pupil is
+   * not clicking through a dozen stops to re-read a method. Derived rather than
+   * stored, so the two can never disagree.
+   */
+  const cards = useMemo(() => groupTeachingStepsIntoCards(steps), [steps]);
 
   const writeMsPlan = useMemo(() => {
     const columnTimelines = new Map<
@@ -647,7 +658,13 @@ export default function WhiteboardTutor({
     setActiveWord(-1);
     setIsPlaying(false);
     setPhase("focus");
-    setActiveCue((i) => Math.max(0, i - 1));
+    setActiveCue((i) => {
+      const card = cardIndexForStep(cards, i);
+      // Part-way through a card, the first press returns to its start — the
+      // same "back to the beginning of this bit" a pupil expects.
+      if (card > 0 && i > cards[card].stepRange[0]) return cards[card].stepRange[0];
+      return card > 0 ? cards[card - 1].stepRange[0] : 0;
+    });
   };
   const handleNext = () => {
     cancel();
@@ -655,7 +672,12 @@ export default function WhiteboardTutor({
     setActiveWord(-1);
     setIsPlaying(false);
     setPhase("focus");
-    setActiveCue((i) => Math.min(totalCues - 1, i + 1));
+    setActiveCue((i) => {
+      const card = cardIndexForStep(cards, i);
+      if (card < 0) return Math.min(totalCues - 1, i + 1);
+      const next = cards[card + 1];
+      return next ? next.stepRange[0] : totalCues - 1;
+    });
   };
   const handleReplay = () => {
     cancel();
@@ -804,6 +826,7 @@ export default function WhiteboardTutor({
                 : undefined
           }
           setActiveStepRef={setActiveStepRef}
+          cards={cards}
           onSelectStep={handleSelectStep}
         />
 
@@ -882,7 +905,10 @@ export default function WhiteboardTutor({
           </div>
         </div>
 
-        <ProgressRail total={totalCues} current={activeCue} />
+        <ProgressRail
+          total={cards.length || totalCues}
+          current={Math.max(0, cardIndexForStep(cards, activeCue))}
+        />
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">

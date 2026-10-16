@@ -10,6 +10,21 @@ import { createHash } from "crypto";
  * same clip; case and punctuation are preserved because they affect prosody.
  */
 
+/**
+ * The one speed narration is ever GENERATED at.
+ *
+ * Playback speed is applied with audio.playbackRate instead of asking the API
+ * for a different clip, because segment timestamps and audio.currentTime are
+ * both media-time and so need no scaling — and because speed is part of this
+ * cache key, so three speeds meant 3x the TTS generations AND 3x the Whisper
+ * transcriptions per line.
+ *
+ * It lives here rather than in the player hook so server code and scripts can
+ * warm the exact same key without importing a React module. 1.1 because the
+ * client has always sent rate * 1.1, so every clip already cached stays a hit.
+ */
+export const NARRATION_TTS_SPEED = 1.1;
+
 export function normalizeTtsText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }

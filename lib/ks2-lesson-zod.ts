@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import type { TeachingStep } from "@/lib/methods/types";
 
 export const KS2MicroStepSchema = z.object({
   stepNumber: z.number().int().positive(),
@@ -18,7 +19,22 @@ export const KS2MicroStepSchema = z.object({
 export const KS2RichWorkedExampleSchema = z.object({
   question: z.string().min(3),
   method: z.string().min(3),
-  steps: z.array(KS2MicroStepSchema).min(3).max(6),
+  /**
+   * Raised from max 6 so a method can be taught in real micro-actions
+   * ("point at the 8", "say eight plus seven", "write the 5", "write the
+   * carried 1") rather than six merged paragraphs.
+   *
+   * This cap had to move FIRST: the prompt now asks for more steps than six,
+   * and a lesson that complied while the schema still refused would 422 on
+   * generation. 14 rather than unbounded because a model asked for "as many as
+   * you like" produces padding, and a genuinely longer method (long division)
+   * fits inside it.
+   *
+   * Note this bounds the LLM pipeline only. The deterministic builders are
+   * capped separately — see compactTeachingSteps in lib/methods/types.ts, whose
+   * call site in apply-builder.ts is removed in the same change.
+   */
+  steps: z.array(KS2MicroStepSchema).min(3).max(14),
   finalAnswer: z.string().min(1),
   check: z.string().min(3),
   visualBlocks: z.array(z.record(z.string(), z.unknown())).optional(),
@@ -112,27 +128,45 @@ export type KS2MicroStep = z.infer<typeof KS2MicroStepSchema>;
 export type KS2RichWorkedExample = z.infer<typeof KS2RichWorkedExampleSchema>;
 export type KS2StrictLesson = z.infer<typeof KS2StrictLessonSchema>;
 
-/** Convert rich micro-steps into TeachingStep-compatible captions for LessonPanel. */
-export function microStepsToTeachingSteps(
-  steps: KS2MicroStep[],
-): {
-  title: string;
-  explanation: string;
-  why?: string;
-  narration: string;
-  cellKeys: string[];
-  carryKeys: string[];
-  noteKeys: string[];
-}[] {
-  return steps.map((s) => ({
-    title: s.title,
-    explanation: [s.teacherText, s.calculation].filter(Boolean).join(" "),
-    why: s.why || s.misconceptionWarning,
-    narration: s.teacherText,
-    cellKeys: [],
-    carryKeys: [],
-    noteKeys: [],
-  }));
+/**
+ * Convert rich micro-steps into TeachingStep-compatible captions for LessonPanel.
+ *
+ * `highlightedValues` and `visualInstruction` used to be solicited by the
+ * prompt, validated by the schema above, and then dropped on the floor here —
+ * this function returned `cellKeys: [], carryKeys: [], noteKeys: []` for every
+ * step. That made it the single largest source of anchorless teaching steps:
+ * 85% of cached steps carry no anchor at all, and the ~85% of lessons that no
+ * deterministic builder matches come through this path.
+ *
+ * `highlightedValues` is precisely "which things on the board does this step
+ * talk about", which is what the teacher pointer needs. It is mapped to
+ * `anchors`, resolved at runtime by label against `[data-teacher-label]`.
+ * `visualInstruction` becomes `blockHint`, which lets narration pick the right
+ * block instead of guessing from keywords.
+ */
+export function microStepsToTeachingSteps(steps: KS2MicroStep[]): TeachingStep[] {
+  return steps.map((s) => {
+    const labels = (s.highlightedValues ?? [])
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+    return {
+      title: s.title,
+      explanation: [s.teacherText, s.calculation].filter(Boolean).join(" "),
+      why: s.why || s.misconceptionWarning,
+      narration: s.teacherText,
+      // Grid coordinates stay empty: a model cannot know them, and only the
+      // column builders can. Labels are what it CAN tell us.
+      cellKeys: [],
+      carryKeys: [],
+      noteKeys: [],
+      ...(labels.length > 0
+        ? { anchors: labels.map((label) => ({ label })) }
+        : {}),
+      ...(s.visualInstruction?.trim()
+        ? { blockHint: s.visualInstruction.trim() }
+        : {}),
+    };
+  });
 }
 
 /** Normalize canonical/legacy GPT payload keys into one internal shape. */

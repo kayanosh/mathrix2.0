@@ -7,6 +7,7 @@ import {
   wordIndexAtProgressWithSegments,
   type TranscriptSegment,
 } from "@/components/whiteboard/tutor/SpeechHighlighter";
+import { NARRATION_TTS_SPEED } from "@/lib/tts-cache-key";
 
 const audioBlobCache = new Map<string, Blob>();
 const pendingAudio = new Map<string, Promise<Blob>>();
@@ -18,26 +19,9 @@ const MAX_AUDIO_CACHE = 100;
 const segmentsCache = new Map<string, TranscriptSegment[]>();
 const pendingSegments = new Map<string, Promise<TranscriptSegment[]>>();
 
-/**
- * The one speed narration is ever generated at.
- *
- * Playback speed is applied with `audio.playbackRate`, not by asking the TTS
- * API for a different clip. Two reasons, and the first matters more:
- *
- *  1. SYNC. Segment timestamps from Whisper are media-time, and
- *     `audio.currentTime` reports media-time, so a rate change needs no
- *     scaling anywhere — the same timestamps stay correct at 1x, 1.5x and 2x.
- *     Generating a separate clip per speed meant three independent
- *     transcriptions whose sentence boundaries could disagree with each other.
- *  2. COST AND WARMING. `lib/tts-cache.ts` keys on text+voice+speed, so three
- *     speeds meant 3x the TTS generations and 3x the Whisper transcriptions
- *     per line, and made pre-warming narration impractical.
- *
- * 1.1 rather than 1.0 because the client has always sent `rate * 1.1` and the
- * UI's "1x" has therefore always been TTS 1.1 — keeping it means every clip
- * already cached stays a hit, and the teacher's voice does not suddenly change.
- */
-export const NARRATION_TTS_SPEED = 1.1;
+// Re-exported for the player and its tests; defined in lib/tts-cache-key.ts
+// so scripts and server code can warm the same key without pulling in React.
+export { NARRATION_TTS_SPEED };
 
 function audioKey(text: string): string {
   return text;

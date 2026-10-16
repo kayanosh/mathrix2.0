@@ -7,6 +7,7 @@ import type { TutorStepModel } from "@/lib/tutor-steps";
 import ActiveStepCard from "./ActiveStepCard";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import type { PlaybackPhase } from "@/lib/whiteboard-playback";
+import type { TeachingCard } from "@/lib/teaching-cards";
 
 interface Props {
   steps: TutorStepModel[];
@@ -17,6 +18,12 @@ interface Props {
   playbackPhase: PlaybackPhase;
   /** Marks written so far in the active step's pen order (player's word clock). */
   keysRevealed?: number;
+  /**
+   * Navigable stops. One chip per COMPLETED CARD rather than per cue: with
+   * micro-actions uncapped a method can be a dozen cues, and a dozen identical
+   * "Add the ones" chips is a worse rail than five meaningful ones.
+   */
+  cards?: TeachingCard[];
   setActiveStepRef: (el: HTMLElement | null) => void;
   onSelectStep?: (index: number) => void;
 }
@@ -33,11 +40,22 @@ export default function StepTimeline({
   runId,
   playbackPhase,
   keysRevealed,
+  cards,
   setActiveStepRef,
   onSelectStep,
 }: Props) {
-  const past = steps.slice(0, activeIndex);
   const active = steps[activeIndex];
+  /**
+   * One chip per finished card, labelled from the card's first step. Falls back
+   * to per-cue chips when no cards are supplied, which keeps the other mount
+   * points (chat, practice) working unchanged.
+   */
+  const past = cards?.length
+    ? cards
+        .filter((card) => card.stepRange[1] <= activeIndex)
+        .map((card) => steps[card.stepRange[0]])
+        .filter(Boolean)
+    : steps.slice(0, activeIndex);
 
   return (
     <div className="flex w-full max-w-2xl flex-col gap-3 mx-auto">

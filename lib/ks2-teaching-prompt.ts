@@ -90,7 +90,7 @@ ${rule}
 
 Teach ONE skill only. Every block must match that skill.
 Include: learningObjective, priorKnowledge (or prerequisiteKnowledge), coreExplanation (or conceptExplanation),
-workedExample with 3-6 meaningful micro-steps, commonMistake, guidedPractice, independentPractice, quickCheck, recap.
+workedExample with 5-12 meaningful micro-steps (one teacher action each), commonMistake, guidedPractice, independentPractice, quickCheck, recap.
 Never write a generic recap. Never use a common mistake from another skill.
 ${visualSafety}
 ${kind === "guided" ? "GUIDED practice: lean on hints and tryThis." : "LEARN: teach the idea first, then steps."}
@@ -118,7 +118,11 @@ Every block must match the same skill:
 
 Never give a common mistake from another skill.
 Never write a generic recap.
-Every worked example must have 3 to 6 meaningful teaching steps. Use only as many steps as the method needs.
+Every worked example must be taught in 5 to 12 MICRO-ACTIONS. A micro-action is ONE thing a teacher does at the board: point at a digit, say one calculation out loud, write one number, draw one mark. Do not bundle several actions into one step.
+Bad (one step): "Add the ones: 8 + 7 = 15, write 5 and carry 1."
+Good (three steps): "Point at the ones column" / "Eight plus seven is fifteen" / "Write the 5 and carry the 1 into the tens".
+Use only as many micro-actions as the method genuinely needs — do not pad.
+For every micro-action, "highlightedValues" MUST list the exact things on the board that step refers to, written the way they appear ("8", "15", "3/4", "the tens column"). A pointer uses these to follow along, so a step with nothing listed cannot be followed.
 
 ${tax}
 ${rule}
@@ -161,10 +165,10 @@ Return JSON matching this canonical shape (aliases in parentheses also accepted)
       {
         "stepNumber": 1,
         "title": "...",
-        "teacherText": "at least one clear teaching sentence",
+        "teacherText": "one clear teaching sentence for THIS action only",
         "calculation": "optional",
-        "visualInstruction": "optional",
-        "highlightedValues": ["optional"],
+        "visualInstruction": "what happens on the board this step, e.g. write 5 in the ones column",
+        "highlightedValues": ["REQUIRED: the exact things on the board this step refers to, e.g. \"8\", \"15\", \"3/4\""],
         "misconceptionWarning": "optional",
         "why": "optional"
       }
@@ -188,6 +192,6 @@ Return JSON matching this canonical shape (aliases in parentheses also accepted)
   "keyPoints": ["...", "..."],
   "tryThis": { "question": "...", "answer": "..." }
 }
-workedExample.steps MUST be 3 to 6 rich micro-steps (objects), not a short textbook list.
+workedExample.steps MUST be 5 to 12 rich micro-steps (objects), one action each, not a short textbook list. Every step needs "highlightedValues".
 (Aliases: prerequisiteKnowledge, conceptExplanation, commonMistakes[], answer instead of finalAnswer.)
 `;

@@ -3,7 +3,12 @@ import {
   assertNoGcd,
   validateStrictKS2Lesson,
 } from "@/lib/ks2-lesson-validator";
-import { KS2StrictLessonSchema } from "@/lib/ks2-lesson-zod";
+import { groupTeachingStepsIntoCards } from "@/lib/teaching-cards";
+import {
+  KS2StrictLessonSchema,
+  KS2RichWorkedExampleSchema,
+  microStepsToTeachingSteps,
+} from "@/lib/ks2-lesson-zod";
 import { buildFractionSimplify } from "@/lib/methods/fraction-simplify";
 import { applyMethodBuilderToWorkedExample } from "@/lib/methods/apply-builder";
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
@@ -216,7 +221,13 @@ describe("KS2 fraction simplify quality gate", () => {
       ["Simplify fractions"],
     );
     expect(next.teachingSteps!.length).toBeGreaterThanOrEqual(3);
-    expect(next.teachingSteps!.length).toBeLessThanOrEqual(6);
+    // The old assertion here was `<= 6`, which asserted the compaction this
+    // change removes. Teaching ATOMS are now uncapped so the pen can write one
+    // mark per spoken phrase; the 3-6 limit a pupil experiences applies to
+    // navigable CARDS, which is asserted below and in teaching-cards.test.ts.
+    expect(
+      groupTeachingStepsIntoCards(next.teachingSteps!).length,
+    ).toBeLessThanOrEqual(6);
     const blockTypes = (next.whiteboard?.blocks || []).map(
       (b: { type: string }) => b.type,
     );
@@ -228,7 +239,7 @@ describe("KS2 fraction simplify quality gate", () => {
 });
 
 describe("KS2 strict Zod schema", () => {
-  it("requires 3-6 micro-steps on worked examples", () => {
+  it("requires at least 3 micro-steps on worked examples", () => {
     const raw = {
       keyStage: "KS2",
       yearGroup: "Year 6",
@@ -266,5 +277,77 @@ describe("KS2 strict Zod schema", () => {
     expect(parsed.success).toBe(false);
     const v = validateStrictKS2Lesson(raw);
     expect(v.ok).toBe(false);
+  });
+
+  /**
+   * The upper bound moved from 6 to 14 so a method can be taught as real
+   * micro-actions. This asserts BOTH ends of that change: the prompt now asks
+   * for up to 12, so 12 must validate (it used to 422), and the cap must still
+   * exist so a model cannot pad indefinitely.
+   */
+  it("accepts up to 14 micro-steps and still rejects beyond that", () => {
+    const microStep = (n: number) => ({
+      stepNumber: n,
+      title: `Step ${n}`,
+      teacherText: `This is teaching sentence number ${n}.`,
+      highlightedValues: ["12"],
+    });
+    const example = (count: number) => ({
+      question: "Simplify 12/16",
+      method: "Simplify using HCF",
+      steps: Array.from({ length: count }, (_, i) => microStep(i + 1)),
+      finalAnswer: "3/4",
+      check: "HCF of 3 and 4 is 1",
+    });
+
+    expect(
+      KS2RichWorkedExampleSchema.safeParse(example(12)).success,
+    ).toBe(true);
+    expect(
+      KS2RichWorkedExampleSchema.safeParse(example(14)).success,
+    ).toBe(true);
+    expect(
+      KS2RichWorkedExampleSchema.safeParse(example(15)).success,
+    ).toBe(false);
+  });
+
+  /**
+   * highlightedValues and visualInstruction were solicited by the prompt,
+   * validated by the schema, and then discarded by the conversion — the single
+   * largest source of anchorless teaching steps.
+   */
+  it("carries the model's anchor hints through to teaching steps", () => {
+    const [step] = microStepsToTeachingSteps([
+      {
+        stepNumber: 1,
+        title: "Add the ones",
+        teacherText: "Eight plus seven is fifteen.",
+        calculation: "8 + 7 = 15",
+        visualInstruction: "write 5 in the ones column",
+        highlightedValues: ["8", "7", "15"],
+      },
+    ]);
+
+    expect(step.anchors).toEqual([
+      { label: "8" },
+      { label: "7" },
+      { label: "15" },
+    ]);
+    expect(step.blockHint).toBe("write 5 in the ones column");
+    expect(step.explanation).toContain("8 + 7 = 15");
+  });
+
+  it("omits anchors entirely when the model gave none", () => {
+    const [step] = microStepsToTeachingSteps([
+      {
+        stepNumber: 1,
+        title: "Start",
+        teacherText: "Begin by reading the question.",
+        highlightedValues: ["  ", ""],
+      },
+    ]);
+    // Blank strings must not become anchors that can never resolve.
+    expect(step.anchors).toBeUndefined();
+    expect(step.blockHint).toBeUndefined();
   });
 });

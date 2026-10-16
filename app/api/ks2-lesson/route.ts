@@ -234,7 +234,23 @@ export function enrichTeachingFields(
         : step,
     );
   }
-  if (teachingSteps?.length && teachingSteps.length < 3) {
+  /*
+   * Canned padding, kept only for the genuinely degenerate case.
+   *
+   * This used to fire whenever a lesson had fewer than three steps, purely to
+   * clear the `few_steps` validator code. That was tolerable while steps were
+   * silent text a pupil skimmed. It is not tolerable now: the player SPEAKS
+   * every step, so "First, identify what the question is asking" is read aloud
+   * in a teacher's voice as though it were teaching, at the start of a lesson
+   * that already had real content.
+   *
+   * The prompt now asks for 5-12 micro-actions, so a one- or two-step example
+   * means generation genuinely failed rather than being merely terse. Padding
+   * still beats serving a single orphan step, but it no longer applies to a
+   * two-step example — those are left short so the validator reports
+   * `few_steps` honestly rather than being silently papered over.
+   */
+  if (teachingSteps?.length === 1) {
     const setup = {
       title: "Understand the question",
       explanation: `Identify what the question is asking about ${taxonomy?.skill || topic}.`,
@@ -253,10 +269,7 @@ export function enrichTeachingFields(
       carryKeys: [] as string[],
       noteKeys: [] as string[],
     };
-    teachingSteps =
-      teachingSteps.length === 1
-        ? [setup, ...teachingSteps, check]
-        : [setup, ...teachingSteps];
+    teachingSteps = [setup, ...teachingSteps, check];
   }
 
   // UK KS2: never leave GCD wording in child-facing copy

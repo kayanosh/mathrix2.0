@@ -37,7 +37,6 @@ import {
 import { preferredBuilderId } from "@/lib/ks2-pedagogy/registry";
 import { filterFitBlocks } from "@/lib/ks2-visual-fitness";
 import {
-  compactTeachingSteps,
   teachingStepsToCaptions,
   type MethodBuildResult,
   type TeachingStep,
@@ -449,19 +448,23 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
   example: T,
   built: MethodBuildResult,
 ): T & { teachingSteps?: TeachingStep[]; steps: string[]; answer: string } {
-  // Merge adjacent micro-actions rather than truncating the method mid-way.
-  const compacted = compactTeachingSteps(built.teachingSteps);
-  const captions = teachingStepsToCaptions(compacted);
+  // The builder's micro-actions are kept WHOLE.
+  //
+  // This used to run compactTeachingSteps(), merging them down to six cards by
+  // concatenating explanations and narrations — so a nine-step long division
+  // became six cards whose first card said three sentences at once, and the
+  // pen order across each merge boundary was flattened into a single set. That
+  // cap is a navigation concern, not a data one: grouping for display now
+  // happens in lib/teaching-cards.ts, which leaves the atoms alone.
+  const steps = built.teachingSteps.filter((step) => step.title !== "Answer");
+  const captions = teachingStepsToCaptions(built.teachingSteps);
   const answer =
     built.answer ||
     (built.block.type === "column_method"
       ? built.block.answer || example.answer
       : example.answer);
 
-  const teachingSteps =
-    compacted.length > 0
-      ? compacted
-      : example.teachingSteps;
+  const teachingSteps = steps.length > 0 ? steps : example.teachingSteps;
 
   const fallbackSteps = Array.isArray(example.steps)
     ? example.steps

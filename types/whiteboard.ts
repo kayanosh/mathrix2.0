@@ -653,6 +653,12 @@ export interface WhiteboardResponse {
     narration: string;
     /** Exact visual ownership when a lesson contains several diagrams. */
     blockIndex?: number;
+    /**
+     * The model's description of what this step does on the board, used to
+     * choose a block when `blockIndex` is absent — in place of guessing from
+     * narration keywords.
+     */
+    blockHint?: string;
     /** Progressive reveal position for column/equation renderers. */
     revealStep?: number;
     /** Deterministic digit targets emitted by KS2 method builders. */
@@ -665,6 +671,12 @@ export interface WhiteboardResponse {
      * when present; unset keeps the inferred behaviour.
      */
     focusTargetIds?: string[];
+    /**
+     * Things this step talks about, named rather than positioned — resolved at
+     * runtime against `[data-teacher-label]`. Where `cellKeys` can only name a
+     * grid cell, a label can name a number-line tick or a shaded fraction.
+     */
+    anchors?: { id?: string; label: string }[];
   }>;
   /** Final answer clearly stated */
   conclusion: string;
