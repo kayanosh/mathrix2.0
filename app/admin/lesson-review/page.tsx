@@ -25,7 +25,26 @@ interface ReviewItem {
   contentVersion: string | null;
   modelVersion: string | null;
   promptVersion: string | null;
+  riskScore: number;
+  riskBand: "high" | "medium" | "low";
+  riskReasons: { code: string; detail: string }[];
+  unverifiable: boolean;
+  qualityIssues: string[];
+  storedAnswerWasWrong: { stored: string; correct: string; builderId: string } | null;
 }
+
+interface QueueMeta {
+  total: number;
+  shown: number;
+  highRisk: number;
+  unverifiable: number;
+}
+
+const BAND_STYLE: Record<ReviewItem["riskBand"], string> = {
+  high: "bg-red-50 text-red-700 border-red-200",
+  medium: "bg-amber-50 text-amber-800 border-amber-200",
+  low: "bg-gray-50 text-gray-600 border-gray-200",
+};
 
 const TABS: { value: Status; label: string }[] = [
   { value: "unreviewed", label: "Pending review" },
@@ -38,6 +57,7 @@ export default function LessonReviewPage() {
   const [forbidden, setForbidden] = useState(false);
   const [status, setStatus] = useState<Status>("unreviewed");
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [meta, setMeta] = useState<QueueMeta | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -53,6 +73,16 @@ export default function LessonReviewPage() {
       }
       const data = await res.json();
       setItems(data.items || []);
+      setMeta(
+        typeof data.total === "number"
+          ? {
+              total: data.total,
+              shown: data.shown ?? (data.items || []).length,
+              highRisk: data.highRisk ?? 0,
+              unverifiable: data.unverifiable ?? 0,
+            }
+          : null,
+      );
     } catch {
       setError("Network error loading the review queue.");
     }
@@ -109,6 +139,20 @@ export default function LessonReviewPage() {
               lesson here affects everyone who is taught this skill, not just one class.
             </p>
 
+            {meta && status === "unreviewed" && (
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 mb-6 text-sm text-indigo-900">
+                <p className="font-medium">
+                  Showing the {meta.shown} highest-risk of {meta.total} lessons awaiting review.
+                </p>
+                <p className="text-indigo-800/80 mt-0.5">
+                  {meta.highRisk} high risk · {meta.unverifiable} have no automatic correctness
+                  check, so your reading is the only thing standing between them and a pupil.
+                  Maths that a builder can solve is re-derived on every request and ranks lower
+                  here — it already self-corrects.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
               {TABS.map((t) => (
                 <button
@@ -146,6 +190,18 @@ export default function LessonReviewPage() {
                           {item.subject} · {item.target} · {item.tier} · {item.kind} · served{" "}
                           {item.hitCount}x
                         </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span
+                            className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${BAND_STYLE[item.riskBand]}`}
+                          >
+                            {item.riskBand} risk · {item.riskScore}
+                          </span>
+                          {item.unverifiable && (
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
+                              no automatic check
+                            </span>
+                          )}
+                        </div>
                       </div>
                       {status === "unreviewed" && (
                         <div className="flex gap-2 flex-shrink-0">
@@ -167,10 +223,42 @@ export default function LessonReviewPage() {
                       )}
                     </div>
 
+                    {item.riskReasons.length > 0 && (
+                      <ul className="mb-3 space-y-1">
+                        {item.riskReasons.map((r) => (
+                          <li key={r.code} className="text-xs text-gray-600 flex gap-1.5">
+                            <span className="text-gray-300 select-none">—</span>
+                            <span>{r.detail}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {item.storedAnswerWasWrong && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 mb-2 text-xs text-amber-900">
+                        <p className="font-semibold mb-0.5">
+                          Stored content disagrees with what is served
+                        </p>
+                        <p>
+                          The cached answer is{" "}
+                          <span className="font-mono">{item.storedAnswerWasWrong.stored}</span>, but
+                          the <span className="font-mono">{item.storedAnswerWasWrong.builderId}</span>{" "}
+                          builder re-derives{" "}
+                          <span className="font-mono">{item.storedAnswerWasWrong.correct}</span> on
+                          every request — so pupils get the correct maths. Judge the prose below,
+                          not the arithmetic: the same generation wrote the intro and key points,
+                          and nothing repairs those.
+                        </p>
+                      </div>
+                    )}
+
                     {item.workedExample && (
                       <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-2">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                          Worked example
+                          Worked example{" "}
+                          <span className="font-normal normal-case tracking-normal text-gray-400">
+                            — as served to pupils
+                          </span>
                         </p>
                         <p className="text-sm text-gray-900 mb-1">{item.workedExample.question}</p>
                         <ol className="text-sm text-gray-700 list-decimal list-inside space-y-0.5">
@@ -182,6 +270,37 @@ export default function LessonReviewPage() {
                           Answer: {item.workedExample.answer}
                         </p>
                       </div>
+                    )}
+
+                    {/* The prose nothing verifies — this is what a reviewer is
+                        actually here to judge, so it cannot stay hidden behind
+                        the arithmetic the builders already guarantee. */}
+                    {item.intro && (
+                      <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Intro
+                        </p>
+                        <p className="text-sm text-gray-800">{item.intro}</p>
+                      </div>
+                    )}
+
+                    {item.keyPoints.length > 0 && (
+                      <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Key points
+                        </p>
+                        <ul className="text-sm text-gray-800 list-disc list-inside space-y-0.5">
+                          {item.keyPoints.map((k, i) => (
+                            <li key={i}>{k}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {item.qualityIssues.length > 0 && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        Validator notes: <span className="font-mono">{item.qualityIssues.join(", ")}</span>
+                      </p>
                     )}
 
                     {item.tryThis && (

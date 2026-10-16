@@ -59,7 +59,12 @@ describe("/api/lesson-review authorization", () => {
     const req = new NextRequest("http://localhost/api/lesson-review?status=unreviewed");
     const res = await GET(req);
     expect(res.status).toBe(200);
-    expect(listKS2LessonCacheForReview).toHaveBeenCalledWith("unreviewed", 50);
+    // Deliberately NOT the page size. The route ranks by triage risk and then
+    // pages, so it has to pull the whole queue first — fetching one page of 50
+    // by hit_count and ranking that would drop every high-risk row that fell
+    // below the hit_count cut, which is the exact failure the ranking exists to
+    // prevent.
+    expect(listKS2LessonCacheForReview).toHaveBeenCalledWith("unreviewed", 5000);
   });
 
   it("GET rejects an invalid status value even for an admin", async () => {

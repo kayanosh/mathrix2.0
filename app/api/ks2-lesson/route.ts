@@ -610,7 +610,7 @@ export function parseWorkedExampleWhiteboard(
   };
 }
 
-function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: string[]): WorkedExample {
+export function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: string[]): WorkedExample {
   let next = example;
   if (subtopics.some((skill) => /roman numerals?\s+to\s+1000/i.test(skill))) {
     const romanValue =
@@ -724,7 +724,7 @@ function hardenWorkedExample(example: WorkedExample, topic: string, subtopics: s
   return next;
 }
 
-function hardenSubjectWorkedExample(
+export function hardenSubjectWorkedExample(
   example: WorkedExample,
   subjectId: string,
   topic: string,

@@ -148,6 +148,12 @@ export interface KS2LessonReviewRow {
  * this filters client-side after fetching rather than via a DB-side WHERE.
  * The cache is small enough (hundreds of rows) that this is fine without an
  * index; do not use this for a much larger table.
+ *
+ * The hit_count ordering here is only a stable tiebreak for callers that take a
+ * partial page. Reviewer-facing ORDERING is risk-first and lives in
+ * app/api/lesson-review (see lib/ks2-lesson-triage) — that route deliberately
+ * passes a limit large enough to cover the whole queue so it can rank before
+ * paging, because paging on hit_count first would drop the riskiest rows.
  */
 export async function listKS2LessonCacheForReview(
   status: "unreviewed" | "approved" | "rejected",
