@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer, MonitorPlay } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Loader2, RotateCcw, Lightbulb, CheckCircle2, Eye, Printer, MonitorPlay, BookOpen } from "lucide-react";
 import InlineMath from "@/components/InlineMath";
 import BlockRenderer from "@/components/whiteboard/BlockRenderer";
 import WhiteboardTutor from "@/components/WhiteboardTutor";
@@ -78,6 +78,8 @@ interface Props {
 }
 
 const CACHE_PREFIX = "mathrix_ks2_lesson_v27_";
+/** Pupil preference: read the worked example rather than be taught it. */
+const READ_INSTEAD_KEY = "mathrix_ks2_read_instead";
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 const lessonRequests = new Map<
   string,
@@ -147,6 +149,33 @@ export default function LessonPanel(props: Props) {
   const [fromLibrary, setFromLibrary] = useState(false);
   const [watchMode, setWatchMode] = useState(false);
   const [tryWatchMode, setTryWatchMode] = useState(false);
+  /**
+   * Pupil preference for the static, readable worked example over the taught
+   * board. Persisted, because a child who prefers reading should not have to
+   * re-choose on every lesson.
+   */
+  const [readInstead, setReadInstead] = useState(false);
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    try {
+      setReadInstead(localStorage.getItem(READ_INSTEAD_KEY) === "1");
+    } catch {
+      /* private mode: just use the default */
+    }
+  }, []);
+
+  const toggleReadInstead = useCallback(() => {
+    setReadInstead((value) => {
+      const next = !value;
+      try {
+        localStorage.setItem(READ_INSTEAD_KEY, next ? "1" : "0");
+      } catch {
+        /* preference simply does not persist */
+      }
+      return next;
+    });
+  }, []);
   const [staffMode, setStaffMode] = useState(false);
   // Presentation only. The server withholds answer keys from non-staff
   // regardless (lib/ks2-staff-content.ts), so this hides a control that would
@@ -295,6 +324,18 @@ export default function LessonPanel(props: Props) {
         }
       : null;
 
+  /**
+   * The taught board needs blocks to teach FROM. 41 of 442 cached lessons have
+   * no whiteboard at all, so this is a real content condition, not a toggle.
+   */
+  const canTeachWorked = !!workedWhiteboard;
+  /**
+   * Reduced motion falls back to the static view rather than a motionless
+   * board: the whole point of the taught version is movement, and a frozen pen
+   * teaches nothing while still costing audio and layout.
+   */
+  const teachWorked = canTeachWorked && !readInstead && !reduceMotion;
+
   /** Full solution for "Now you try" — builder board + steps when maths parses. */
   const trySolution = useMemo((): WorkedExample | null => {
     if (!lesson?.tryThis?.question) return null;
@@ -388,10 +429,10 @@ export default function LessonPanel(props: Props) {
   return (
     <>
       {watchMode && workedWhiteboard && (
-        <WhiteboardTutor data={workedWhiteboard} onClose={() => setWatchMode(false)} />
+        <WhiteboardTutor data={workedWhiteboard} tier={tier} onClose={() => setWatchMode(false)} />
       )}
       {tryWatchMode && tryWhiteboard && (
-        <WhiteboardTutor data={tryWhiteboard} onClose={() => setTryWatchMode(false)} />
+        <WhiteboardTutor data={tryWhiteboard} tier={tier} onClose={() => setTryWatchMode(false)} />
       )}
     <motion.div
       initial="hidden"
@@ -570,56 +611,86 @@ export default function LessonPanel(props: Props) {
             <p className="text-[12px] font-bold uppercase tracking-wide text-indigo-500">
               {displayExample.emoji ? `${displayExample.emoji} ` : ""}Worked example
             </p>
-            {workedWhiteboard && (
+            {canTeachWorked && (
               <button
                 type="button"
-                onClick={() => setWatchMode(true)}
+                onClick={toggleReadInstead}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-100 px-3 py-1.5 text-[12px] font-semibold text-indigo-700 hover:bg-indigo-200"
               >
-                <MonitorPlay size={14} /> Watch me solve it
+                {teachWorked ? (
+                  <>
+                    <BookOpen size={14} /> Read it instead
+                  </>
+                ) : (
+                  <>
+                    <MonitorPlay size={14} /> Watch me teach it
+                  </>
+                )}
               </button>
             )}
           </div>
           <p className="font-medium text-gray-900 mb-3">{<InlineMath text={displayExample.question} />}</p>
 
-          {workedWhiteboard && (
-            <div className="mb-4 space-y-3 rounded-xl bg-white/80 p-3 border border-indigo-100">
-              {workedWhiteboard.intro && (
-                <p className="text-sm text-gray-600">{<InlineMath text={workedWhiteboard.intro} />}</p>
-              )}
-              {(workedWhiteboard.blocks || []).map((block, bi) => (
-                <BlockRenderer key={bi} block={block} index={bi} baseDelay={0.1 + bi * 0.2} />
-              ))}
-            </div>
-          )}
-
-          {asTeachingSteps(displayExample.teachingSteps).length > 0 ? (
-            <StepController
-              steps={asTeachingSteps(displayExample.teachingSteps)}
-              answer={displayExample.answer}
+          {teachWorked && workedWhiteboard ? (
+            /*
+             * The lesson IS the board. This used to be a static render with the
+             * taught version hidden behind a "Watch me solve it" modal, so the
+             * teaching a pupil would actually learn from was the one thing they
+             * had to go looking for.
+             *
+             * The static path below is still a real fallback, not dead code: it
+             * serves reduced-motion users, lessons with no whiteboard blocks at
+             * all (41 of 442 cached rows), printing, and anyone who simply
+             * prefers to read.
+             */
+            <WhiteboardTutor
+              variant="inline"
+              data={workedWhiteboard}
+              tier={tier}
+              onExpand={() => setWatchMode(true)}
             />
           ) : (
             <>
-              <ol className="space-y-2.5">
-                {asStringArray(displayExample.steps).map((step, i) => (
-                  <motion.li
-                    key={i}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.15 + i * 0.12 }}
-                    className="flex gap-2 text-gray-700"
-                  >
-                    <span className="font-bold text-indigo-500 shrink-0">{i + 1}.</span>
-                    <p>
-                      <InlineMath text={step} />
+              {workedWhiteboard && (
+                <div className="mb-4 space-y-3 rounded-xl bg-white/80 p-3 border border-indigo-100">
+                  {workedWhiteboard.intro && (
+                    <p className="text-sm text-gray-600">{<InlineMath text={workedWhiteboard.intro} />}</p>
+                  )}
+                  {(workedWhiteboard.blocks || []).map((block, bi) => (
+                    <BlockRenderer key={bi} block={block} index={bi} baseDelay={0.1 + bi * 0.2} />
+                  ))}
+                </div>
+              )}
+
+              {asTeachingSteps(displayExample.teachingSteps).length > 0 ? (
+                <StepController
+                  steps={asTeachingSteps(displayExample.teachingSteps)}
+                  answer={displayExample.answer}
+                />
+              ) : (
+                <>
+                  <ol className="space-y-2.5">
+                    {asStringArray(displayExample.steps).map((step, i) => (
+                      <motion.li
+                        key={i}
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 + i * 0.12 }}
+                        className="flex gap-2 text-gray-700"
+                      >
+                        <span className="font-bold text-indigo-500 shrink-0">{i + 1}.</span>
+                        <p>
+                          <InlineMath text={step} />
+                        </p>
+                      </motion.li>
+                    ))}
+                  </ol>
+                  {displayExample.answer && (
+                    <p className="mt-3 flex items-center gap-2 font-semibold text-emerald-700">
+                      <CheckCircle2 size={16} /> <InlineMath text={displayExample.answer} />
                     </p>
-                  </motion.li>
-                ))}
-              </ol>
-              {displayExample.answer && (
-                <p className="mt-3 flex items-center gap-2 font-semibold text-emerald-700">
-                  <CheckCircle2 size={16} /> <InlineMath text={displayExample.answer} />
-                </p>
+                  )}
+                </>
               )}
             </>
           )}

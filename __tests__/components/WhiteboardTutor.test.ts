@@ -224,3 +224,152 @@ describe("WhiteboardTutor playback", () => {
     expect(audioLog.plays).toBeGreaterThan(playsBeforePause);
   });
 });
+
+/**
+ * The inline variant embeds the same player inside a lesson page. Every modal
+ * behaviour the overlay relies on is wrong there, and each of these would be
+ * invisible in a passing build but obvious to a pupil.
+ */
+describe("WhiteboardTutor inline variant", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    audioLog.pauses = 0;
+    audioLog.plays = 0;
+    Object.defineProperty(globalThis, "Audio", {
+      configurable: true,
+      value: FakeAudio,
+    });
+    Object.defineProperty(globalThis.URL, "createObjectURL", {
+      configurable: true,
+      value: jest.fn(() => "blob:test-audio"),
+    });
+    Object.defineProperty(globalThis.URL, "revokeObjectURL", {
+      configurable: true,
+      value: jest.fn(),
+    });
+    Object.defineProperty(globalThis, "ResizeObserver", {
+      configurable: true,
+      value: class {
+        observe() {}
+        disconnect() {}
+      },
+    });
+    Object.defineProperty(globalThis, "fetch", {
+      configurable: true,
+      value: jest.fn(async (url: string) => {
+        if (typeof url === "string" && url.includes("/api/tts-timing")) {
+          return { ok: true, json: async () => ({ segments: [] }) };
+        }
+        return {
+          ok: true,
+          blob: async () => new Blob(["audio"], { type: "audio/mpeg" }),
+        };
+      }),
+    });
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: jest.fn(() => ({
+        matches: false,
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    document.body.style.overflow = "";
+  });
+
+  /**
+   * A browser refuses audio no gesture asked for, so an inline player that
+   * "autoplayed" would fail silently and then narrate the wrong step later.
+   */
+  it("starts paused inline and playing in the overlay", () => {
+    const { unmount } = render(
+      React.createElement(WhiteboardTutor, { data, variant: "inline" as const }),
+    );
+    expect(screen.getByLabelText("Play")).toBeInTheDocument();
+    unmount();
+
+    render(
+      React.createElement(WhiteboardTutor, { data, onClose: jest.fn() }),
+    );
+    expect(screen.getByLabelText("Pause")).toBeInTheDocument();
+  });
+
+  it("does not lock body scroll inline, but does in the overlay", () => {
+    const { unmount } = render(
+      React.createElement(WhiteboardTutor, { data, variant: "inline" as const }),
+    );
+    expect(document.body.style.overflow).not.toBe("hidden");
+    unmount();
+
+    const overlay = render(
+      React.createElement(WhiteboardTutor, { data, onClose: jest.fn() }),
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+    overlay.unmount();
+    // And it must put the page back, or the lesson stays frozen after closing.
+    expect(document.body.style.overflow).not.toBe("hidden");
+  });
+
+  it("is a region inline, not a modal dialog", () => {
+    render(
+      React.createElement(WhiteboardTutor, { data, variant: "inline" as const }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const root = document.querySelector('[data-variant="inline"]');
+    expect(root).not.toBeNull();
+    expect(root).not.toHaveAttribute("aria-modal");
+  });
+
+  /**
+   * NOTE this currently holds for a structural reason as well as the gate:
+   * inline renders no close button, so the ref the overlay focuses is null
+   * either way. Verified by removing the gate — this test still passed while
+   * the scroll-lock and Escape tests failed. Kept as a regression guard in
+   * case anything ever renders a focusable control inline on mount.
+   */
+  it("does not steal focus inline", () => {
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    outside.focus();
+    expect(document.activeElement).toBe(outside);
+
+    render(
+      React.createElement(WhiteboardTutor, { data, variant: "inline" as const }),
+    );
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
+  it("offers expand instead of close inline, and calls it", () => {
+    const onExpand = jest.fn();
+    render(
+      React.createElement(WhiteboardTutor, {
+        data,
+        variant: "inline" as const,
+        onExpand,
+      }),
+    );
+    expect(screen.queryByLabelText("Close tutor")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Expand to full screen"));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+  });
+
+  /** A global Escape handler inline would hijack a key the page may own. */
+  it("does not close on Escape inline", () => {
+    const onClose = jest.fn();
+    render(
+      React.createElement(WhiteboardTutor, {
+        data,
+        variant: "inline" as const,
+        onClose,
+      }),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});

@@ -13,6 +13,7 @@ import {
   RotateCcw,
   ShieldCheck,
   AlertTriangle,
+  Maximize2,
 } from "lucide-react";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import { buildNarrationPlan } from "@/lib/narration";
@@ -52,19 +53,40 @@ import {
 
 interface Props {
   data: WhiteboardResponse;
-  onClose: () => void;
+  /** Required for the fullscreen overlay; meaningless inline. */
+  onClose?: () => void;
   /**
    * Attainment tier, which sets the teaching pace. Omitted callers get the
    * `secure` profile, i.e. exactly the timings this player has always used.
    */
   tier?: KS2Tier;
+  /**
+   * `fullscreen` is the modal overlay this component has always been: it owns
+   * the viewport, locks body scroll, traps focus and closes on Escape.
+   *
+   * `inline` embeds the same player inside a page. Every one of those modal
+   * behaviours is wrong there — locking scroll freezes the lesson around it,
+   * autofocusing the close button steals focus from whatever the pupil was
+   * reading, and a global Escape handler hijacks a key the page may own. They
+   * are gated rather than removed so the overlay keeps behaving correctly.
+   */
+  variant?: "inline" | "fullscreen";
+  /** Inline only: swap to the fullscreen overlay. */
+  onExpand?: () => void;
 }
 
 const WRITE_MS = 900;
 
 // ── Main tutor ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardTutor({ data, onClose, tier }: Props) {
+export default function WhiteboardTutor({
+  data,
+  onClose,
+  tier,
+  variant = "fullscreen",
+  onExpand,
+}: Props) {
+  const isFullscreen = variant === "fullscreen";
   const pacing = useMemo(() => pacingForTier(tier), [tier]);
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
   const steps = useMemo(() => buildTutorSteps(data, plan), [data, plan]);
@@ -139,7 +161,17 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
 
   const [activeCue, setActiveCue] = useState(0);
   const [runId, setRunId] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  /**
+   * Inline starts paused; the overlay starts playing.
+   *
+   * Not a stylistic choice — a browser blocks audio that no user gesture asked
+   * for, so an inline player that "autoplays" on page load would silently fail
+   * and then narrate the wrong step later. Opening the overlay IS a gesture, so
+   * it can start immediately. This is also what WCAG 2.2.2 wants of
+   * auto-playing content. "Autoplay" here means continuous playback after one
+   * press, not playback without one.
+   */
+  const [isPlaying, setIsPlaying] = useState(isFullscreen);
   const [isMuted, setIsMuted] = useState(false);
   const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
   const [phase, setPhase] = useState<PlaybackPhase>("focus");
@@ -159,6 +191,8 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
   const [ink, setInk] = useState({ cue: 0, run: 0, index: 0 });
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  /** The player's own bounds, used to keep the fixed pointer inside them. */
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const currentStep = steps[activeCue];
   const speechParts = useMemo(
@@ -348,6 +382,26 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
         return;
       }
       const rect = target.getBoundingClientRect();
+
+      // The pointer is positioned in viewport coordinates, which is fine for an
+      // overlay that owns the viewport. Inline it is not: once the board
+      // scrolls past, a fixed pointer would keep tracking a target that is no
+      // longer on screen and float over the page's own chrome. Hide it whenever
+      // the target leaves the player's bounds. (Phase 4 moves the pen into
+      // container coordinates, which removes the need for this guard.)
+      const bounds = rootRef.current?.getBoundingClientRect();
+      if (bounds) {
+        const outside =
+          rect.bottom < bounds.top ||
+          rect.top > bounds.bottom ||
+          rect.right < bounds.left ||
+          rect.left > bounds.right;
+        if (outside) {
+          setPointerVisible(false);
+          return;
+        }
+      }
+
       const next = teacherPointerPoint(
         rect,
         teacherSpeechProgress(
@@ -555,13 +609,16 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
     };
   }, [cancel, clearTimers]);
 
+  // Modal-only: scroll lock, focus trap and Escape. All three are actively
+  // harmful inline — see the `variant` docs on Props.
   useEffect(() => {
+    if (!isFullscreen) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onClose?.();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
@@ -569,7 +626,7 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
       document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
-  }, [onClose]);
+  }, [isFullscreen, onClose]);
 
   const handlePlay = () => {
     if (phase === "complete") {
@@ -654,15 +711,25 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
 
   return (
     <motion.div
+      ref={rootRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
-      className="fixed inset-0 z-50 flex flex-col bg-[#f4f6fa]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Whiteboard Tutor"
+      className={
+        isFullscreen
+          ? "fixed inset-0 z-50 flex flex-col bg-[#f4f6fa]"
+          : "relative flex flex-col rounded-3xl border border-slate-200 bg-[#f4f6fa] overflow-hidden"
+      }
+      // Inline is a region of the page, not a dialog. Claiming role="dialog"
+      // and aria-modal there would tell a screen reader the rest of the lesson
+      // is inert when it is not.
+      role={isFullscreen ? "dialog" : "group"}
+      aria-modal={isFullscreen ? "true" : undefined}
+      aria-label={isFullscreen ? "Whiteboard Tutor" : "Worked example, taught step by step"}
       data-playback-phase={phase}
+      data-variant={variant}
+      style={isFullscreen ? undefined : { height: "min(78vh, 680px)" }}
     >
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200/80 bg-white/80 backdrop-blur-md flex-shrink-0">
@@ -686,14 +753,24 @@ export default function WhiteboardTutor({ data, onClose, tier }: Props) {
             )}
           </div>
         </div>
-        <button
-          ref={closeButtonRef}
-          onClick={onClose}
-          aria-label="Close tutor"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
-        >
-          <X size={16} />
-        </button>
+        {isFullscreen ? (
+          <button
+            ref={closeButtonRef}
+            onClick={onClose}
+            aria-label="Close tutor"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+          >
+            <X size={16} />
+          </button>
+        ) : onExpand ? (
+          <button
+            onClick={onExpand}
+            aria-label="Expand to full screen"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-all"
+          >
+            <Maximize2 size={13} /> Full screen
+          </button>
+        ) : null}
       </header>
 
       {/* Board */}
