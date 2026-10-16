@@ -13,12 +13,42 @@ import type {
 import type { MethodBuildResult, TeachingStep } from "@/lib/methods/types";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 
-export type AngleProblemKind = "triangle" | "straight_line" | "around_point";
+export type AngleProblemKind =
+  | "triangle"
+  | "straight_line"
+  | "around_point"
+  | "polygon";
 
-/** Triangle / straight line / around a point missing angle. */
+/** Named polygons -> side count, for the (n-2) x 180 interior-angle sum. */
+const POLYGON_SIDES: ReadonlyArray<[RegExp, number]> = [
+  [/\bquadrilateral|\bsquare\b|\brectangle\b|\brhombus\b|\bparallelogram\b|\btrapezium\b|\bkite\b/i, 4],
+  [/\bpentagon/i, 5],
+  [/\bhexagon/i, 6],
+  [/\bheptagon|\bseptagon/i, 7],
+  [/\boctagon/i, 8],
+  [/\bnonagon/i, 9],
+  [/\bdecagon/i, 10],
+];
+
+/** Interior-angle sum of the polygon named in the text, if any. */
+function polygonTotal(t: string): { sides: number; total: number } | null {
+  for (const [re, sides] of POLYGON_SIDES) {
+    if (re.test(t)) return { sides, total: (sides - 2) * 180 };
+  }
+  // "a 7-sided polygon" / "a polygon with 7 sides"
+  const m =
+    /\b(\d+)[-\s]?sided\b/i.exec(t) || /\bpolygon with (\d+) sides\b/i.exec(t);
+  if (m) {
+    const sides = parseInt(m[1], 10);
+    if (sides >= 3 && sides <= 20) return { sides, total: (sides - 2) * 180 };
+  }
+  return null;
+}
+
+/** Triangle / straight line / around a point / polygon missing angle. */
 export function parseAngleProblem(
   text: string,
-): { known: number[]; total: 180 | 360; kind: AngleProblemKind } | null {
+): { known: number[]; total: number; kind: AngleProblemKind } | null {
   const t = normalizeMathText(text);
   if (!/\bangle\b/i.test(t) && !/\b(straight line|around a point)\b/i.test(t)) {
     return null;
@@ -31,17 +61,35 @@ export function parseAngleProblem(
   // handles it (DEF-028). Declining is safe: the taxonomy names angle_diagram
   // as preferred for these skills, and a preferred builder that returns null
   // simply falls through to the rest of the order.
-  if (
-    /protractor/i.test(t) &&
-    !/missing|sum of|add up|remaining|find\s+(?:the\s+)?(?:value|size)\s+of/i.test(t)
-  ) {
+  const asksForMissing =
+    /missing|sum of|add up|remaining|find\s+(?:the\s+)?(?:value|size)\s+of/i.test(t);
+  // DEF-041: the guard used to key on the literal word "protractor", so a
+  // measure-and-classify question phrased without it ("You align one arm with
+  // the 0° on the inner scale. The other arm reaches 135°...") was captured by
+  // this missing-angle builder and answered 180 - 135 = 45°. Key on the
+  // vocabulary of measuring instead.
+  const looksLikeMeasuring =
+    /\b(protractor|inner scale|outer scale|matching scale|that scale|same scale|baseline|classif)/i.test(
+      t,
+    );
+  if (looksLikeMeasuring && !asksForMissing) {
     return null;
   }
   const explicitAroundPoint = /\b(around a point|full turn|360)\b/i.test(t);
   const explicitTriangle = /\btriangle\b/i.test(t);
   const explicitStraightLine = /\b(straight line|linear pair)\b/i.test(t);
-  const total: 180 | 360 = explicitAroundPoint ? 360 : 180;
-  const known = [...t.matchAll(/(\d+)\s*°/g)].map((m) => parseInt(m[1], 10));
+  // DEF-041: `total` was typed `180 | 360` and only ever chose 360 for "around
+  // a point". Nothing recognised a quadrilateral, so "the known angles in a
+  // quadrilateral total 245°" was solved against 180 and served "-65°".
+  const polygon = explicitTriangle ? null : polygonTotal(t);
+  const total: number = explicitAroundPoint
+    ? 360
+    : (polygon?.total ?? 180);
+  // A protractor baseline reads 0°, and a known angle of 0° is meaningless in
+  // a sum — including it only corrupts sumKnown.
+  const known = [...t.matchAll(/(\d+)\s*°/g)]
+    .map((m) => parseInt(m[1], 10))
+    .filter((d) => d > 0);
   if (known.length === 0) {
     const plain = [...t.matchAll(/\b(\d{2,3})\b/g)].map((m) => parseInt(m[1], 10));
     const filtered = plain.filter((n) => n > 0 && n < total);
@@ -52,33 +100,65 @@ export function parseAngleProblem(
     ? "around_point"
     : explicitTriangle
       ? "triangle"
-      : explicitStraightLine
-        ? "straight_line"
-        : known.length >= 2
-          ? "triangle"
-          : "straight_line";
+      : polygon
+        ? "polygon"
+        : explicitStraightLine
+          ? "straight_line"
+          : known.length >= 2
+            ? "triangle"
+            : "straight_line";
+
+  // DEF-041 backstop, and the part that matters most: decline rather than
+  // teach an impossible angle. This holds for inputs nobody anticipated — a
+  // mis-parse that leaves nothing to find, or a sum already at or past the
+  // total — where the previous code confidently emitted a negative answer into
+  // the whiteboard label, the caption AND the spoken narration. Declining is
+  // safe: tryAngleDiagram() falls through to the rest of the builder order.
+  const missing = total - known.reduce((a, b) => a + b, 0);
+  if (missing <= 0 || missing >= total) return null;
+
   return { known, total, kind };
 }
 
 export function buildAngleDiagram(
   known: number[],
-  total: 180 | 360,
+  total: number,
   kind: AngleProblemKind,
 ): MethodBuildResult {
   const sumKnown = known.reduce((a, b) => a + b, 0);
   const missing = total - sumKnown;
+  // Defence in depth. parseAngleProblem() already refuses these, but this
+  // function is exported and called directly, and a negative angle must never
+  // be renderable — it previously reached the pupil as a shape label, a caption
+  // and spoken narration at once. tryAngleDiagram() catches this and falls
+  // through to the next builder.
+  if (!Number.isFinite(missing) || missing <= 0) {
+    throw new Error(
+      `angle_diagram: refusing to build an impossible missing angle (${missing}° from a total of ${total}°)`,
+    );
+  }
   const labels = [...known.map((d) => `${d}°`), `${missing}°`];
   const shape: LabeledShapeBlock = {
     type: "labeled_shape",
-    shape: kind,
+    shape: kind === "polygon" ? "polygon" : kind,
     vertices:
       kind === "triangle"
         ? [{ label: "A" }, { label: "B" }, { label: "C" }]
-        : kind === "straight_line"
-          ? [{ label: "A" }, { label: "O" }, { label: "B" }, { label: "C" }]
-          : [{ label: "O" }],
+        : kind === "polygon"
+          ? // Recover the side count from the interior-angle sum: (n-2) x 180.
+            Array.from({ length: total / 180 + 2 }, (_, i) => ({
+              label: String.fromCharCode(65 + i),
+            }))
+          : kind === "straight_line"
+            ? [{ label: "A" }, { label: "O" }, { label: "B" }, { label: "C" }]
+            : [{ label: "O" }],
     angles: labels.map((label, i) => ({
-      vertex: kind === "triangle" ? (["A", "B", "C"][i] || "C") : "O",
+      vertex:
+        kind === "triangle"
+          ? ["A", "B", "C"][i] || "C"
+          : kind === "polygon"
+            ? String.fromCharCode(65 + Math.min(i, total / 180 + 1))
+            : "O",
       degrees: i < known.length ? known[i] : missing,
       label,
     })),
@@ -100,7 +180,15 @@ export function buildAngleDiagram(
             why: "Angles around a point sum to 360°.",
             intro: "around a point",
           }
-        : {
+        : kind === "polygon"
+          ? {
+              operationLabel: `Angles in a ${total / 180 + 2}-sided shape`,
+              explanation: `Interior angles in a ${total / 180 + 2}-sided shape add to ${total}°.`,
+              short: "Polygon total",
+              why: `A shape with ${total / 180 + 2} sides splits into ${total / 180} triangles, so its angles sum to ${total}°.`,
+              intro: `${total / 180 + 2}-sided shape`,
+            }
+          : {
             operationLabel: "Angles on a straight line",
             explanation: "Angles on a straight line add to 180°.",
             short: "Straight line",
@@ -1180,7 +1268,20 @@ export function parseProtractorMeasure(
 ): ProtractorMeasureProblem | null {
   const t = normalizeMathText(text);
   // Must be a MEASURING question, not "find the missing angle in a triangle".
-  if (!/protractor|measure\w*\s+(?:the\s+)?angle|angle[^.?]*\bmeasure/i.test(t)) {
+  //
+  // DEF-042: the article list used to be just "the", so "Measure the angle"
+  // matched and "Measure an angle shown as 73°" did not. When this parser
+  // declines, the first builder in DEFAULT_ORDER that matches a bare number
+  // wins — place_value_chart — which answered an angle question with a
+  // place-value table and dropped the "and classify it" half entirely. That is
+  // DEF-028 recurring through a phrasing gap: protractor_measure is already
+  // ordered first precisely to win these, so the ordering was never the
+  // problem, the cue was.
+  if (
+    !/protractor|measure\w*\s+(?:(?:the|an|a|this|that)\s+)?angle|angle[^.?]*\bmeasure/i.test(
+      t,
+    )
+  ) {
     return null;
   }
   if (/missing|sum of|add up|remaining/i.test(t)) return null;
@@ -1193,7 +1294,18 @@ export function parseProtractorMeasure(
   const degrees = Math.max(...all);
   const vertex = t.match(/\bvertex\s+([A-Z])\b/i)?.[1]?.toUpperCase()
     ?? t.match(/\bangle\s+([A-Z])([A-Z])([A-Z])\b/)?.[2];
-  return { degrees, vertex, classify: /\bclassif\w*/i.test(t) };
+  // A question can ask for a classification without using the word "classify".
+  // "A measured angle is 110°. Is it acute, right or obtuse?" was answered
+  // "110°" — the measurement restated, with the actual question ignored.
+  // Enumerating the angle names is the commonest KS2 phrasing of this.
+  const classify =
+    /\bclassif\w*/i.test(t) ||
+    /\b(acute|obtuse|right angle|straight|reflex)\b[^.?]*\b(or|and)\b[^.?]*\b(acute|obtuse|right|straight|reflex)\b/i.test(
+      t,
+    ) ||
+    /\bwhat (?:kind|type) of angle\b/i.test(t) ||
+    /\bname the type\b/i.test(t);
+  return { degrees, vertex, classify };
 }
 
 export function buildProtractorMeasure(
