@@ -52,8 +52,11 @@ export default function HandwrittenText({
 
   const effMs = Math.min(charMs, MAX_RUN_MS / Math.max(text.length, 1));
 
+  // `wb-ink` adds the shallow marker texture — only on the animated branch,
+  // because the static branch above is also the reduced-motion and print path,
+  // where crisp text is what is wanted.
   return (
-    <span className={className}>
+    <span className={`wb-ink ${className ?? ""}`.trim()}>
       {words.map((w, wi) =>
         w.isSpace ? (
           <span key={wi}>{w.part}</span>

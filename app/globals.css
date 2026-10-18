@@ -444,6 +444,31 @@ body {
   }
 }
 
+/*
+ * Marker texture for handwritten PROSE.
+ *
+ * Deliberately only the soft filter, and deliberately not applied to KaTeX
+ * maths. The legibility rule (see components/whiteboard/InkFilterDefs.tsx):
+ * decorative strokes may wobble freely, but a glyph a child reads for place
+ * value must keep its letterform — a displaced 6 that reads as 0 is a teaching
+ * failure, not a cosmetic one. Prose in the Caveat handwriting font is already
+ * unambiguous at these sizes, so a shallow displacement reads as marker-on-
+ * board without risking the characters.
+ *
+ * Degrades to nothing if the filter defs are not mounted, which is the right
+ * failure: plain crisp handwriting.
+ */
+.wb-ink {
+  filter: url(#wb-ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Texture is motion-adjacent decoration; drop it with the rest. */
+  .wb-ink {
+    filter: none;
+  }
+}
+
 .final-box { animation: pulse-glow 2.8s ease-in-out infinite; }
 
 /* ── Scrollbar ──────────────────────────────────────── */

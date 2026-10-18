@@ -41,7 +41,8 @@ import {
 import type { KS2Tier } from "@/lib/ks2-pathway";
 import WhiteboardCanvas from "@/components/whiteboard/tutor/WhiteboardCanvas";
 import StepTimeline from "@/components/whiteboard/tutor/StepTimeline";
-import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
+import PenOverlay from "@/components/whiteboard/tutor/PenOverlay";
+import InkFilterDefs from "@/components/whiteboard/InkFilterDefs";
 import ProgressRail from "@/components/whiteboard/tutor/ProgressRail";
 import SpeechHighlighter, {
   wordIndexAtProgress,
@@ -202,8 +203,9 @@ export default function WhiteboardTutor({
   const [ink, setInk] = useState({ cue: 0, run: 0, index: 0 });
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  /** The player's own bounds, used to keep the fixed pointer inside them. */
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /** The board's content element — the pen's coordinate space. */
+  const contentElRef = useRef<HTMLDivElement | null>(null);
 
   const currentStep = steps[activeCue];
   const speechParts = useMemo(
@@ -397,23 +399,7 @@ export default function WhiteboardTutor({
       // The pointer is positioned in viewport coordinates, which is fine for an
       // overlay that owns the viewport. Inline it is not: once the board
       // scrolls past, a fixed pointer would keep tracking a target that is no
-      // longer on screen and float over the page's own chrome. Hide it whenever
-      // the target leaves the player's bounds. (Phase 4 moves the pen into
-      // container coordinates, which removes the need for this guard.)
-      const bounds = rootRef.current?.getBoundingClientRect();
-      if (bounds) {
-        const outside =
-          rect.bottom < bounds.top ||
-          rect.top > bounds.bottom ||
-          rect.right < bounds.left ||
-          rect.left > bounds.right;
-        if (outside) {
-          setPointerVisible(false);
-          return;
-        }
-      }
-
-      const next = teacherPointerPoint(
+      const viewportPoint = teacherPointerPoint(
         rect,
         teacherSpeechProgress(
           playback.narration,
@@ -421,6 +407,22 @@ export default function WhiteboardTutor({
           playback.phase,
         ),
       );
+
+      // Convert into the BOARD's coordinate space. The pen lives inside the
+      // scrolling content now, so it shares one space with the ink it draws and
+      // scrolls with the board rather than needing to be re-placed. This also
+      // retires the bounds guard the inline variant needed: a pen positioned
+      // inside the board simply cannot float over the page's own chrome.
+      const content = contentElRef.current;
+      if (!content) {
+        setPointerVisible(false);
+        return;
+      }
+      const contentRect = content.getBoundingClientRect();
+      const next = {
+        x: viewportPoint.x - contentRect.left,
+        y: viewportPoint.y - contentRect.top,
+      };
       setPointerPos((current) =>
         Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
           ? current
@@ -753,6 +755,8 @@ export default function WhiteboardTutor({
       data-variant={variant}
       style={isFullscreen ? undefined : { height: "min(78vh, 680px)" }}
     >
+      <InkFilterDefs />
+
       {/* Header */}
       <header className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200/80 bg-white/80 backdrop-blur-md flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -796,7 +800,25 @@ export default function WhiteboardTutor({
       </header>
 
       {/* Board */}
-      <WhiteboardCanvas focusEl={focusEl} focusKey={`${activeCue}-${runId}`}>
+      <WhiteboardCanvas
+        focusEl={focusEl}
+        focusKey={`${activeCue}-${runId}`}
+        onContentRef={(el) => {
+          contentElRef.current = el;
+          // A late ref (first paint, or a variant switch) must re-place the
+          // pen, or it sits at the origin until the next word tick.
+          if (el) schedulePointerPlaceRef.current();
+        }}
+        overlay={
+          <PenOverlay
+            x={pointerPos.x}
+            y={pointerPos.y}
+            visible={pointerVisible}
+            mode={isPlaying ? pointerMode : "point"}
+            seedKey={`${activeCue}:${inkIndex}`}
+          />
+        }
+      >
         {data.questionImageUrl && activeCue === 0 && (
           <div className="mb-5 mx-auto max-w-2xl rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm max-w-xs sm:max-w-sm">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -854,12 +876,6 @@ export default function WhiteboardTutor({
         <div className="h-8" />
       </WhiteboardCanvas>
 
-      <TeacherPointer
-        x={pointerPos.x}
-        y={pointerPos.y}
-        visible={pointerVisible}
-        mode={isPlaying ? pointerMode : "point"}
-      />
 
       {/* Controls */}
       <footer className="flex-shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-md px-4 sm:px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3 shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.08)]">

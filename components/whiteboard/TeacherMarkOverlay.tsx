@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import type { TeacherMark } from "@/types/whiteboard";
 import { buildMarkPath, type MarkRect } from "@/lib/emphasis-paths";
 import InlineMath from "@/components/InlineMath";
+import { INK_ROUGH_FILTER_ID } from "@/components/whiteboard/InkFilterDefs";
 
 interface Props {
   /** Ref to the positioned container holding the KaTeX equation. */
@@ -78,7 +79,7 @@ export default function TeacherMarkOverlay({ containerRef, mark, delay }: Props)
 
   const color = mark.color || "#dc2626";
   const { d, length } = buildMarkPath(mark.style, measured.rect, mark.targetId);
-  const filterId = `wb-mark-rough-${mark.targetId}`;
+  const filterId = INK_ROUGH_FILTER_ID;
 
   // Label sits under the mark (or to the right for underlines).
   const labelX =
@@ -100,23 +101,12 @@ export default function TeacherMarkOverlay({ containerRef, mark, delay }: Props)
         fill="none"
         overflow="visible"
       >
-        <defs>
-          <filter id={filterId}>
-            <feTurbulence
-              type="turbulence"
-              baseFrequency="0.04"
-              numOctaves="2"
-              result="noise"
-            />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="noise"
-              scale="1.4"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        </defs>
+        {/*
+          The filter itself now lives in <InkFilterDefs/>, mounted once per
+          board, rather than being redefined per mark. A teacher's mark is a
+          decorative stroke, so it gets the FULL wobble — see the legibility
+          rule in that file for why glyphs do not.
+        */}
         <motion.path
           d={d}
           stroke={color}

@@ -3,17 +3,22 @@
 import React from "react";
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
-import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
+import PenOverlay, { seededWobble } from "@/components/whiteboard/tutor/PenOverlay";
 import { teacherTargetIndex } from "@/lib/teacher-pointer";
 
-describe("TeacherPointer", () => {
-  it("renders the cursor without an attached caption", () => {
+/**
+ * PenOverlay replaced TeacherPointer, whose arrow was positioned in VIEWPORT
+ * coordinates while the ink it was supposedly drawing lived in container ones —
+ * two spaces that could never meet.
+ */
+describe("PenOverlay", () => {
+  it("renders the pen without an attached caption", () => {
     const { container } = render(
-      React.createElement(TeacherPointer, {
+      React.createElement(PenOverlay, {
         x: 120,
         y: 80,
         visible: true,
-        mode: "write",
+        mode: "write" as const,
       }),
     );
 
@@ -21,6 +26,50 @@ describe("TeacherPointer", () => {
     expect(screen.queryByText("Watch this")).not.toBeInTheDocument();
     expect(screen.queryByText("Look here")).not.toBeInTheDocument();
     expect(screen.queryByText("Your turn")).not.toBeInTheDocument();
+  });
+
+  /**
+   * The whole point of the move. `fixed` positions against the viewport, so the
+   * pen could not scroll with the board and would float over page chrome once
+   * the board scrolled away — the reason the inline variant needed a bounds
+   * guard at all.
+   */
+  it("positions itself inside the board, not against the viewport", () => {
+    const { container } = render(
+      React.createElement(PenOverlay, { x: 10, y: 10, visible: true }),
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className).toContain("absolute");
+    expect(root.className).not.toContain("fixed");
+  });
+
+  /**
+   * A replay must draw the identical wobble. Seeding from the anchor means a
+   * pupil watching a step twice sees the same hand, not a different jitter.
+   */
+  it("is deterministic for a given seed and differs across seeds", () => {
+    // Asserted on the generator, not the markup: these values go to
+    // framer-motion's `animate` prop, which jsdom never renders, so a DOM
+    // comparison would pass for both seeds and prove nothing.
+    expect(seededWobble("cue-1:0")).toEqual(seededWobble("cue-1:0"));
+    expect(seededWobble("cue-1:0")).not.toEqual(seededWobble("cue-1:3"));
+  });
+
+  it("keeps the wobble small enough to read as a hand, not a glitch", () => {
+    const { dx, dy } = seededWobble("cue-2:1");
+    for (const v of [...dx, ...dy]) {
+      expect(Math.abs(v)).toBeLessThanOrEqual(2);
+    }
+    // Loops back to the start, or the pen visibly jumps each cycle.
+    expect(dx[dx.length - 1]).toBe(dx[0]);
+    expect(dy[dy.length - 1]).toBe(dy[0]);
+  });
+
+  it("hides without unmounting, so it can animate back in", () => {
+    const { container } = render(
+      React.createElement(PenOverlay, { x: 0, y: 0, visible: false }),
+    );
+    expect(container.querySelector("svg")).toBeInTheDocument();
   });
 });
 
@@ -38,7 +87,8 @@ describe("TeacherPointer", () => {
  * the real teaching order.
  */
 describe("teacherTargetIndex — authored order vs word matching (DEF-004)", () => {
-  const speak = "speak" as never;
+  // The phase in which the teacher writes and talks at the same time.
+  const speak = "perform" as const;
 
   it("advances through digit anchors in pen order instead of pinning to one", () => {
     const targets = [

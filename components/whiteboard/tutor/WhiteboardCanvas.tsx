@@ -10,6 +10,17 @@ interface Props {
   /** Changes when the active cue changes, even though the stage element is stable. */
   focusKey: string | number;
   className?: string;
+  /**
+   * Rendered inside the board's own coordinate space, alongside the content.
+   *
+   * This is how the pen shares a space with the ink it draws. Positioned
+   * absolutely against this element, it scrolls with the board for free —
+   * where a viewport-fixed pointer had to be re-placed on every scroll and
+   * resize, and would float over page chrome once the board scrolled away.
+   */
+  overlay?: ReactNode;
+  /** The element overlay coordinates are measured against. */
+  onContentRef?: (el: HTMLDivElement | null) => void;
 }
 
 /**
@@ -22,6 +33,8 @@ export default function WhiteboardCanvas({
   focusEl,
   focusKey,
   className = "",
+  overlay,
+  onContentRef,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
@@ -61,7 +74,10 @@ export default function WhiteboardCanvas({
               "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(59,130,246,0.07), transparent 60%), radial-gradient(ellipse 60% 40% at 80% 100%, rgba(16,185,129,0.05), transparent)",
           }}
         />
-        <div className="relative z-[1]">{children}</div>
+        <div className="relative z-[1]" ref={onContentRef}>
+          {children}
+          {overlay}
+        </div>
       </div>
     </div>
   );
