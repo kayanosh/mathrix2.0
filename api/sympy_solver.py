@@ -19,10 +19,189 @@ or:
   "success": false,
   "error": "Could not parse expression"
 }
+
+SECURITY — this endpoint is internal. Read before changing it.
+
+SymPy's parse_expr() runs Python's eval() on its input. This file used to pass
+the request body straight to it with no login and CORS open to every origin, so
+anyone on the internet could run their own code on this server and read its
+environment (Supabase service-role key, Stripe key, AI keys). Two independent
+controls now stand in the way, and both must stay:
+
+  1. Shared secret. Every request must carry the X-Internal-Secret header equal
+     to the SYMPY_INTERNAL_SECRET environment variable. Only the Next.js server
+     (lib/sympy-solver.ts) knows it. If the variable is not set the endpoint
+     refuses everything — it fails closed, and the app falls back to Nerdamer.
+
+  2. Input allow-list. The secret alone is not enough, because the expression
+     is still text a pupil typed, relayed by our own server. validate_expression()
+     only lets through digits, arithmetic operators, single-letter variables and
+     a fixed list of maths functions. No dots next to names (attribute access),
+     no underscores, no quotes, no other identifiers — so nothing that reaches
+     eval() can name a builtin or reach an object's internals.
 """
 
 from http.server import BaseHTTPRequestHandler
+import hmac
 import json
+import os
+import re
+
+SECRET_ENV = "SYMPY_INTERNAL_SECRET"
+SECRET_HEADER = "X-Internal-Secret"
+
+MAX_BODY_BYTES = 10_000
+MAX_EXPRESSION_CHARS = 200
+MAX_EXPRESSIONS = 6
+MAX_PAREN_DEPTH = 20
+MAX_DIGIT_RUN = 15
+# Powers are the one way a short expression becomes an enormous computation
+# (9**9**9). Each numeric exponent is capped, and so is their combined product,
+# because nested brackets multiply exponents together: ((9**999)**999)**999.
+MAX_EXPONENT = 999
+MAX_EXPONENT_PRODUCT = 1_000_000
+
+# Multi-letter names that may reach the parser. Anything else made of letters is
+# split into single-letter variables ("xy" -> "x*y"), which is what SymPy's
+# implicit multiplication would do anyway — and guarantees that no other name
+# (open, exec, getattr, chr, ...) is ever evaluated.
+ALLOWED_NAMES = frozenset({
+    "pi", "sqrt", "sin", "cos", "tan", "asin", "acos", "atan",
+    "log", "ln", "exp", "Abs",
+})
+
+# No comma: the geometry tasks split on commas before parsing, so a value never
+# needs one, and without it nothing can be called with a second argument (for
+# example a precision of a million digits).
+_ALLOWED_CHARS = re.compile(r"[0-9A-Za-z \t+\-*/^().]*")
+_IDENTIFIER = re.compile(r"[A-Za-z][A-Za-z0-9]*")
+_SUBSCRIPTED_VARIABLE = re.compile(r"[A-Za-z][0-9]{1,3}")
+_VARIABLE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9]{0,7}")
+# A dot is only ever a decimal point: it must touch a digit, and must never sit
+# next to a name or a bracket, which is how attribute access is written.
+_LONE_DOT = re.compile(r"(?<![0-9])\.(?![0-9])")
+_DOT_BESIDE_NAME = re.compile(r"[A-Za-z)]\s*\.|\.\s*[A-Za-z(]")
+
+
+def _exponent_operand(s: str, start: int):
+    """Return (operand_text, index_after) for the exponent that begins at start."""
+    i = start
+    n = len(s)
+    while i < n and s[i].isspace():
+        i += 1
+    if i < n and s[i] in "+-":
+        i += 1
+    if i < n and s[i] == "(":
+        depth = 0
+        j = i
+        while j < n:
+            if s[j] == "(":
+                depth += 1
+            elif s[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    return s[i + 1:j], j + 1
+            j += 1
+        raise ValueError("Expression has unbalanced brackets")
+    j = i
+    while j < n and (s[j].isalnum() or s[j] == "."):
+        j += 1
+    return s[i:j], j
+
+
+def _check_powers(s: str) -> None:
+    product = 1
+    pos = s.find("**")
+    while pos != -1:
+        operand, after = _exponent_operand(s, pos + 2)
+        if "**" in operand:
+            raise ValueError("Nested powers are not allowed")
+        rest = s[after:].lstrip()
+        if rest.startswith("**"):
+            raise ValueError("Stacked powers are not allowed")
+        # A symbolic exponent (x**n) stays symbolic, so only numbers can blow up.
+        size = 1
+        for literal in re.findall(r"[0-9]+", operand):
+            size *= max(int(literal), 1)
+        if size > MAX_EXPONENT:
+            raise ValueError("Exponent is too large")
+        product *= size
+        if product > MAX_EXPONENT_PRODUCT:
+            raise ValueError("Powers are too large in combination")
+        pos = s.find("**", pos + 2)
+
+
+def validate_expression(raw) -> str:
+    """
+    Return a version of `raw` that is safe to hand to parse_expr(), or raise
+    ValueError. This is the only thing between pupil-typed text and eval(), so it
+    is an allow-list: anything not recognised as plain maths is refused.
+    """
+    if not isinstance(raw, str):
+        raise ValueError("Expression must be text")
+    s = raw.strip()
+    if not s:
+        raise ValueError("Expression is empty")
+    if len(s) > MAX_EXPRESSION_CHARS:
+        raise ValueError("Expression is too long")
+    if not _ALLOWED_CHARS.fullmatch(s):
+        raise ValueError("Expression contains characters that are not allowed")
+    if _LONE_DOT.search(s) or _DOT_BESIDE_NAME.search(s):
+        raise ValueError("A dot is only allowed as a decimal point")
+    if re.search(r"[0-9]{%d,}" % (MAX_DIGIT_RUN + 1), s):
+        raise ValueError("Number is too long")
+    if re.search(r"\([ \t]*\)", s):
+        raise ValueError("Empty brackets are not allowed")
+    # Python-only spellings that are not maths: floor division (//), and an
+    # operator straight after an opening bracket, which is how argument
+    # unpacking is written — f(*x), f(**x).
+    if "//" in s or re.search(r"(?:^|\()[ \t]*[*/^]", s):
+        raise ValueError("Operator is not allowed there")
+
+    depth = 0
+    for ch in s:
+        if ch == "(":
+            depth += 1
+            if depth > MAX_PAREN_DEPTH:
+                raise ValueError("Expression is nested too deeply")
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                raise ValueError("Expression has unbalanced brackets")
+    if depth != 0:
+        raise ValueError("Expression has unbalanced brackets")
+
+    def _rewrite(match):
+        name = match.group(0)
+        if len(name) == 1 or name in ALLOWED_NAMES:
+            return name
+        if _SUBSCRIPTED_VARIABLE.fullmatch(name):
+            return name
+        if name.isalpha():
+            return "*".join(name)
+        raise ValueError("Name is not allowed: %s" % name)
+
+    s = _IDENTIFIER.sub(_rewrite, s)
+    _check_powers(s)
+    return s
+
+
+def validate_variable(raw) -> str:
+    if not isinstance(raw, str) or not _VARIABLE_NAME.fullmatch(raw):
+        raise ValueError("Variable name is not allowed")
+    return raw
+
+
+def authorise(provided) -> int:
+    """Return 0 when the caller may proceed, otherwise the HTTP status to send."""
+    expected = os.environ.get(SECRET_ENV, "")
+    if not expected:
+        return 503  # not configured: refuse everyone rather than serve everyone
+    if not isinstance(provided, str) or not hmac.compare_digest(
+        provided.encode("utf-8"), expected.encode("utf-8")
+    ):
+        return 401
+    return 0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Lazy import so that Vercel can load the module without crashing even if
@@ -49,14 +228,25 @@ def dispatch(body: dict) -> dict:
     var_name = body.get("variable", "x")
     expr_str = body.get("expression", "")
 
+    # Every branch below splits and inspects these as text before parsing.
+    if not isinstance(task, str) or not isinstance(expr_str, str):
+        return {"success": False, "error": "Invalid request"}
+    if len(expr_str) > MAX_EXPRESSION_CHARS:
+        return {"success": False, "error": "Expression is too long"}
+
     # Local helpers ────────────────────────────────────────────────────────────
 
     def sym(name: str):
-        return sp.Symbol(name)
+        return sp.Symbol(validate_variable(name))
 
     def safe_parse(s: str):
-        """Parse with implicit-multiplication support."""
-        return parse_expr(s, transformations=transforms)
+        """
+        Parse with implicit-multiplication support.
+
+        Every string that reaches parse_expr() — and therefore eval() — goes
+        through here. Do not call parse_expr() anywhere else in this file.
+        """
+        return parse_expr(validate_expression(s), transformations=transforms)
 
     def latex_list(items):
         return [sp.latex(i) for i in items]
@@ -141,6 +331,12 @@ def dispatch(body: dict) -> dict:
 
         elif task == "simultaneous":
             expressions = body.get("expressions", [])
+            if (
+                not isinstance(expressions, list)
+                or len(expressions) > MAX_EXPRESSIONS
+                or not all(isinstance(e, str) for e in expressions)
+            ):
+                return {"success": False, "error": "Invalid request"}
             if len(expressions) < 2:
                 return {"success": False, "error": "Need at least 2 expressions for simultaneous"}
 
@@ -436,34 +632,43 @@ def dispatch(body: dict) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class handler(BaseHTTPRequestHandler):
+    # No CORS headers and no OPTIONS handler, deliberately: this is called
+    # server-to-server by lib/sympy-solver.ts and never from a browser.
+
     def do_POST(self):
+        # Authorise before reading the body, so an outsider cannot make the
+        # function parse or allocate anything.
+        denied = authorise(self.headers.get(SECRET_HEADER))
+        if denied:
+            message = "Solver is not configured" if denied == 503 else "Unauthorised"
+            self._respond(denied, {"success": False, "error": message})
+            return
+
         try:
             content_length = int(self.headers.get("Content-Length", 0))
-            raw_body = self.rfile.read(content_length)
-            body = json.loads(raw_body)
-        except Exception as e:
-            self._respond(400, {"success": False, "error": f"Bad request: {e}"})
+        except ValueError:
+            content_length = -1
+        if content_length < 0 or content_length > MAX_BODY_BYTES:
+            self._respond(413, {"success": False, "error": "Request is too large"})
+            return
+
+        try:
+            body = json.loads(self.rfile.read(content_length))
+        except Exception:
+            self._respond(400, {"success": False, "error": "Bad request"})
+            return
+        if not isinstance(body, dict):
+            self._respond(400, {"success": False, "error": "Bad request"})
             return
 
         result = dispatch(body)
         self._respond(200, result)
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self._cors_headers()
-        self.end_headers()
-
-    def _cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _respond(self, status: int, data: dict):
         payload = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
-        self._cors_headers()
         self.end_headers()
         self.wfile.write(payload)
 

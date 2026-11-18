@@ -196,6 +196,15 @@ export async function sympySolve(
 ): Promise<SympyResult | null> {
   const start = Date.now();
 
+  // The solver evaluates its input, so it only answers callers that present this
+  // shared secret (see the SECURITY note in api/sympy_solver.py). Without it the
+  // request would be refused anyway — skip the round trip and let the caller
+  // fall back to Nerdamer.
+  const secret = process.env.SYMPY_INTERNAL_SECRET;
+  if (!secret) {
+    return null;
+  }
+
   // Determine base URL — works both locally (via vercel dev) and in production
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -209,7 +218,10 @@ export async function sympySolve(
 
     const res = await fetch(`${baseUrl}/api/sympy_solver`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Secret": secret,
+      },
       body: JSON.stringify({ expression, type, variable, expressions }),
       signal: controller.signal,
     });

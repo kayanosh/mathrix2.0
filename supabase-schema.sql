@@ -20,11 +20,40 @@ create policy "Users can view own profile"
   on public.profiles for select
   using (auth.uid() = id);
 
--- Users can update their own profile (but not subscription_status — that's webhook-only via service role)
+-- Users can update their own profile row — but only full_name. The policy below
+-- chooses WHICH ROW; it cannot restrict WHICH COLUMNS, and this row also holds
+-- subscription_status, role and centre_id. The column grant and the trigger that
+-- follow are what stop a user making themselves Pro or admin. Do not remove them.
+-- Full explanation: scripts/sql/protect-profile-columns.sql
 create policy "Users can update own profile"
   on public.profiles for update
   using (auth.uid() = id)
   with check (auth.uid() = id);
+
+revoke update on public.profiles from anon, authenticated;
+grant update (full_name) on public.profiles to authenticated;
+
+create or replace function public.protect_profile_columns()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user in ('anon', 'authenticated')
+     and (to_jsonb(new) - 'full_name' - 'updated_at')
+         is distinct from (to_jsonb(old) - 'full_name' - 'updated_at')
+  then
+    raise exception 'Only full_name can be changed on a profile'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect_columns on public.profiles;
+create trigger profiles_protect_columns
+  before update on public.profiles
+  for each row execute function public.protect_profile_columns();
 
 -- 2. Daily usage table — tracks prompts per user per day
 create table public.daily_usage (
