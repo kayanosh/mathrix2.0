@@ -61,7 +61,12 @@ describe("buildGroundTruth", () => {
     expect(result.source).toBe("none");
   });
 
-  it("prefers sympy when answer counts differ", () => {
+  it("trusts neither engine when they disagree", () => {
+    // This used to read "prefers sympy when answer counts differ" and expected
+    // SymPy's ["2", "3"] to win over Nerdamer's ["3"]. Two engines giving
+    // different answers to one question means at least one is wrong, and
+    // nothing here can tell which — so there is no ground truth to offer.
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     const sympyMulti: SympyResult = {
       success: true,
       answers: ["2", "3"],
@@ -69,8 +74,10 @@ describe("buildGroundTruth", () => {
       latencyMs: 100,
     };
     const result = buildGroundTruth(sympyMulti, nerdamerSuccess);
-    expect(result.source).toBe("sympy");
-    expect(result.answers).toEqual(["2", "3"]);
+    expect(result.source).toBe("none");
+    expect(result.verified).toBe(false);
+    expect(result.answers).toEqual([]);
+    warn.mockRestore();
   });
 
   it("handles failed sympy with working nerdamer", () => {

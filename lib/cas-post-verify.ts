@@ -33,6 +33,15 @@ export interface PostVerifyResult {
   warnings: string[];
   /** Whether the CAS had enough info to attempt verification */
   attempted: boolean;
+  /**
+   * Where the equation being checked against came from.
+   *   "question" — read from the question text: an independent premise.
+   *   "board"    — read from the solution's own first line. Passing then only
+   *                shows the working is self-consistent; it cannot show the
+   *                question was read correctly, and must not be reported as
+   *                verification of the answer.
+   */
+  premise: "question" | "board" | null;
 }
 
 // ── LaTeX / text extraction helpers ───────────────────────────────────────────
@@ -251,8 +260,9 @@ export function postVerifyCAS(
     ? extractEquationFromQuestion(originalQuestion)
     : null;
   const equation = fromQuestion ?? extractOriginalEquation(data.blocks);
+  const premise: PostVerifyResult["premise"] = fromQuestion ? "question" : equation ? "board" : null;
   if (!equation) {
-    return { verified: false, warnings: [], attempted: false };
+    return { verified: false, warnings: [], attempted: false, premise };
   }
 
   // 2. Extract answer(s) from last step and/or conclusion
@@ -268,6 +278,7 @@ export function postVerifyCAS(
       verified: false,
       warnings: ["Could not extract final answer for verification"],
       attempted: false,
+      premise,
     };
   }
 
@@ -301,5 +312,5 @@ export function postVerifyCAS(
     );
   }
 
-  return { verified: allVerified, warnings, attempted: true };
+  return { verified: allVerified, warnings, attempted: true, premise };
 }

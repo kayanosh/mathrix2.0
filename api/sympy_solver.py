@@ -251,6 +251,35 @@ def dispatch(body: dict) -> dict:
     def latex_list(items):
         return [sp.latex(i) for i in items]
 
+    def numeric_result(value):
+        """
+        One answer for a numeric result, and whether it is exact.
+
+        A whole number or fraction is returned exactly ("5/4"), so the caller
+        can compare it exactly. Anything involving pi or a root is returned as
+        a 15-significant-figure decimal and flagged inexact, so the caller
+        knows to accept a correct rounding of it and nothing else. This used to
+        return both forms as two "answers", and a 6-figure decimal that a
+        correctly rounded answer could not be told apart from a wrong one.
+        """
+        value = sp.nsimplify(value, rational=True) if value.is_Float else value
+        if value.is_Rational:
+            return {
+                "success": True,
+                "answers": [str(value)],
+                "answersLatex": [sp.latex(value)],
+                "exact": True,
+            }
+        approx = sp.N(value, 15)
+        if not approx.is_real or approx.has(sp.zoo, sp.nan, sp.oo):
+            return {"success": False, "error": "No real value"}
+        return {
+            "success": True,
+            "answers": [str(approx)],
+            "answersLatex": [sp.latex(value)],
+            "exact": False,
+        }
+
     def str_list(items):
         return [str(i) for i in items]
 
@@ -260,18 +289,22 @@ def dispatch(body: dict) -> dict:
         v = sym(var_name)
 
         if task == "solve":
-            expr = safe_parse(expr_str)
-            # If the expression contains an = sign we treat it as an equation
+            # An equation is split on "=" BEFORE parsing. The whole string used
+            # to be parsed first, and "2*x + 4 = 10" is not an expression — so
+            # every equation raised a syntax error and SymPy never solved one.
             if "=" in expr_str:
                 lhs_str, rhs_str = expr_str.split("=", 1)
                 lhs = safe_parse(lhs_str.strip())
                 rhs = safe_parse(rhs_str.strip())
                 solutions = sp.solve(lhs - rhs, v)
             else:
-                solutions = sp.solve(expr, v)
+                solutions = sp.solve(safe_parse(expr_str), v)
 
             if not solutions:
                 return {"success": False, "error": "No solutions found"}
+            # At school level "x = i" is not an answer; "no real solutions" is.
+            if any(not sol.is_real for sol in solutions):
+                return {"success": False, "error": "No real solutions"}
 
             return {
                 "success": True,
@@ -322,12 +355,7 @@ def dispatch(body: dict) -> dict:
             }
 
         elif task == "evaluate":
-            result = sp.N(safe_parse(expr_str))
-            return {
-                "success": True,
-                "answers": [str(result)],
-                "answersLatex": [sp.latex(result)],
-            }
+            return numeric_result(safe_parse(expr_str))
 
         elif task == "simultaneous":
             expressions = body.get("expressions", [])
@@ -404,14 +432,10 @@ def dispatch(body: dict) -> dict:
             else:
                 return {"success": False, "error": "Need exactly 2 of a, b, c for Pythagoras"}
 
-            simplified = sp.simplify(result)
-            decimal_val = sp.N(simplified, 6)
-            return {
-                "success": True,
-                "answers": [str(simplified), str(decimal_val)],
-                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
-                "label": label,
-            }
+            answer = numeric_result(sp.simplify(result))
+            if answer.get("success"):
+                answer["label"] = label
+            return answer
 
         elif task == "triangle_angles":
             # expression: "A=40,B=60" — solve for missing angle(s)
@@ -483,13 +507,7 @@ def dispatch(body: dict) -> dict:
             else:
                 return {"success": False, "error": f"Unknown shape: {shape}"}
 
-            simplified = sp.simplify(result)
-            decimal_val = sp.N(simplified, 6)
-            return {
-                "success": True,
-                "answers": [str(simplified), str(decimal_val)],
-                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
-            }
+            return numeric_result(sp.simplify(result))
 
         elif task == "volume":
             # expression: "shape=cuboid,length=4,width=3,height=5"
@@ -531,13 +549,7 @@ def dispatch(body: dict) -> dict:
             else:
                 return {"success": False, "error": f"Unknown shape: {shape}"}
 
-            simplified = sp.simplify(result)
-            decimal_val = sp.N(simplified, 6)
-            return {
-                "success": True,
-                "answers": [str(simplified), str(decimal_val)],
-                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
-            }
+            return numeric_result(sp.simplify(result))
 
         elif task == "trig_solve":
             # expression: "func=sin,angle=30" → evaluate sin(30°)
@@ -577,13 +589,7 @@ def dispatch(body: dict) -> dict:
             else:
                 return {"success": False, "error": "Need angle or two side lengths"}
 
-            simplified = sp.simplify(result)
-            decimal_val = sp.N(simplified, 6)
-            return {
-                "success": True,
-                "answers": [str(simplified), str(decimal_val)],
-                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
-            }
+            return numeric_result(sp.simplify(result))
 
         elif task == "circle_property":
             # expression: "property=circumference,radius=7"
@@ -612,13 +618,7 @@ def dispatch(body: dict) -> dict:
             else:
                 return {"success": False, "error": f"Unknown property: {prop}"}
 
-            simplified = sp.simplify(result)
-            decimal_val = sp.N(simplified, 6)
-            return {
-                "success": True,
-                "answers": [str(simplified), str(decimal_val)],
-                "answersLatex": [sp.latex(simplified), sp.latex(decimal_val)],
-            }
+            return numeric_result(sp.simplify(result))
 
         else:
             return {"success": False, "error": f"Unknown task type: {task}"}

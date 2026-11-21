@@ -1,7 +1,7 @@
 /**
  * Claude solver — wraps the Anthropic SDK for the main solver role.
  *
- * Uses claude-sonnet-4-6 with extended thinking enabled, which lets Claude
+ * Uses Claude Sonnet 4.6 with extended thinking enabled, which lets Claude
  * internally self-verify its maths before producing the JSON output.
  * The thinking content is logged server-side only and never sent to the client.
  *
@@ -9,12 +9,18 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import * as Sentry from "@sentry/nextjs";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export const CLAUDE_SOLVER_MODEL = "claude-sonnet-4-6-20250514";
+// This was "claude-sonnet-4-6-20250514", which is not a model: it is Sonnet 4.6's
+// name with Sonnet 4's release date glued on. The API rejected it, every caller
+// caught the error and fell back to GPT-4o, and so Claude never solved a single
+// question — while the pipeline went on describing GPT-4o checking GPT-4o as
+// "cross-model verification". Sonnet 4.6 has no dated alias; this is the whole ID.
+export const CLAUDE_SOLVER_MODEL = "claude-sonnet-4-6";
 
 /** Thinking budget in tokens — caps internal reasoning time. Lower = faster. */
 const THINKING_BUDGET = 4096;
@@ -72,17 +78,32 @@ export async function claudeSolve(
 ): Promise<ClaudeSolverResult> {
   const thinkingBudget = options.thinkingBudget ?? THINKING_BUDGET;
   const maxTokens = options.maxTokens ?? MAX_TOKENS;
-  const response = await anthropic.messages.create({
-    model: CLAUDE_SOLVER_MODEL,
-    max_tokens: maxTokens,
-    thinking: {
-      type: "enabled",
-      budget_tokens: thinkingBudget,
-    },
-    system: systemPrompt,
-    // Cast needed because SDK types are strict about the union
-    messages: messages as Parameters<typeof anthropic.messages.create>[0]["messages"],
-  });
+  let response: Anthropic.Message;
+  try {
+    response = await anthropic.messages.create({
+      model: CLAUDE_SOLVER_MODEL,
+      max_tokens: maxTokens,
+      // A fixed thinking budget is deprecated on Sonnet 4.6 but still honoured.
+      // It is kept because max_tokens above is sized around it; moving to
+      // adaptive thinking is a separate change that needs measuring.
+      thinking: {
+        type: "enabled",
+        budget_tokens: thinkingBudget,
+      },
+      system: systemPrompt,
+      // Cast needed because SDK types are strict about the union
+      messages: messages as Parameters<typeof anthropic.messages.create>[0]["messages"],
+    });
+  } catch (error) {
+    // Every caller catches this and quietly falls back to GPT-4o. That is the
+    // right thing for the pupil, and exactly how a wrong model ID went unnoticed
+    // for months — so report it here, once, before the callers swallow it.
+    console.error(`[Claude] ${CLAUDE_SOLVER_MODEL} call failed:`, (error as Error).message);
+    Sentry.captureException(error, {
+      tags: { component: "claude-solver", model: CLAUDE_SOLVER_MODEL },
+    });
+    throw error;
+  }
 
   let content = "";
   let thinkingContent = "";

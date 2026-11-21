@@ -18,7 +18,7 @@ export interface ModelPrice {
 /** Prices per 1M tokens. Keep in sync with provider pricing pages. */
 export const MODEL_PRICING: Record<string, ModelPrice> = {
   // Anthropic
-  "claude-sonnet-4-6-20250514": { inputPerM: 3, outputPerM: 15 },
+  "claude-sonnet-4-6": { inputPerM: 3, outputPerM: 15 },
   "claude-sonnet-4": { inputPerM: 3, outputPerM: 15 },
   // OpenAI
   "gpt-4o": { inputPerM: 2.5, outputPerM: 10 },

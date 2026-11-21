@@ -288,5 +288,113 @@ class OverHttp(unittest.TestCase):
         self.assertEqual(json.loads(body)["success"], False)
 
 
+try:
+    import sympy  # noqa: F401
+
+    HAVE_SYMPY = True
+except ImportError:
+    HAVE_SYMPY = False
+
+
+@unittest.skipUnless(HAVE_SYMPY, "SymPy is not installed (pip install -r requirements.txt)")
+class WithSymPy(unittest.TestCase):
+    """
+    The solver itself, with the real library behind it. Skipped where SymPy is
+    not installed; everything above still runs there.
+    """
+
+    def solve(self, **body):
+        return solver.dispatch(body)
+
+    def test_solves_equations(self):
+        # Every one of these used to fail: the whole string, "=" included, was
+        # parsed as an expression before it was split, which is a syntax error.
+        self.assertEqual(self.solve(type="solve", expression="3*x+5=20", variable="x")["answers"], ["5"])
+        self.assertEqual(self.solve(type="solve", expression="2*x=7", variable="x")["answers"], ["7/2"])
+        self.assertEqual(
+            sorted(self.solve(type="solve", expression="x**2-5*x-6=0", variable="x")["answers"]),
+            ["-1", "6"],
+        )
+        self.assertEqual(
+            sorted(self.solve(type="solve", expression="x**2-5*x-6", variable="x")["answers"]),
+            ["-1", "6"],
+        )
+
+    def test_offers_no_complex_roots(self):
+        result = self.solve(type="solve", expression="x**2+1=0", variable="x")
+        self.assertFalse(result["success"])
+
+    def test_arithmetic_is_exact(self):
+        for expression, expected in [
+            ("3+4*2", "11"),
+            ("3/4+1/2", "5/4"),
+            ("(2+1/4)*3", "27/4"),
+            ("0.1+0.2", "3/10"),
+            ("sqrt(16)+2", "6"),
+        ]:
+            result = self.solve(type="evaluate", expression=expression)
+            self.assertEqual(result["answers"], [expected], expression)
+            self.assertIs(result["exact"], True, expression)
+
+    def test_irrational_values_are_flagged_inexact(self):
+        result = self.solve(type="evaluate", expression="2*pi")
+        self.assertIs(result["exact"], False)
+        self.assertEqual(len(result["answers"]), 1)
+        self.assertAlmostEqual(float(result["answers"][0]), 6.283185307179586, places=12)
+
+    def test_algebra(self):
+        self.assertEqual(self.solve(type="expand", expression="(x+2)*(x-3)")["answers"], ["x**2 - x - 6"])
+        self.assertEqual(
+            self.solve(type="factorise", expression="2*x**2+7*x+3")["answers"], ["(x + 3)*(2*x + 1)"]
+        )
+        self.assertEqual(self.solve(type="factorise", expression="x**2+6*x+9")["answers"], ["(x + 3)**2"])
+        self.assertEqual(self.solve(type="simplify", expression="3*x*y+2*x*y")["answers"], ["5*x*y"])
+        self.assertEqual(self.solve(type="diff", expression="x**3+2*x", variable="x")["answers"], ["3*x**2 + 2"])
+
+    def test_simultaneous(self):
+        result = self.solve(type="simultaneous", expressions=["2*x+y=7", "x-y=2"])
+        self.assertEqual(result["answers"], ["x = 3", "y = 1"])
+
+    def test_geometry_gives_one_answer(self):
+        rectangle = self.solve(type="area", expression="shape=rectangle,length=5,width=3")
+        self.assertEqual(rectangle["answers"], ["15"])
+        self.assertIs(rectangle["exact"], True)
+        circle = self.solve(type="area", expression="shape=circle,radius=7")
+        self.assertEqual(len(circle["answers"]), 1)
+        self.assertIs(circle["exact"], False)
+        self.assertAlmostEqual(float(circle["answers"][0]), 153.93804002589985, places=9)
+
+    def test_attacks_are_refused_before_they_reach_eval(self):
+        marker = "MATHRIX_SOLVER_TEST_MARKER"
+        os.environ.pop(marker, None)
+        for attack in [
+            "__import__('os').environ.__setitem__('%s', '1')" % marker,
+            "(1).__class__",
+            "open('/etc/passwd').read()",
+            "S('__import__(\"os\")')",
+        ]:
+            for task in ["evaluate", "simplify", "solve", "expand"]:
+                result = self.solve(type=task, expression=attack, variable="x")
+                self.assertFalse(result["success"], attack)
+        self.assertNotIn(marker, os.environ)
+
+    def test_names_that_survive_validation_are_harmless(self):
+        # These contain only allowed characters, so they reach SymPy — as a
+        # product of single letters, never as the function they spell.
+        for expression in ["exec(x)", "open(x)", "eval(x)+1"]:
+            result = self.solve(type="simplify", expression=expression, variable="x")
+            for answer in result.get("answers", []):
+                self.assertNotIn("built-in", answer)
+                self.assertNotIn("<", answer)
+
+    def test_runaway_powers_are_refused_quickly(self):
+        import time
+
+        started = time.time()
+        for expression in ["9**9**9", "2**(9**9)", "((9**999)**999)**999"]:
+            self.assertFalse(self.solve(type="evaluate", expression=expression)["success"])
+        self.assertLess(time.time() - started, 2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

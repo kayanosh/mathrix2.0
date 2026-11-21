@@ -23,7 +23,7 @@
  * answer with a wrong one. Every case below therefore asserts EITHER the right
  * answer OR a decline — never a wrong number.
  */
-import { parseLinearEquation } from "@/lib/methods/linear-equation";
+import { buildLinearEquation, parseLinearEquation } from "@/lib/methods/linear-equation";
 import { buildMethodForQuestion } from "@/lib/methods";
 
 /** The value this builder would show a student, or null if it declined. */
@@ -59,8 +59,18 @@ describe("solves the forms it claims to solve", () => {
   it("handles a fractional coefficient without floating-point dust", () => {
     // Was x = 1.33. And a naive fix gives 6.000000000000001, which is worse
     // than wrong — it looks like a bug to a child.
-    expect(shownAnswer("solve 2/3 x = 4")).toBe("x = 6");
-    expect(shownAnswer("solve \\frac{2}{3}x = 4")).toBe("x = 6");
+    //
+    // The builder's ANSWER is right (x = 6), which is what this used to assert.
+    // But every line of its working reads "0.6666666666666666x = 4" — the
+    // same looks-like-a-bug problem, one step earlier. The builder guard now
+    // discards a result that never shows the question's own 2/3, so no builder
+    // board is used here and the model's working stands instead.
+    for (const question of ["solve 2/3 x = 4", "solve \\frac{2}{3}x = 4"]) {
+      const parsed = parseLinearEquation(question)!;
+      expect(buildLinearEquation(parsed).answer).toBe("x = 6");
+      expect(JSON.stringify(buildLinearEquation(parsed))).toContain("0.6666666666666666");
+      expect(buildMethodForQuestion(question)).toBeNull();
+    }
   });
 
   it("handles the unknown divided by a constant", () => {

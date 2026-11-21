@@ -24,6 +24,7 @@ import {
   buildCriticUserMessage,
   buildCorrectionMessage,
   parseCriticResponse,
+  type CriticResult,
 } from "@/lib/prompts/critic";
 import {
   validateResponse,
@@ -37,7 +38,7 @@ import { buildGroundTruth } from "@/lib/ground-truth";
 import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/lib/claude-solver";
 import { logAiUsage } from "@/lib/ai-usage-log";
 import type { CallUsage } from "@/lib/ai-cost";
-import { postVerifyCAS } from "@/lib/cas-post-verify";
+import { runCasChecks, summariseVerification, type Agreement } from "@/lib/answer-agreement";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
 import { createClient } from "@/lib/supabase/server";
@@ -262,6 +263,11 @@ export async function POST(req: NextRequest) {
     // ── Stage 1: Classify the question ────────────────────────────────
     const category = classifyQuestion(questionText);
 
+    // Set when a cached answer is found to contradict the CAS: it is not
+    // served, and the fresh answer replaces it instead of being ignored as a
+    // duplicate.
+    let replaceCachedAnswer = false;
+
     // ── Stage 1a: Check question cache ────────────────────────────────
     // Skip cache for image questions — hash is text-only, so different images
     // with the same generic text ("Solve this question from the photo") would collide.
@@ -277,49 +283,102 @@ export async function POST(req: NextRequest) {
         const subtopicsArr = Array.isArray(subtopicsContext)
           ? (subtopicsContext as string[])
           : undefined;
+        // The verification stored with a cached answer is NOT trusted as-is.
+        // Rows written before the checks were made honest carry "CAS verified"
+        // stamps that were never earned (and ground truths like "6" for 6 × 7),
+        // and a row with no verification at all used to be served as
+        // high-confidence with every check passed. The CAS checks are local and
+        // instant, so they are simply run again against what is about to be
+        // shown. The critic and tool results are the only things reused.
+        const cachedCas = casSolve(questionText);
+        const cachedTruth = cachedCas?.verified && cachedCas.answers.length ? cachedCas.answers : null;
         const board = applyMethodBuilderToWhiteboard(
           cached.response_json,
           questionText,
           typeof topicContext === "string" ? topicContext : undefined,
           subtopicsArr,
-        );
-        send("solver_done", {
-          whiteboard: board,
-          response: whiteboardToLegacy(board),
-          category: cached.category,
-          validationWarnings: [],
-        });
-        send("verification_done", {
-          verification: cached.verification_json || {
-            confidence: "high",
-            casVerified: true,
-            criticVerified: true,
-            toolChecksPassed: true,
+          {
+            agreesWithGroundTruth: cachedTruth
+              ? (builderAnswer) =>
+                  cachedTruth.some((truth) => mathsAnswersEquivalent(builderAnswer, truth))
+              : undefined,
           },
-          whiteboard: board,
-        });
+        );
+        const cachedChecks = runCasChecks(board, questionText, cachedTruth);
 
-        // Still increment usage
-        if (user) {
-          const today = new Date().toISOString().split("T")[0];
-          try {
-            await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
-          } catch { /* ignore */ }
+        // A cached answer the CAS contradicts is not served. Rows cached while
+        // the old question reader was live were written by a model that had
+        // been told its answer "MUST match" ground truths like 6 for 6 × 7, so
+        // some of them hold exactly that. Serving one with a warning badge
+        // would still be teaching the wrong answer; solve it again instead.
+        if (cachedChecks.agreement === "disagree") {
+          replaceCachedAnswer = true;
+          console.warn(
+            `[Cache] Discarding cached answer for ${qHash.slice(0, 12)}: ` +
+              `${cachedChecks.warnings.join("; ")}`,
+          );
+        } else {
+          const storedVerification = cached.verification_json;
+          const cachedFlags = {
+            agreement: cachedChecks.agreement,
+            preCasVerified: cachedChecks.preCasVerified,
+            postCasVerified: cachedChecks.postCasVerified,
+            criticVerified: storedVerification?.criticVerified === true,
+            toolChecksPassed: storedVerification?.toolChecksPassed === true,
+          };
+          const cachedSummary = summariseVerification(cachedFlags);
+          // The badge is drawn from these fields on the board itself, so the
+          // stamps the row was cached with have to be overwritten, not just
+          // accompanied by a fresh verification event.
+          board.casVerified = cachedSummary.casVerified;
+          board.verification = {
+            preCasVerified: cachedFlags.preCasVerified,
+            postCasVerified: cachedFlags.postCasVerified,
+            criticVerified: cachedFlags.criticVerified,
+            toolChecksPassed: cachedFlags.toolChecksPassed,
+            confidence: cachedSummary.confidence,
+            agreementCount: cachedSummary.agreementCount,
+            warnings: cachedChecks.warnings,
+            crossModelVerified: storedVerification?.crossModelVerified === true,
+          };
+          send("solver_done", {
+            whiteboard: board,
+            response: whiteboardToLegacy(board),
+            category: cached.category,
+            validationWarnings: [],
+          });
+          send("verification_done", {
+            verification: {
+              confidence: cachedSummary.confidence,
+              casVerified: cachedSummary.casVerified,
+              criticVerified: cachedFlags.criticVerified,
+              toolChecksPassed: cachedFlags.toolChecksPassed,
+            },
+            whiteboard: board,
+          });
+
+          // Still increment usage
+          if (user) {
+            const today = new Date().toISOString().split("T")[0];
+            try {
+              await supabaseAdmin.rpc("increment_usage", { p_user_id: user.id, p_date: today });
+            } catch { /* ignore */ }
+          }
+
+          logAiUsage({
+            userId: user?.id,
+            mode: "cache",
+            category: cached.category,
+            level: level || "GCSE",
+            tier: tier || null,
+            cached: true,
+            confidence: cachedSummary.confidence,
+            calls: [],
+          });
+
+          controller.close();
+          return;
         }
-
-        logAiUsage({
-          userId: user?.id,
-          mode: "cache",
-          category: cached.category,
-          level: level || "GCSE",
-          tier: tier || null,
-          cached: true,
-          confidence: cached.verification_json?.confidence || "high",
-          calls: [],
-        });
-
-        controller.close();
-        return;
       }
       console.log(`[Cache] MISS for hash ${qHash.slice(0, 12)}...`);
     }
@@ -925,12 +984,17 @@ export async function POST(req: NextRequest) {
     const anthropicMessages = convertToAnthropicMessages(formattedMessages);
 
     let rawContent = "";
+    // Which model actually wrote the solution on the board. The critic is
+    // GPT-4o, so a GPT-4o fallback here means the answer is NOT cross-checked
+    // by a second model, whatever the pipeline was designed to do.
+    let solverModel: string = CLAUDE_SOLVER_MODEL;
     try {
       const solverResult = await claudeSolve(systemPrompt, anthropicMessages);
       rawContent = solverResult.content;
       recordClaude(solverResult);
     } catch (claudeErr) {
       // Fallback to GPT-4o if Claude is unavailable
+      solverModel = "gpt-4o";
       console.warn(`[Pass 1] Claude failed, falling back to GPT-4o: ${(claudeErr as Error).message}`);
       const fallbackResponse = await getOpenAI().chat.completions.create({
         model: "gpt-4o",
@@ -964,6 +1028,7 @@ export async function POST(req: NextRequest) {
       try {
         const retryResult = await claudeSolve(systemPrompt, retryAnthropicMessages);
         rawContent = retryResult.content;
+        solverModel = CLAUDE_SOLVER_MODEL;
         recordClaude(retryResult);
       } catch {
         // If retry also fails, keep original rawContent
@@ -999,6 +1064,7 @@ export async function POST(req: NextRequest) {
               );
               result = retryResult;
               rawContent = retry.content;
+              solverModel = CLAUDE_SOLVER_MODEL;
             }
           }
         } catch {
@@ -1113,15 +1179,23 @@ export async function POST(req: NextRequest) {
     //  VERIFICATION PIPELINE (runs while client already shows solution)
     // ══════════════════════════════════════════════════════════════════
 
+    const truthAnswers =
+      groundTruth.verified && groundTruth.answers.length ? groundTruth.answers : null;
+
     const verification: VerificationStatus = {
-      preCasVerified: groundTruth.verified,
+      preCasVerified: false,
       postCasVerified: false,
       criticVerified: false,
       toolChecksPassed: false,
       confidence: "low",
       warnings: [],
-      sympyVerified: groundTruth.sympyVerified,
-      crossModelVerified: true, // Always true: Claude solver + GPT-4o critic
+      // The answer is only "SymPy verified" if SymPy's answer was the one it
+      // was compared with AND they agreed — set below, with the CAS checks.
+      sympyVerified: false,
+      // True only when the solver really was a different model from the
+      // critic. It used to be hard-coded true while a bad model ID sent every
+      // solve to the GPT-4o fallback, i.e. GPT-4o marking its own work.
+      crossModelVerified: solverModel !== CRITIC_MODEL,
     };
 
     // Attach ground-truth metadata to solution
@@ -1131,29 +1205,24 @@ export async function POST(req: NextRequest) {
     }
 
     // ── CAS verification ──────────────────────────────────────────────
-
-    // Pre-CAS stamp (using merged ground-truth)
-    if (groundTruth.verified) {
-      solutionData.casVerified = true;
-      verification.preCasVerified = true;
-    }
-
-    // Post-CAS: verify the LLM's answer using nerdamer
-    if (!solutionData.casVerified) {
-      // Pass the original question so the check has an independent premise —
-      // the board is written by the pipeline being checked.
-      const postCheck = postVerifyCAS(solutionData, questionText);
-      if (postCheck.attempted && postCheck.verified) {
-        solutionData.casVerified = true;
-        verification.postCasVerified = true;
-        console.log("[CAS] Post-verification succeeded ✓");
-      } else if (postCheck.attempted) {
-        verification.warnings.push(...postCheck.warnings);
-        console.log(`[CAS] Post-verification failed: ${postCheck.warnings.join("; ")}`);
-      }
-    } else {
-      verification.postCasVerified = true;
-    }
+    //
+    // Two checks, and each one compares the answer ON THE BOARD with something
+    // derived from the question alone:
+    //   pre  — it equals the answer the CAS computed before the model ran
+    //   post — it satisfies the question's equation when substituted back
+    //
+    // This used to set casVerified (and count TWO of the four sources) the
+    // moment the CAS produced any answer, without comparing it to anything.
+    //
+    // What the checks are run against. For a typed question that is the
+    // question itself. For a photo there is no question text — only the
+    // solver's reading of the image, which is the thing being checked — so
+    // these are replaced below by the CRITIC's independent reading once it
+    // has one.
+    let checkQuestion: string = questionText;
+    let checkTruth: string[] | null = truthAnswers;
+    let casAgreement = applyCasChecks(solutionData, verification, checkQuestion, checkTruth);
+    verification.sympyVerified = groundTruth.sympyVerified && verification.preCasVerified;
 
     // ── Deterministic tool checks ─────────────────────────────────────
     const toolReport = runToolChecks(solutionData);
@@ -1173,26 +1242,72 @@ export async function POST(req: NextRequest) {
     console.log(`[Pass 2] Critic: calling ${CRITIC_MODEL} (cross-model)...`);
 
     const criticSystemPrompt = buildCriticSystemPrompt();
-    const criticUserMessage = buildCriticUserMessage(
-      questionText,
-      rawContent,
-      hasImage,
-      groundTruth.verified ? groundTruth : null,
-    );
 
-    const criticResponse = await getOpenAI().chat.completions.create({
-      model: CRITIC_MODEL,
-      max_tokens: CRITIC_MAX_TOKENS,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system" as const, content: criticSystemPrompt },
-        { role: "user" as const, content: criticUserMessage },
-      ],
-    });
-    recordOpenAI(CRITIC_MODEL, criticResponse);
+    // The photo(s) the pupil sent, so the critic can read the question for
+    // itself instead of trusting the solver's account of it.
+    const questionImages: string[] =
+      Array.isArray(lastUserMsg?.imageUrls) && lastUserMsg.imageUrls.length > 0
+        ? lastUserMsg.imageUrls
+        : lastUserMsg?.imageUrl
+          ? [lastUserMsg.imageUrl]
+          : [];
 
-    const criticRaw = criticResponse.choices[0]?.message?.content || "";
-    const criticResult = parseCriticResponse(criticRaw);
+    /**
+     * One critic review of a draft. Returns null if the critic could not be
+     * reached or its reply could not be read — the caller treats that as "not
+     * reviewed", never as approval. (A failure here used to throw out of the
+     * whole request, after the solution had already been sent to the pupil.)
+     */
+    const runCritic = async (draftJSON: string): Promise<CriticResult | null> => {
+      const text = buildCriticUserMessage(
+        questionText,
+        draftJSON,
+        hasImage,
+        groundTruth.verified ? groundTruth : null,
+      );
+      try {
+        const response = await getOpenAI().chat.completions.create({
+          model: CRITIC_MODEL,
+          max_tokens: CRITIC_MAX_TOKENS,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system" as const, content: criticSystemPrompt },
+            {
+              role: "user" as const,
+              content:
+                questionImages.length > 0
+                  ? [
+                      ...questionImages.map((url) => ({
+                        type: "image_url" as const,
+                        image_url: { url, detail: "high" as const },
+                      })),
+                      { type: "text" as const, text },
+                    ]
+                  : text,
+            },
+          ],
+        });
+        recordOpenAI(CRITIC_MODEL, response);
+        return parseCriticResponse(response.choices[0]?.message?.content || "");
+      } catch (criticErr) {
+        console.warn(`[Pass 2] Critic call failed: ${(criticErr as Error).message}`);
+        return null;
+      }
+    };
+
+    const criticResult = await runCritic(rawContent);
+
+    // Photo questions: re-run the CAS checks against the critic's own reading
+    // of the image. Two models have then read the photo independently, and the
+    // algebra engine has solved what the second one read — the first check a
+    // photo answer has ever had that did not rest on the solver's own reading.
+    if (hasImage && criticResult?.questionAsRead) {
+      checkQuestion = criticResult.questionAsRead;
+      const read = casSolve(checkQuestion);
+      checkTruth = read?.verified && read.answers.length ? read.answers : null;
+      console.log(`[Pass 2] Critic read the photo as: ${checkQuestion.slice(0, 120)}`);
+      casAgreement = applyCasChecks(solutionData, verification, checkQuestion, checkTruth);
+    }
 
     if (criticResult) {
       console.log(
@@ -1222,12 +1337,14 @@ export async function POST(req: NextRequest) {
         ]);
 
         let correctedContent = "";
+        let correctionModel: string = CLAUDE_SOLVER_MODEL;
         try {
           const correctionResult = await claudeSolve(systemPrompt, correctionAnthropicMessages);
           correctedContent = correctionResult.content;
           recordClaude(correctionResult);
         } catch {
           // Fall back to GPT-4o for correction
+          correctionModel = "gpt-4o";
           const fallback = await getOpenAI().chat.completions.create({
             model: "gpt-4o",
             max_tokens: 8192,
@@ -1251,18 +1368,35 @@ export async function POST(req: NextRequest) {
           console.log("[Pass 2] Correction accepted, using corrected solution");
           solutionData = correctedResult.data;
           rawContent = correctedContent;
-          verification.criticVerified = true;
-
-          // Re-run CAS verification on corrected answer
-          if (casResult?.verified) {
-            solutionData.casVerified = true;
-          } else {
-            const recheck = postVerifyCAS(solutionData);
-            if (recheck.attempted && recheck.verified) {
-              solutionData.casVerified = true;
-              verification.postCasVerified = true;
-            }
+          solverModel = correctionModel;
+          // The critic rejected the first draft and has never seen this
+          // rewrite. This line used to set criticVerified to true regardless,
+          // so the answers the critic had most reason to doubt were the ones
+          // reported as critic-approved. The rewrite now gets its own review —
+          // one extra call, only on this path — and earns the flag or doesn't.
+          // There is no second rewrite: a draft that fails twice is shown as
+          // unverified rather than looped on.
+          const recheck = await runCritic(correctedContent);
+          const recheckPassed =
+            !!recheck &&
+            recheck.verified &&
+            !recheck.issues.some((issue) => issue.severity === "critical");
+          verification.criticVerified = recheckPassed;
+          if (!recheckPassed) {
+            verification.warnings.push(
+              recheck
+                ? "The rewritten solution did not pass a second review"
+                : "The rewritten solution could not be re-reviewed",
+            );
           }
+          verification.crossModelVerified = solverModel !== CRITIC_MODEL;
+
+          // Re-run the CAS checks against the corrected answer. This used to
+          // re-stamp casVerified because the CAS had solved the QUESTION,
+          // whatever the new answer was.
+          if (hasImage && recheck?.questionAsRead) checkQuestion = recheck.questionAsRead;
+          casAgreement = applyCasChecks(solutionData, verification, checkQuestion, checkTruth);
+          verification.sympyVerified = groundTruth.sympyVerified && verification.preCasVerified;
 
           // Re-run tool checks
           const reToolReport = runToolChecks(solutionData);
@@ -1276,38 +1410,29 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
-      // Critic response couldn't be parsed — treat as unverified
-      console.log("[Pass 2] Could not parse critic response");
-      verification.warnings.push("Critic response could not be parsed");
+      // Critic unreachable or its reply unreadable — treat as unverified
+      console.log("[Pass 2] No usable critic response");
+      verification.warnings.push("Critic review was not available");
     }
 
     // ══════════════════════════════════════════════════════════════════
     //  COMPUTE CONFIDENCE & RETURN
     // ══════════════════════════════════════════════════════════════════
 
-    // Determine confidence based on 4 independent verification sources
-    const verifiedCount = [
-      groundTruth.verified,                              // SymPy or Nerdamer pre-solve
-      verification.postCasVerified,                      // Nerdamer post-check
-      verification.criticVerified,                       // GPT-4o critic
-      verification.toolChecksPassed,                     // Deterministic tool checks
-    ].filter(Boolean).length;
-
-    verification.agreementCount = verifiedCount;
-
-    // The >= 2 branch used to also return "high", making the >= 3 branch dead
-    // code — so two agreeing sources read the same as four. Combined with an
-    // empty tool-check counting as a source, "high" was reachable on a single
-    // real check. A student cannot tell the difference, so the badge has to.
-    if (verifiedCount >= 3) {
-      verification.confidence = "high";
-    } else if (verifiedCount === 2) {
-      verification.confidence = "medium";
-    } else if (verifiedCount === 1) {
-      verification.confidence = "low";
-    } else {
-      verification.confidence = "low";
-    }
+    // Confidence from the four checks — each of which now has to have compared
+    // something to count. A CAS that contradicts the displayed answer forces
+    // "low" whatever the critic said.
+    const summary = summariseVerification({
+      agreement: casAgreement,
+      preCasVerified: verification.preCasVerified,
+      postCasVerified: verification.postCasVerified,
+      criticVerified: verification.criticVerified,
+      toolChecksPassed: verification.toolChecksPassed,
+    });
+    verification.agreementCount = summary.agreementCount;
+    verification.confidence = summary.confidence;
+    verification.warnings = [...new Set(verification.warnings)];
+    solutionData.casVerified = summary.casVerified;
 
     // Stamp verification onto the response
     solutionData.verification = verification;
@@ -1358,10 +1483,13 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Write to question cache (async, non-blocking) ─────────────────
-    if (!hasImage && isCacheable(messages)) {
+    // Never cache an answer the CAS contradicts: the cache has no expiry, so a
+    // wrong answer stored once is a wrong answer served to every later pupil.
+    if (!hasImage && isCacheable(messages) && casAgreement !== "disagree") {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       writeCache({
+        overwrite: replaceCachedAnswer,
         questionHash: qHash,
         questionText: questionText,
         level: level || "GCSE",
@@ -1407,6 +1535,30 @@ export async function POST(req: NextRequest) {
       Connection: "keep-alive",
     },
   });
+}
+
+// ── CAS checks helper ─────────────────────────────────────────────────────────
+
+/**
+ * Run both CAS checks against the board as it stands and record the outcome.
+ * Called again after a correction, because the flags describe the answer being
+ * shown, not the question.
+ */
+function applyCasChecks(
+  board: WhiteboardResponse,
+  verification: VerificationStatus,
+  question: string,
+  truthAnswers: string[] | null,
+): Agreement {
+  const checks = runCasChecks(board, question, truthAnswers);
+  verification.preCasVerified = checks.preCasVerified;
+  verification.postCasVerified = checks.postCasVerified;
+  verification.warnings.push(...checks.warnings);
+  console.log(
+    `[CAS] Displayed answer vs ground truth: ${checks.agreement}` +
+      ` (pre=${checks.preCasVerified}, post=${checks.postCasVerified})`,
+  );
+  return checks.agreement;
 }
 
 // ── Fallback helper ───────────────────────────────────────────────────────────

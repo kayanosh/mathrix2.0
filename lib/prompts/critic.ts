@@ -53,6 +53,7 @@ You MUST respond with ONLY valid JSON matching this exact schema:
     }
   ],
   "recomputedAnswer": "<your independently computed final answer>",
+  "questionAsRead": "<ONLY when an image is attached: the question as YOU read it from the image, typed out — otherwise omit>",
   "constraintChecks": [
     {
       "constraint": "<condition from the question>",
@@ -80,8 +81,14 @@ export function buildCriticUserMessage(
   hasImage: boolean,
   groundTruth?: GroundTruthResult | null,
 ): string {
+  // The critic is sent the image itself (see the chat route). It used to get
+  // only this note, asking whether the solver's reading "seems reasonable given
+  // the solution" — which no one can judge without seeing the question. A
+  // misread photo was therefore the one error the critic could never catch.
   const imageNote = hasImage
-    ? `\n\nNOTE: The student uploaded an image. The solver read the image and extracted the problem. Verify that the solver's interpretation seems reasonable given the solution content.`
+    ? `\n\nThe student's question is in the ATTACHED IMAGE(S), not in the text above. Read it yourself, directly from the image — do NOT take the solver's word for what it says.
+• In "questionAsRead", type out the maths question exactly as the image shows it, on one line, in plain typed maths (for example: "Solve 3x + 5 = 20" or "Calculate 3/4 + 1/2"). If the image has several questions, give the one this solution answers. Copy it; do not solve or tidy it.
+• If the solution answers a different question from the one in the image — a wrong number, sign, operator or a missing part — that is a critical issue (type: "method", description starting "Misread the question").`
     : "";
 
   const groundTruthNote =
@@ -133,6 +140,12 @@ export interface CriticResult {
   constraintChecks: ConstraintCheck[];
   /** Whether the solver's answer matched the independent ground truth */
   matchesGroundTruth?: boolean;
+  /**
+   * For photo questions: the question as the CRITIC read it from the image.
+   * This is the only reading of the photo that is independent of the solver's,
+   * so it is what the CAS checks are run against.
+   */
+  questionAsRead?: string;
 }
 
 /**
@@ -160,6 +173,10 @@ export function parseCriticResponse(raw: string): CriticResult | null {
       constraintChecks: Array.isArray(parsed.constraintChecks)
         ? parsed.constraintChecks
         : [],
+      questionAsRead:
+        typeof parsed.questionAsRead === "string" && parsed.questionAsRead.trim()
+          ? parsed.questionAsRead.trim().slice(0, 300)
+          : undefined,
     };
   } catch {
     return null;

@@ -5,6 +5,7 @@
  */
 
 import type { MethodBuildResult, MethodBuilderId } from "@/lib/methods/types";
+import { builderRejection } from "./builder-guard";
 import {
   buildColumnMultiplication,
   parseMultiplicationOperands,
@@ -552,7 +553,19 @@ export function buildMethodForQuestion(
 
   for (const id of order) {
     const built = BUILDERS[id](text);
-    if (built) return built;
+    if (!built) continue;
+    // A builder "matching" is not the same as a builder having read the
+    // question. Check its result against the question before anything can use
+    // it, and keep looking if it fails — a later builder may have read it
+    // properly. See builder-guard.ts for the cases this exists for.
+    const rejection = builderRejection(text, built);
+    if (rejection) {
+      console.warn(
+        `[method-builder] discarding ${built.builderId}: ${rejection} — "${text.slice(0, 120)}"`,
+      );
+      continue;
+    }
+    return built;
   }
   return null;
 }

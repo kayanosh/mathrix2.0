@@ -8,7 +8,7 @@ import {
 describe("isKnownModel", () => {
   it("recognises priced models", () => {
     expect(isKnownModel("gpt-4o")).toBe(true);
-    expect(isKnownModel("claude-sonnet-4-6-20250514")).toBe(true);
+    expect(isKnownModel("claude-sonnet-4-6")).toBe(true);
   });
   it("rejects unknown models", () => {
     expect(isKnownModel("some-future-model")).toBe(false);
@@ -41,7 +41,7 @@ describe("estimateCost", () => {
 describe("aggregateUsage", () => {
   it("sums tokens and cost across calls", () => {
     const agg = aggregateUsage([
-      { model: "claude-sonnet-4-6-20250514", inputTokens: 1000, outputTokens: 2000 },
+      { model: "claude-sonnet-4-6", inputTokens: 1000, outputTokens: 2000 },
       { model: "gpt-4o", inputTokens: 500, outputTokens: 100 },
     ]);
     expect(agg.inputTokens).toBe(1500);

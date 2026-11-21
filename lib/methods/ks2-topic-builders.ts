@@ -801,15 +801,37 @@ function canonicalUnit(raw: string): string | null {
   return null;
 }
 
+/** "3", "0.25", "1/4" or "2 1/2" as a number; null if it is none of those. */
+function amountToNumber(raw: string): number | null {
+  const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(raw.trim());
+  if (mixed) {
+    const denominator = Number(mixed[3]);
+    return denominator === 0 ? null : Number(mixed[1]) + Number(mixed[2]) / denominator;
+  }
+  const fraction = /^(\d+)\/(\d+)$/.exec(raw.trim());
+  if (fraction) {
+    const denominator = Number(fraction[2]);
+    return denominator === 0 ? null : Number(fraction[1]) / denominator;
+  }
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 export function parseUnitConversion(
   text: string,
 ): { value: number; from: string; to: string; factor: number } | null {
   const t = normalizeMathText(text);
 
+  // The whole amount, not just the digits touching the unit. This used to be
+  // `\d+(?:\.\d+)?`, which in "1/4 kg" matched only the "4" — so a quarter of
+  // a kilogram was converted as 4 kg and answered 4000 g. The lookbehind stops
+  // a match from starting part-way through a number or fraction.
+  const AMOUNT = String.raw`(?<![\d/.])(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)`;
+
   // "Convert 3 l to millilitres" / "3l into ml" / "5 m = ? cm"
   let m = t.match(
     new RegExp(
-      `(\\d+(?:\\.\\d+)?)\\s*(${UNIT_ALTERNATION})\\b\\s*(?:to|into|=|in)\\s*(${UNIT_ALTERNATION})\\b`,
+      `${AMOUNT}\\s*(${UNIT_ALTERNATION})\\b\\s*(?:to|into|=|in)\\s*(${UNIT_ALTERNATION})\\b`,
       "i",
     ),
   );
@@ -822,7 +844,7 @@ export function parseUnitConversion(
   if (!m) {
     m = t.match(
       new RegExp(
-        `how many\\s+(${UNIT_ALTERNATION})\\b[^.?]*?\\b(?:are\\s+|is\\s+)?in\\s+(\\d+(?:\\.\\d+)?)\\s*(${UNIT_ALTERNATION})\\b`,
+        `how many\\s+(${UNIT_ALTERNATION})\\b[^.?]*?\\b(?:are\\s+|is\\s+)?in\\s+${AMOUNT}\\s*(${UNIT_ALTERNATION})\\b`,
         "i",
       ),
     );
@@ -830,7 +852,8 @@ export function parseUnitConversion(
   }
 
   if (!m || !rawFrom || !rawTo || !rawValue) return null;
-  const value = parseFloat(rawValue);
+  const value = amountToNumber(rawValue);
+  if (value === null) return null;
   const from = canonicalUnit(rawFrom);
   const to = canonicalUnit(rawTo);
   if (!from || !to || from === to) return null;

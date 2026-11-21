@@ -100,6 +100,12 @@ export async function writeCache(entry: {
   responseJson: WhiteboardResponse;
   verificationJson?: VerificationStatus | null;
   groundTruth?: string | null;
+  /**
+   * Replace an existing row instead of leaving it. Only for a row that was
+   * found to hold an answer the CAS contradicts; the default keeps first-write-
+   * wins, which is what makes concurrent solves of the same question safe.
+   */
+  overwrite?: boolean;
 }): Promise<void> {
   const { error } = await supabaseAdmin.from("question_cache").upsert(
     {
@@ -114,7 +120,7 @@ export async function writeCache(entry: {
       ground_truth: entry.groundTruth || null,
       hit_count: 0,
     },
-    { onConflict: "question_hash", ignoreDuplicates: true }
+    { onConflict: "question_hash", ignoreDuplicates: !entry.overwrite }
   );
 
   if (error) {

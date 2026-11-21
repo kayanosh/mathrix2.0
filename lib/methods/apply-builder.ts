@@ -647,14 +647,21 @@ export function applyMethodBuilderToWhiteboard(
   const built = resolveBuild(fake, topic, subtopics);
   if (!built) return data;
 
+  // Column and division builders keep their answer on the block, not on
+  // `built.answer`. Reading only the latter meant this guard never ran for
+  // them — which is every builder behind the 62,403 − 27,568 = 376 class.
+  const blockAnswer = (built.block as { answer?: unknown }).answer;
+  const builderAnswer = String(
+    built.answer || (typeof blockAnswer === "string" ? blockAnswer : "") || "",
+  );
   if (
     opts?.agreesWithGroundTruth &&
-    built.answer &&
-    !opts.agreesWithGroundTruth(String(built.answer))
+    builderAnswer &&
+    !opts.agreesWithGroundTruth(builderAnswer)
   ) {
     console.warn(
       `[method-builder] refusing override: ${built.builderId} answered ` +
-        `"${built.answer}" but the CAS ground truth disagrees — keeping the ` +
+        `"${builderAnswer}" but the CAS ground truth disagrees — keeping the ` +
         `model's answer for: ${question.slice(0, 120)}`,
     );
     return data;

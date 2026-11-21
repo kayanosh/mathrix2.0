@@ -8,7 +8,12 @@
  *
  * If the question can't be parsed or solved by the CAS (geometry word
  * problems, probability, etc.) it returns `null` and the pipeline
- * falls back to GPT-4o alone.
+ * falls back to the model alone.
+ *
+ * Reading the question is done by lib/maths-question.ts, which accepts a
+ * question only when it can read ALL of it. This file used to do that with
+ * loose regexes, and produced confidently wrong "verified" answers — see the
+ * note at the top of that file before loosening anything here.
  */
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -18,6 +23,8 @@ require("nerdamer/Calculus");
 require("nerdamer/Solve");
 require("nerdamer/Extra");
 /* eslint-enable @typescript-eslint/no-require-imports */
+
+import { parseMathsQuestion } from "@/lib/maths-question";
 
 // ── Public interface ──────────────────────────────────────────────────────────
 
@@ -96,113 +103,6 @@ export function normalise(expr: string): string {
   return s;
 }
 
-// ── Pattern extractors ────────────────────────────────────────────────────────
-
-/** Try to pull an equation (something with "=") from the user text */
-function extractEquation(text: string): string | null {
-  // Match patterns like "2x + 4 = 10" or "x^2 - 5x + 6 = 0"
-  const m = text.match(
-    /([0-9a-zA-Z\s+\-*/^().²³]+=[0-9a-zA-Z\s+\-*/^().²³]+)/
-  );
-  if (m) return normalise(m[1]);
-
-  // "solve: expression" or "solve expression"
-  const solveMatch = text.match(
-    /solve[:\s]+([0-9a-zA-Z\s+\-*/^().=²³]+)/i
-  );
-  if (solveMatch) return normalise(solveMatch[1]);
-
-  return null;
-}
-
-/** Try to pull an expression to expand */
-function extractExpand(text: string): string | null {
-  const m = text.match(
-    /expand(?:\s+and\s+simplify)?[:\s]+(.+)/i
-  );
-  if (m) return normalise(m[1]);
-  return null;
-}
-
-/** Try to pull an expression to factorise */
-function extractFactorise(text: string): string | null {
-  const m = text.match(
-    /factoris[ez][:\s]+(.+)/i
-  );
-  if (m) return normalise(m[1]);
-  return null;
-}
-
-/** Try to pull an expression to simplify */
-function extractSimplify(text: string): string | null {
-  const m = text.match(
-    /simplif[yie]+[:\s]+(.+)/i
-  );
-  if (m) return normalise(m[1]);
-  return null;
-}
-
-/** Try to pull a numeric evaluation */
-function extractEvaluate(text: string): string | null {
-  const m = text.match(
-    /(?:calculate|evaluate|compute|find the value of|what is)[:\s]+([0-9\s+\-*/^().piπe√]+)/i
-  );
-  if (m) return normalise(m[1]);
-  return null;
-}
-
-/** Detect simultaneous equations */
-function extractSimultaneous(text: string): string[] | null {
-  const m = text.match(
-    /simultaneous|solve.*(?:and|,).*=/i
-  );
-  if (!m) return null;
-
-  // Try to find two equations
-  const eqs = text.match(
-    /([0-9a-zA-Z\s+\-*/^().]+=[0-9a-zA-Z\s+\-*/^().]+)/g
-  );
-  if (eqs && eqs.length >= 2) {
-    return eqs.slice(0, 2).map(normalise);
-  }
-  return null;
-}
-
-/** Detect derivative requests */
-function extractDerivative(text: string): { expr: string; variable: string } | null {
-  const m = text.match(
-    /(?:differentiat|derivativ|d\/d[a-z])[a-z]*[:\s]+(.+)/i
-  );
-  if (m) {
-    const expr = normalise(m[1]);
-    // Guess variable from the expression
-    const vars = getVariables(expr);
-    return { expr, variable: vars[0] || "x" };
-  }
-  return null;
-}
-
-/** Detect integral requests */
-function extractIntegral(text: string): { expr: string; variable: string } | null {
-  const m = text.match(
-    /(?:integrat|anti.?derivativ)[a-z]*[:\s]+(.+)/i
-  );
-  if (m) {
-    const expr = normalise(m[1]);
-    const vars = getVariables(expr);
-    return { expr, variable: vars[0] || "x" };
-  }
-  return null;
-}
-
-function getVariables(expr: string): string[] {
-  try {
-    return nerdamer(expr).variables();
-  } catch {
-    return ["x"];
-  }
-}
-
 // ── Verification ──────────────────────────────────────────────────────────────
 
 /**
@@ -217,12 +117,13 @@ function verifyEquationSolution(
     const [lhs, rhs] = equation.split("=").map((s) => s.trim());
     if (!lhs || !rhs) return false;
 
-    const lVal = nerdamer(lhs, { [variable]: solution }).evaluate().text();
-    const rVal = nerdamer(rhs, { [variable]: solution }).evaluate().text();
+    const lVal = parseFloat(nerdamer(lhs, { [variable]: solution }).evaluate().text());
+    const rVal = parseFloat(nerdamer(rhs, { [variable]: solution }).evaluate().text());
 
-    return (
-      Math.abs(parseFloat(lVal) - parseFloat(rVal)) < 1e-9
-    );
+    // NaN compares false with everything, so "not too far apart" would pass a
+    // result that is not a number at all. Demand two real numbers first.
+    if (!Number.isFinite(lVal) || !Number.isFinite(rVal)) return false;
+    return Math.abs(lVal - rVal) < 1e-9;
   } catch {
     return false;
   }
@@ -230,6 +131,9 @@ function verifyEquationSolution(
 
 /**
  * For expansion: verify by evaluating both at a few test points.
+ *
+ * Every unknown in either expression is given a value, not just the first: with
+ * one left symbolic, "10*y" and "10*y^2" both read as the number 10 and agree.
  */
 function verifyExpansion(
   original: string,
@@ -237,10 +141,24 @@ function verifyExpansion(
   variable: string
 ): boolean {
   try {
-    for (const val of ["2", "7", "-3"]) {
-      const a = nerdamer(original, { [variable]: val }).evaluate().text();
-      const b = nerdamer(expanded, { [variable]: val }).evaluate().text();
-      if (Math.abs(parseFloat(a) - parseFloat(b)) > 1e-9) return false;
+    const names = new Set<string>([
+      variable,
+      ...nerdamer(original).variables(),
+      ...nerdamer(expanded).variables(),
+    ]);
+    for (const base of [2, 7, -3]) {
+      const scope: Record<string, string> = {};
+      let offset = 0;
+      for (const name of names) {
+        scope[name] = String(base + offset);
+        offset += 3;
+      }
+      const a = Number(nerdamer(original, scope).evaluate().text());
+      const b = Number(nerdamer(expanded, scope).evaluate().text());
+      // "x² + 1" used to factorise to "(x + NaN)(x + NaN)" and pass, because
+      // NaN is never "more than 1e-9 away" from anything.
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      if (Math.abs(a - b) > 1e-9 * Math.max(1, Math.abs(a))) return false;
     }
     return true;
   } catch {
@@ -248,206 +166,205 @@ function verifyExpansion(
   }
 }
 
+/**
+ * Are two expressions the same function? Checked by evaluating both at several
+ * points, with every unknown given a value. False if either cannot be read.
+ */
+export function expressionsEquivalent(a: string, b: string): boolean {
+  return verifyExpansion(a, b, "x");
+}
+
+/**
+ * Roots of an equation in one unknown, as strings nerdamer can re-read — with
+ * repeats, so (x + 3)² yields -3 twice. Returns null when any root is complex:
+ * at this level the right answer is "no real solutions", and "x = i" presented
+ * as ground truth would be worse than no ground truth.
+ */
+function rootsOf(equation: string, variable: string): string[] | null {
+  const solutions = nerdamer(equation).solveFor(variable);
+  const list: string[] = Array.isArray(solutions)
+    ? solutions.map((s: { toString: () => string }) => s.toString())
+    : [solutions.toString()];
+  if (list.some((root) => /i/.test(root))) return null;
+  return list;
+}
+
 // ── Main solver ───────────────────────────────────────────────────────────────
 
 /**
  * Attempts to solve the user's maths question using the CAS.
  * Returns null if the question can't be handled algebraically.
+ *
+ * `verified: true` is a claim other code relies on — it becomes the ground
+ * truth the model must match. It is only set when the answer was confirmed by
+ * a second route (substitution, or re-evaluating at test points), or is plain
+ * exact arithmetic on a question that was read in full.
  */
 export function casSolve(questionText: string): CASResult | null {
-  // Clean up the question
-  const text = questionText
-    .replace(/²/g, "^2")
-    .replace(/³/g, "^3")
-    .replace(/π/g, "pi");
+  const parsed = parseMathsQuestion(questionText);
+  if (!parsed) return null;
 
   try {
-    // ── Simultaneous equations ───────────────────────────────────────────
-    const simul = extractSimultaneous(text);
-    if (simul) {
-      const solutions = nerdamer.solveEquations(simul);
-      return {
-        problemType: "solve_simultaneous",
-        inputExpression: simul.join(" ; "),
-        answers: solutions.map((s: [string, string]) => `${s[0]} = ${s[1]}`),
-        answersLatex: solutions.map(
-          (s: [string, string]) => `${s[0]} = ${nerdamer(s[1]).toTeX()}`
-        ),
-        verified: true, // nerdamer's simultaneous solver is exact
-      };
-    }
-
-    // ── Derivative ──────────────────────────────────────────────────────
-    const deriv = extractDerivative(text);
-    if (deriv) {
-      const result = nerdamer(`diff(${deriv.expr}, ${deriv.variable})`);
-      return {
-        problemType: "derivative",
-        inputExpression: deriv.expr,
-        answers: [result.toString()],
-        answersLatex: [result.toTeX()],
-        verified: true,
-      };
-    }
-
-    // ── Integral ────────────────────────────────────────────────────────
-    const integ = extractIntegral(text);
-    if (integ) {
-      const result = nerdamer(`integrate(${integ.expr}, ${integ.variable})`);
-      return {
-        problemType: "integral",
-        inputExpression: integ.expr,
-        answers: [result.toString() + " + C"],
-        answersLatex: [result.toTeX() + " + C"],
-        verified: true,
-      };
-    }
-
-    // ── Expand ──────────────────────────────────────────────────────────
-    const expandExpr = extractExpand(text);
-    if (expandExpr) {
-      const expanded = nerdamer(expandExpr).expand();
-      const vars = getVariables(expandExpr);
-      const verified = verifyExpansion(
-        expandExpr,
-        expanded.toString(),
-        vars[0] || "x"
-      );
-      return {
-        problemType: "expand",
-        inputExpression: expandExpr,
-        answers: [expanded.toString()],
-        answersLatex: [expanded.toTeX()],
-        verified,
-      };
-    }
-
-    // ── Factorise ───────────────────────────────────────────────────────
-    // nerdamer can solve the roots → we reconstruct factors
-    const factExpr = extractFactorise(text);
-    if (factExpr) {
-      const vars = getVariables(factExpr);
-      const v = vars[0] || "x";
-      const roots = nerdamer(factExpr + "=0").solveFor(v);
-      const rootArr = Array.isArray(roots)
-        ? roots.map((r: { toString: () => string }) => r.toString())
-        : [roots.toString()];
-
-      // Build factored form: (x - r1)(x - r2)...
-      // Verify: expand the factored form and compare
-      let factored: string;
-      let factoredLatex: string;
-
-      // Get leading coefficient
-      const expanded = nerdamer(factExpr).expand().toString();
-      // Match coefficient of highest power
-      const coefMatch = expanded.match(
-        /^(-?\d*)\*?[a-zA-Z]\^/
-      );
-      const leadCoef = coefMatch
-        ? coefMatch[1] === "" || coefMatch[1] === "-"
-          ? coefMatch[1] + "1"
-          : coefMatch[1]
-        : "1";
-
-      if (rootArr.length === 2) {
-        const [r1, r2] = rootArr;
-        const f1 = parseFloat(r1) >= 0 ? `(${v} - ${r1})` : `(${v} + ${Math.abs(parseFloat(r1))})`;
-        const f2 = parseFloat(r2) >= 0 ? `(${v} - ${r2})` : `(${v} + ${Math.abs(parseFloat(r2))})`;
-        factored = leadCoef === "1" ? `${f1}${f2}` : `${leadCoef}*${f1}${f2}`;
-        factoredLatex = nerdamer(factored).toTeX();
-      } else {
-        // Single root or can't factor nicely
-        factored = rootArr.map((r) => {
-          const n = parseFloat(r);
-          return n >= 0 ? `(${v} - ${r})` : `(${v} + ${Math.abs(n)})`;
-        }).join("");
-        if (leadCoef !== "1") factored = `${leadCoef}*${factored}`;
-        factoredLatex = nerdamer(factored).toTeX();
+    switch (parsed.task) {
+      case "evaluate": {
+        const value = nerdamer(parsed.expression).evaluate();
+        // Exact arithmetic is reported as a fraction (5/4, not 1.25) so that it
+        // can be compared exactly; 1/3 has no finite decimal to compare against.
+        const text: string = parsed.exact ? value.text("fractions") : value.text("decimals");
+        if (!text || /[a-zA-Z]/.test(text.replace(/e[+-]?\d+/i, ""))) return null;
+        return {
+          problemType: "evaluate",
+          inputExpression: parsed.expression,
+          // "≈" marks a decimal approximation (π or a root was involved), which
+          // tells the comparison to accept a correct rounding and nothing else.
+          // A root that comes out whole (√16 + 2 = 6) is exact after all.
+          answers: [parsed.exact || /^-?\d+$/.test(text) ? text : `≈${text}`],
+          answersLatex: [parsed.exact ? nerdamer(text).toTeX() : text],
+          verified: true,
+        };
       }
 
-      const verified = verifyExpansion(factExpr, factored, v);
+      case "solve": {
+        const { equation, variable } = parsed;
+        const roots = rootsOf(equation, variable);
+        if (!roots || roots.length === 0) return null;
+        // A repeated root comes back twice; a pupil is asked for it once.
+        const solutions = [...new Set(roots)];
+        return {
+          problemType: solutions.length > 1 ? "solve_quadratic" : "solve_equation",
+          inputExpression: equation,
+          answers: solutions.map((s) => `${variable} = ${s}`),
+          answersLatex: solutions.map((s) => `${variable} = ${nerdamer(s).toTeX()}`),
+          verified: solutions.every((s) => verifyEquationSolution(equation, variable, s)),
+        };
+      }
 
-      return {
-        problemType: "factorise",
-        inputExpression: factExpr,
-        answers: [factored],
-        answersLatex: [factoredLatex],
-        intermediateSteps: rootArr.map((r, i) => ({
-          label: `Root ${i + 1}`,
-          latex: `${v} = ${nerdamer(r).toTeX()}`,
-        })),
-        verified,
-      };
-    }
+      case "simultaneous": {
+        // A copy, because nerdamer rewrites the array it is handed.
+        const solutions: [string, string | number][] = nerdamer.solveEquations([
+          ...parsed.equations,
+        ]);
+        if (!Array.isArray(solutions) || solutions.length !== 2) return null;
+        // Substitute the pair back into both equations before vouching for it.
+        const values = Object.fromEntries(solutions.map(([name, value]) => [name, String(value)]));
+        const verified = parsed.equations.every((equation) => {
+          try {
+            const [lhs, rhs] = equation.split("=");
+            const l = parseFloat(nerdamer(lhs, values).evaluate().text());
+            const r = parseFloat(nerdamer(rhs, values).evaluate().text());
+            return Math.abs(l - r) < 1e-9;
+          } catch {
+            return false;
+          }
+        });
+        return {
+          problemType: "solve_simultaneous",
+          inputExpression: parsed.equations.join(" ; "),
+          answers: solutions.map(([name, value]) => `${name} = ${value}`),
+          answersLatex: solutions.map(
+            ([name, value]) => `${name} = ${nerdamer(String(value)).toTeX()}`
+          ),
+          verified,
+        };
+      }
 
-    // ── Simplify ────────────────────────────────────────────────────────
-    const simpExpr = extractSimplify(text);
-    if (simpExpr) {
-      const simplified = nerdamer(simpExpr).simplify();
-      const vars = getVariables(simpExpr);
-      const verified = vars.length > 0
-        ? verifyExpansion(simpExpr, simplified.toString(), vars[0])
-        : true;
+      case "derivative": {
+        const result = nerdamer(`diff(${parsed.expression}, ${parsed.variable})`);
+        return {
+          problemType: "derivative",
+          inputExpression: parsed.expression,
+          answers: [result.toString()],
+          answersLatex: [result.toTeX()],
+          verified: true,
+        };
+      }
 
-      return {
-        problemType: "simplify",
-        inputExpression: simpExpr,
-        answers: [simplified.toString()],
-        answersLatex: [simplified.toTeX()],
-        verified,
-      };
-    }
+      case "integral": {
+        const result = nerdamer(`integrate(${parsed.expression}, ${parsed.variable})`);
+        return {
+          problemType: "integral",
+          inputExpression: parsed.expression,
+          answers: [result.toString() + " + C"],
+          answersLatex: [result.toTeX() + " + C"],
+          verified: true,
+        };
+      }
 
-    // ── Evaluate ────────────────────────────────────────────────────────
-    const evalExpr = extractEvaluate(text);
-    if (evalExpr) {
-      const result = nerdamer(evalExpr).evaluate();
-      return {
-        problemType: "evaluate",
-        inputExpression: evalExpr,
-        answers: [result.text()],
-        answersLatex: [result.toTeX()],
-        verified: true,
-      };
-    }
+      case "expand": {
+        const expanded = nerdamer(parsed.expression).expand();
+        return {
+          problemType: "expand",
+          inputExpression: parsed.expression,
+          answers: [expanded.toString()],
+          answersLatex: [expanded.toTeX()],
+          verified: verifyExpansion(
+            parsed.expression,
+            expanded.toString(),
+            parsed.variable || "x"
+          ),
+        };
+      }
 
-    // ── Solve equation (general fallback for anything with "=") ────────
-    const eq = extractEquation(text);
-    if (eq) {
-      const hasEquals = eq.includes("=");
-      if (hasEquals) {
-        const vars = getVariables(eq.split("=")[0]);
-        const v = vars[0] || "x";
+      case "factorise": {
+        // nerdamer can solve the roots → we reconstruct factors
+        const factExpr = parsed.expression;
+        const v = parsed.variable || "x";
+        const rootArr = rootsOf(factExpr + "=0", v);
+        if (!rootArr || rootArr.length === 0) return null;
 
-        const solutions = nerdamer(eq).solveFor(v);
-        const solArr = Array.isArray(solutions)
-          ? solutions.map((s: { toString: () => string }) => s.toString())
-          : [solutions.toString()];
+        // Get leading coefficient
+        const expanded = nerdamer(factExpr).expand().toString();
+        // Match coefficient of highest power
+        const coefMatch = expanded.match(/^(-?\d*)\*?[a-zA-Z]\^/);
+        const leadCoef = coefMatch
+          ? coefMatch[1] === "" || coefMatch[1] === "-"
+            ? coefMatch[1] + "1"
+            : coefMatch[1]
+          : "1";
 
-        const isQuadratic = solArr.length > 1;
+        // Build factored form: (x - r1)(x - r2)...
+        let factored = rootArr
+          .map((r) => {
+            const n = parseFloat(r);
+            return n >= 0 ? `(${v} - ${r})` : `(${v} + ${Math.abs(n)})`;
+          })
+          .join("");
+        if (leadCoef !== "1") factored = `${leadCoef}*${factored}`;
 
-        // Verify each solution
-        const allVerified = solArr.every((sol) =>
-          verifyEquationSolution(eq, v, sol)
-        );
+        // Verify: evaluate the factored form against the original. This is what
+        // catches a repeated root or an irreducible factor the rebuild missed.
+        const verified = verifyExpansion(factExpr, factored.replace(/\)\(/g, ")*("), v);
 
         return {
-          problemType: isQuadratic ? "solve_quadratic" : "solve_equation",
-          inputExpression: eq,
-          answers: solArr.map((s) => `${v} = ${s}`),
-          answersLatex: solArr.map(
-            (s) => `${v} = ${nerdamer(s).toTeX()}`
-          ),
-          verified: allVerified,
+          problemType: "factorise",
+          inputExpression: factExpr,
+          answers: [factored],
+          answersLatex: [nerdamer(factored.replace(/\)\(/g, ")*(")).toTeX()],
+          intermediateSteps: rootArr.map((r, i) => ({
+            label: `Root ${i + 1}`,
+            latex: `${v} = ${nerdamer(r).toTeX()}`,
+          })),
+          verified,
+        };
+      }
+
+      case "simplify": {
+        const simplified = nerdamer(parsed.expression).simplify();
+        return {
+          problemType: "simplify",
+          inputExpression: parsed.expression,
+          answers: [simplified.toString()],
+          // simplify() returns a bare symbol with no toTeX(); calling it threw,
+          // so no "simplify" question ever produced a ground truth.
+          answersLatex: [nerdamer(simplified.toString()).toTeX()],
+          verified: parsed.variable
+            ? verifyExpansion(parsed.expression, simplified.toString(), parsed.variable)
+            : true,
         };
       }
     }
-
-    // ── If nothing matched, bail → GPT-4o handles it alone ────────────
-    return null;
   } catch (e) {
-    // CAS couldn't parse → not a problem, GPT-4o will handle it
+    // CAS couldn't solve → not a problem, the model will handle it
     console.log("[CAS] Could not solve:", (e as Error).message);
     return null;
   }

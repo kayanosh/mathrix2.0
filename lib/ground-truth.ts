@@ -7,6 +7,7 @@
 
 import type { CASResult } from "@/lib/cas-solver";
 import type { SympyResult } from "@/lib/sympy-solver";
+import { truthListsAgree } from "@/lib/answer-agreement";
 
 export type GroundTruthSource = "sympy" | "nerdamer" | "both" | "none";
 
@@ -25,8 +26,8 @@ export interface GroundTruthResult {
 
 /**
  * Merge SymPy and Nerdamer results.
- * Prefer SymPy when available; fall back to Nerdamer.
- * When both agree, set source = "both" for maximum confidence.
+ * When both engines answer they must agree, or there is no ground truth.
+ * When only one answers, that one is used.
  */
 export function buildGroundTruth(
   sympy: SympyResult | null,
@@ -36,15 +37,23 @@ export function buildGroundTruth(
   const nerdamerOk = !!(nerdamer?.verified && nerdamer.answers && nerdamer.answers.length > 0);
 
   if (sympyOk && nerdamerOk) {
-    // Both succeeded — check if they agree on the same number of answers
-    const sympyCount = sympy!.answers!.length;
-    const nerdamerCount = nerdamer!.answers.length;
-    const source: GroundTruthSource = sympyCount === nerdamerCount ? "both" : "sympy";
-
+    // Two engines, one question. If they agree, that is the strongest ground
+    // truth there is. If they DISAGREE, at least one is wrong and nothing here
+    // can say which — so there is no ground truth, rather than a coin-flip
+    // presented as one. ("Agree" used to mean "returned the same NUMBER of
+    // answers", and SymPy's answer was used regardless.)
+    if (!truthListsAgree(sympy!.answers!, nerdamer!.answers)) {
+      console.warn(
+        `[GroundTruth] SymPy (${sympy!.answers!.join(", ")}) and Nerdamer ` +
+          `(${nerdamer!.answers.join(", ")}) disagree — using neither`,
+      );
+      return { source: "none", answers: [], answersLatex: [], verified: false, sympyVerified: false };
+    }
     return {
-      source,
-      answers: sympy!.answers!,
-      answersLatex: sympy!.answersLatex || nerdamer!.answersLatex,
+      source: "both",
+      // Nerdamer's wording is the one the rest of the pipeline was built on.
+      answers: nerdamer!.answers,
+      answersLatex: nerdamer!.answersLatex,
       verified: true,
       sympyVerified: true,
     };
