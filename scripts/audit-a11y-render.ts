@@ -124,7 +124,6 @@ async function main() {
     });
     const page = await context.newPage();
     for (const route of ROUTES) {
-      // eslint-disable-next-line no-console
       console.log(`Testing ${route} @ ${viewport.name}...`);
       const result = await testRoute(page, route, viewport.name);
       results.push(result);

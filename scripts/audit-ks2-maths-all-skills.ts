@@ -27,37 +27,6 @@ const CONCURRENCY = Math.max(
   Number(process.env.KS2_AUDIT_CONCURRENCY || 3),
 );
 
-const PREFERRED_SKILL: Record<string, string> = {
-  "y5m-place-value": "Round to the nearest 10, 100, 1000, 10,000 and 100,000",
-  "y5m-add-subtract": "Column subtraction of numbers with more than 4 digits",
-  "y5m-mult-div-a": "Multiples",
-  "y5m-fractions": "Add and subtract fractions",
-  "y5m-mult-div-b": "Multiply 2-digit by 2-digit",
-  "y5m-decimals-percentages": "Equivalent fractions, decimals and percentages",
-  "y5m-perimeter-area": "Perimeter of rectangles",
-  "y5m-statistics": "Read and interpret tables",
-  "y5m-shape": "Angles on a straight line",
-  "y5m-position-direction": "Read and plot coordinates (first quadrant)",
-  "y5m-decimals": "Add and subtract decimals",
-  "y5m-negative-numbers": "Negative number problems",
-  "y5m-converting-units": "Convert metric units",
-  "y5m-volume": "What is volume?",
-  "y6m-place-value": "Round any number",
-  "y6m-add-subtract": "Add and subtract integers",
-  "y6m-mult-div": "Order of operations (BIDMAS)",
-  "y6m-fractions": "Add and subtract fractions",
-  "y6m-converting-units": "Convert metric measures",
-  "y6m-ratio": "Calculate ratio",
-  "y6m-algebra": "One-step and two-step function machines",
-  "y6m-decimals": "Multiply and divide by 10, 100 and 1000",
-  "y6m-fdp": "Equivalent fractions, decimals and percentages",
-  "y6m-area-perimeter-volume": "Volume of cuboids",
-  "y6m-statistics": "The mean",
-  "y6m-shape": "Angles in a triangle",
-  "y6m-position-direction": "Coordinates in four quadrants",
-  "y6m-problem-solving": "Multi-step problem solving",
-};
-
 type Kind = "lesson" | "guided";
 
 interface AuditJob {

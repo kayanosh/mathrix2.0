@@ -83,7 +83,10 @@ async function main() {
   await watchBtn.click();
   console.log("Clicked 'Watch me solve it'. Sampling pointer position for 8s...");
 
-  const samples: { t: number; pointer: { x: number; y: number; opacity: string } | null; targetRect: DOMRect | null; inside: boolean | null }[] = [];
+  // The rectangle is copied out of the page as plain numbers, so it is not a
+  // DOMRect (no x, y or toJSON) — it was declared as one and cast with `any`.
+  type PlainRect = { left: number; top: number; right: number; bottom: number; width: number; height: number };
+  const samples: { t: number; pointer: { x: number; y: number; opacity: string } | null; targetRect: PlainRect | null; inside: boolean | null }[] = [];
 
   const start = Date.now();
   while (Date.now() - start < 8000) {
@@ -135,7 +138,7 @@ async function main() {
     samples.push({
       t: Date.now() - start,
       pointer: sample.pointer,
-      targetRect: sample.allRects[0] as any,
+      targetRect: sample.allRects[0] ?? null,
       inside,
     });
     await page.waitForTimeout(400);

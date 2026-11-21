@@ -57,7 +57,7 @@ interface LinearSide {
 function parseLinearSide(raw: string, variable: string): LinearSide | null {
   // Collapse fractions to decimals first: normalizeMathText turns \frac{2}{3}
   // into (2)/(3), and a bare "2/3 x" is just as common in typed input.
-  let text = raw
+  const text = raw
     .replace(/\((-?\d+(?:\.\d+)?)\)\s*\/\s*\((-?\d+(?:\.\d+)?)\)/g, (_m, n, d) =>
       Number(d) === 0 ? "NaN" : String(Number(n) / Number(d)),
     )

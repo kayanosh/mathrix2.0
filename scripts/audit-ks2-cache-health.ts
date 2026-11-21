@@ -113,12 +113,21 @@ function codesOf(issues: unknown[]): string[] {
   return issues.map((i) => (i as { code?: string }).code ?? String(i));
 }
 
+/**
+ * A cached lesson as it comes out of the database: JSON of whatever shape the
+ * generator produced at the time, including shapes that predate the current
+ * schema. This audit exists to inspect exactly those, so it reads them loosely
+ * on purpose. The `any` is confined to this one alias rather than scattered.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StoredLesson = Record<string, any>;
+
 function assess(
   row: Row,
   subject: string,
   subtopics: string[],
 ): Assessed {
-  const json = (row.lesson_json ?? {}) as Record<string, any>;
+  const json = (row.lesson_json ?? {}) as StoredLesson;
   const requestedSkill: string = typeof json.skill === "string" ? json.skill : "";
   // vr/nvr are now structurally validated on serve too (they used to be
   // returned completely unchecked), just without the teaching-engine visual
@@ -205,7 +214,7 @@ function assess(
   // enrich now runs for real, so nothing needs discounting — any backfilled code
   // that still appears is one enrich genuinely could not fill.
   const effective = hardenedIssues;
-  const steps: any[] = Array.isArray(json.workedExample?.teachingSteps)
+  const steps: StoredLesson[] = Array.isArray(json.workedExample?.teachingSteps)
     ? json.workedExample.teachingSteps
     : [];
 
@@ -301,11 +310,11 @@ async function main() {
   const combos = new Set(
     assessed.map(
       (a) =>
-        `${a.row.topic_id}|${(a.row.lesson_json as any)?.skill}|${a.row.tier}|${a.row.kind}`,
+        `${a.row.topic_id}|${a.row.lesson_json?.skill}|${a.row.tier}|${a.row.kind}`,
     ),
   );
   const skills = new Set(
-    assessed.map((a) => (a.row.lesson_json as any)?.skill).filter(Boolean),
+    assessed.map((a) => a.row.lesson_json?.skill).filter(Boolean),
   );
   const possible = curriculumSkills * 3 * 2; // tiers x kinds
 

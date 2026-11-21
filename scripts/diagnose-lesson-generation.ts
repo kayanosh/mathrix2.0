@@ -19,6 +19,7 @@ import { validateLessonContract } from "@/lib/lesson-contract";
 import { validateGcseLessonQuality, normalizeLessonForDisplay } from "@/lib/gcse-lesson-quality";
 
 import { claudeSolve, convertToAnthropicMessages } from "@/lib/claude-solver";
+import type { WhiteboardResponse } from "@/types/whiteboard";
 
 const topic = process.argv[2] || "circle theorm";
 const level = process.argv[3] || "GCSE";
@@ -28,7 +29,7 @@ const visuals = getTeacherRequiredVisuals(topic);
 console.log(`topic=${JSON.stringify(topic)} level=${level}`);
 console.log(`prompt requires blocks: [${visuals.blocks.join(", ") || "none"}]`);
 
-const sys = buildLessonPrompt(topic, level, undefined as any, visuals);
+const sys = buildLessonPrompt(topic, level, undefined, visuals);
 const userMsg = `Teach me a full lesson on: "${topic}". Follow the lesson contract exactly.`;
 // Mirrors runLesson() in app/api/chat/route.ts, including its OpenAI fallback.
 let raw = "";
@@ -55,10 +56,11 @@ const r = { content: raw };
 
 const res = validateResponse(r.content, visuals.blocks, { requireAlgebraArrows: false });
 const data = res.data ? normalizeLessonForDisplay(res.data) : null;
-const contract = validateLessonContract(data ?? { intro: "", blocks: [], conclusion: "" } as any);
-const quality = validateGcseLessonQuality(data ?? { intro: "", blocks: [], conclusion: "" } as any, topic);
+const empty: WhiteboardResponse = { intro: "", blocks: [], conclusion: "" };
+const contract = validateLessonContract(data ?? empty);
+const quality = validateGcseLessonQuality(data ?? empty, topic);
 
-console.log(`\nblocks emitted: ${(data?.blocks ?? []).map((b: any) => b.type).join(", ")}`);
+console.log(`\nblocks emitted: ${(data?.blocks ?? []).map((b) => b.type).join(", ")}`);
 console.log(`\nvalidateResponse.ok = ${res.ok}`);
 (res.errors ?? []).forEach((e) => console.log(`   ERR ${e}`));
 console.log(`contract.ok = ${contract.ok}  missing=[${contract.missing.join(", ")}]`);
@@ -67,7 +69,7 @@ console.log(`quality.ok = ${quality.ok}`);
 quality.errors.forEach((e) => console.log(`   ERR ${e}`));
 // Mirror the route's single retry, so this reports what a pupil ACTUALLY sees.
 let finalOk = res.ok && !!data && contract.teachable && quality.ok;
-let finalContract = contract, finalQuality = quality, finalRes = res, finalData = data;
+let finalContract = contract;
 if (!(res.ok && data && contract.ok && quality.ok)) {
   const issues = [...(res.errors || []), ...contract.errors, ...quality.errors];
   const { buildLessonRetryMessage } = await import("@/lib/lesson-contract");
@@ -92,7 +94,7 @@ if (!(res.ok && data && contract.ok && quality.ok)) {
     const c2 = validateLessonContract(d2), q2 = validateGcseLessonQuality(d2, topic);
     console.log(`retry: validateResponse.ok=${r2.ok} contract.teachable=${c2.teachable} (missing=[${c2.missing.join(", ")}] core=[${c2.missingCore.join(", ")}]) quality.ok=${q2.ok}`);
     q2.errors.forEach((e) => console.log(`   ERR ${e}`));
-    if (r2.ok && c2.teachable && q2.ok) { finalOk = true; finalContract = c2; finalQuality = q2; finalRes = r2; finalData = d2; }
+    if (r2.ok && c2.teachable && q2.ok) { finalOk = true; finalContract = c2; }
   } else {
     console.log(`retry: could not parse — ${(r2.errors || []).join(" | ")}`);
   }

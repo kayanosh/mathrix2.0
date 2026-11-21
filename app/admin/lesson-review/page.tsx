@@ -61,7 +61,6 @@ export default function LessonReviewPage() {
 
   useEffect(() => {
     queueMicrotask(() => void load(status));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   async function act(cacheKey: string, action: "approve" | "reject") {
