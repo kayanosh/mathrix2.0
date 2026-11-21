@@ -15,6 +15,30 @@ require("nerdamer/Extra");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 import type { WhiteboardResponse, EquationStepBlock, LabeledShapeBlock } from "@/types/whiteboard";
+import { evaluateExact, readMathsExpression } from "@/lib/maths-question";
+import { rationalEquals } from "@/lib/maths-value";
+import { assignedValues, plain } from "@/lib/answer-text";
+
+/**
+ * A plain number, or null if the text is anything else.
+ *
+ * parseFloat is NOT this. parseFloat("3*x+7") is 3 — it reads the leading
+ * digits and ignores the rest — and nerdamer does not throw on an expression it
+ * cannot reduce, it hands the expression back. Between them, every line of
+ * algebra was "evaluated": 3x + 7 = 25 was checked as 3 = 25 and reported as a
+ * failed step, on every equation, so this whole check could never pass one.
+ */
+function asNumber(text: string): number | null {
+  const t = String(text).trim();
+  if (!/^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i.test(t)) return null;
+  const value = Number(t);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** Evaluate to a number, or null when unknowns remain or it cannot be read. */
+function evaluateNumber(expression: string, scope?: Record<string, string>): number | null {
+  return asNumber(nerdamer(expression, scope).evaluate().text());
+}
 
 // ── Public interfaces ─────────────────────────────────────────────────────────
 
@@ -73,8 +97,15 @@ export function verifyArithmetic(
     const exprNorm = normaliseLaTeX(expression);
     const expectedNorm = normaliseLaTeX(expectedResult);
 
-    const actual = parseFloat(nerdamer(exprNorm).evaluate().text());
-    const expected = parseFloat(nerdamer(expectedNorm).evaluate().text());
+    const actual = evaluateNumber(exprNorm);
+    const expected = evaluateNumber(expectedNorm);
+    if (actual === null || expected === null) {
+      return {
+        check: `${expression} = ${expectedResult}`,
+        passed: false,
+        detail: "Could not evaluate: not a plain number",
+      };
+    }
 
     const passed = Math.abs(actual - expected) < 1e-6;
     return {
@@ -109,8 +140,15 @@ export function verifySubstitution(
       return { check: `Sub ${variable}=${value} in ${equation}`, passed: false, detail: "No = sign found" };
     }
 
-    const lVal = parseFloat(nerdamer(lhs, { [variable]: valNorm }).evaluate().text());
-    const rVal = parseFloat(nerdamer(rhs, { [variable]: valNorm }).evaluate().text());
+    const lVal = evaluateNumber(lhs, { [variable]: valNorm });
+    const rVal = evaluateNumber(rhs, { [variable]: valNorm });
+    if (lVal === null || rVal === null) {
+      return {
+        check: `Sub ${variable}=${value} in ${equation}`,
+        passed: false,
+        detail: "Could not verify: not a plain number after substitution",
+      };
+    }
 
     const passed = Math.abs(lVal - rVal) < 1e-6;
     return {
@@ -162,8 +200,15 @@ export function verifyPointOnCurve(
       return { check: `Point (${x},${y}) on ${equation}`, passed: false, detail: "No = sign" };
     }
 
-    const lVal = parseFloat(nerdamer(lhs, { x: String(x), y: String(y) }).evaluate().text());
-    const rVal = parseFloat(nerdamer(rhs, { x: String(x), y: String(y) }).evaluate().text());
+    const lVal = evaluateNumber(lhs, { x: String(x), y: String(y) });
+    const rVal = evaluateNumber(rhs, { x: String(x), y: String(y) });
+    if (lVal === null || rVal === null) {
+      return {
+        check: `Point (${x},${y}) on ${equation}`,
+        passed: false,
+        detail: "Could not verify: not a plain number after substitution",
+      };
+    }
 
     const passed = Math.abs(lVal - rVal) < 1e-6;
     return {
@@ -195,17 +240,16 @@ function verifyEquationSteps(block: EquationStepBlock): ToolCheckResult[] {
     const step = block.steps[i];
     const after = normaliseLaTeX(step.latexAfter);
 
-    // If this step has an = sign, check both sides are equal
+    // A purely numeric line ("25 - 7 = 18"): both sides must be equal. A line
+    // with an unknown in it is not a statement about numbers, and is checked
+    // by verifyStepsAgainstAnswer below instead.
     if (after.includes("=")) {
       const [lhs, rhs] = after.split("=").map((s) => s.trim());
       try {
-        // Try evaluating if it's purely numeric (no variables)
-        const lVal = nerdamer(lhs).evaluate().text();
-        const rVal = nerdamer(rhs).evaluate().text();
-        const lNum = parseFloat(lVal);
-        const rNum = parseFloat(rVal);
+        const lNum = evaluateNumber(lhs);
+        const rNum = evaluateNumber(rhs);
 
-        if (!isNaN(lNum) && !isNaN(rNum)) {
+        if (lNum !== null && rNum !== null) {
           const passed = Math.abs(lNum - rNum) < 1e-6;
           results.push({
             check: `Step ${step.stepNumber}: ${lhs} = ${rhs}`,
@@ -216,11 +260,74 @@ function verifyEquationSteps(block: EquationStepBlock): ToolCheckResult[] {
           });
         }
       } catch {
-        // Contains variables — can't evaluate numerically, skip
+        // Unreadable — skip
       }
     }
   }
 
+  return results;
+}
+
+/**
+ * Check every line of an equation's working against the answer it arrives at.
+ *
+ * If the working ends at x = 6, then x = 6 must make each earlier line true:
+ * 3x + 7 = 25, 3x = 25 − 7, 3x = 18. A slip in the middle (3x = 19) is a line
+ * the final answer does not satisfy. Uses exact fractions, and only lines that
+ * are a single equation in the one unknown; anything else is left alone.
+ *
+ * With two roots, a line passes if at least one root satisfies it, because
+ * working legitimately splits into a branch per root (x − 6 = 0 | x + 1 = 0).
+ *
+ * This checks that the working is CONSISTENT, not that the question was read
+ * correctly — that is what the CAS checks are for.
+ */
+function verifyStepsAgainstAnswer(block: EquationStepBlock): ToolCheckResult[] {
+  if (block.steps.length < 2) return [];
+
+  const lines = block.steps.map((step) => {
+    const text = plain(step.latexAfter || "");
+    const parts = text.split("=");
+    const lhs = parts.length === 2 ? readMathsExpression(parts[0]) : null;
+    const rhs = parts.length === 2 ? readMathsExpression(parts[1]) : null;
+    return { stepNumber: step.stepNumber, text, lhs, rhs };
+  });
+
+  const unknowns = new Set<string>();
+  for (const line of lines) {
+    for (const name of [...(line.lhs?.variables ?? []), ...(line.rhs?.variables ?? [])]) {
+      unknowns.add(name);
+    }
+  }
+  if (unknowns.size !== 1) return [];
+  const [variable] = [...unknowns];
+
+  const roots = assignedValues(lines[lines.length - 1].text, variable);
+  if (roots === "unreadable" || roots.length === 0) return [];
+
+  const results: ToolCheckResult[] = [];
+  // The last line is the answer itself; it cannot fail to satisfy itself.
+  for (const line of lines.slice(0, -1)) {
+    if (!line.lhs || !line.rhs) continue;
+    let evaluated = false;
+    let satisfied = false;
+    for (const root of roots) {
+      const scope = { [variable]: root };
+      const left = evaluateExact(line.lhs.expression, scope);
+      const right = evaluateExact(line.rhs.expression, scope);
+      if (!left || !right) continue;
+      evaluated = true;
+      if (rationalEquals(left, right)) satisfied = true;
+    }
+    if (!evaluated) continue;
+    results.push({
+      check: `Step ${line.stepNumber} holds for the final answer: ${line.text}`,
+      passed: satisfied,
+      detail: satisfied
+        ? `True for the ${variable} found ✓`
+        : `Not true for the ${variable} the working ends on`,
+    });
+  }
   return results;
 }
 
@@ -353,8 +460,8 @@ function verifyGeometryArithmetic(block: EquationStepBlock): ToolCheckResult[] {
       if (numAfter.includes("=")) {
         const [, rhs] = numAfter.split("=").map((s) => s.trim());
         try {
-          const val = parseFloat(nerdamer(rhs).evaluate().text());
-          if (!isNaN(val) && val > 0) {
+          const val = evaluateNumber(rhs);
+          if (val !== null && val > 0) {
             // Looks like a computed result — check if positive
             results.push({
               check: `Pythagoras result: step ${step.stepNumber}`,
@@ -373,9 +480,9 @@ function verifyGeometryArithmetic(block: EquationStepBlock): ToolCheckResult[] {
       const numAfter = normaliseLaTeX(after);
       const [lhs, rhs] = numAfter.split("=").map((s) => s.trim());
       try {
-        const lVal = parseFloat(nerdamer(lhs).evaluate().text());
-        const rVal = parseFloat(nerdamer(rhs).evaluate().text());
-        if (!isNaN(lVal) && !isNaN(rVal)) {
+        const lVal = evaluateNumber(lhs);
+        const rVal = evaluateNumber(rhs);
+        if (lVal !== null && rVal !== null) {
           const passed = Math.abs(lVal - rVal) < 0.01;
           results.push({
             check: `Area calculation: step ${step.stepNumber}`,
@@ -406,6 +513,7 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
   for (const block of data.blocks) {
     if (block.type === "equation_steps") {
       checks.push(...verifyEquationSteps(block));
+      checks.push(...verifyStepsAgainstAnswer(block));
       checks.push(...verifyGeometryArithmetic(block));
     }
     if (block.type === "labeled_shape") {

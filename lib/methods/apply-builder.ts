@@ -252,6 +252,36 @@ function buildFromCoordinateBlock(
   return points.length > 0 ? buildCoordinatePlot(points) : null;
 }
 
+/**
+ * The line shown in the green "Answer" card.
+ *
+ * It used to be `${question} = ${answer}` for everything, which is right when
+ * the question is a bare sum ("23 × 47 = 1081") and nonsense otherwise:
+ *
+ *   "Solve 3x + 7 = 25 = x = 6"
+ *   "What are the coordinates of point P? = (3, 4)"
+ *
+ * "Question = answer" is only kept when the question, less a leading
+ * instruction word, is nothing but an expression. In every other case the card
+ * already says "Answer", so the answer alone is the whole sentence.
+ */
+export function answerSentence(question: string, answer: string): string {
+  const stated = answer.trim();
+  if (!stated) return "";
+  const body = question
+    .trim()
+    .replace(/[.?!]+\s*$/, "")
+    .replace(
+      /^(?:please\s+)?(?:calculate|work\s+out|evaluate|compute|simplify|what\s+is|what's|find\s+the\s+value\s+of)\s*:?\s*/i,
+      "",
+    );
+  // Words left over (ignoring LaTeX commands such as \frac and \times), or an
+  // equals sign on either side, mean this is not a bare expression.
+  const hasWords = /[a-zA-Z]{2,}/.test(body.replace(/\\[a-zA-Z]+/g, ""));
+  if (!body || hasWords || body.includes("=") || stated.includes("=")) return stated;
+  return `${body} = ${stated}`;
+}
+
 function expectedNumericAnswer(answer: string): string | null {
   const matches = answer.replace(/,/g, "").match(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?/g);
   return matches?.length ? matches[matches.length - 1]!.replace(/\s/g, "") : null;
@@ -484,7 +514,7 @@ function applyBuiltToExample<T extends WorkedExampleLike>(
     built.conclusion ||
     (built.block.type === "column_method"
       ? `${built.block.question} = ${built.block.answer}`
-      : `${example.question} = ${answer}`);
+      : answerSentence(example.question, String(answer ?? "")));
 
   const builderBlocks = [
     built.block,
