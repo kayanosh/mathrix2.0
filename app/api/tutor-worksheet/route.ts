@@ -1,11 +1,13 @@
 import { getOpenAI } from "@/lib/openai";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  tutorLessonCacheKey,
+  tutorWorksheetCacheKey,
   lookupTutorWorksheetCache,
   writeTutorWorksheetCache,
 } from "@/lib/tutor-lesson-cache";
 import { buildTutorWorksheetPrompt } from "@/lib/prompts/tutor";
+import { requireTutor, isAuthErr } from "@/lib/centre";
+import { allowRequest } from "@/lib/rate-limit";
 import type { TutorSolutionQuestion, TutorWorksheet } from "@/types";
 
 
@@ -13,11 +15,26 @@ export const maxDuration = 60;
 
 const DIFFICULTIES = ["easy", "medium", "hard", "exam"] as const;
 
+/** How many fresh worksheets one tutor may ask for in ten minutes. */
+const REGENERATIONS_PER_WINDOW = 20;
+const REGENERATION_WINDOW_MS = 600_000;
+
 /**
  * POST /api/tutor-worksheet
+ *
+ * Body: the topic context, `count`, and optionally
+ *   force: true        — write a new worksheet instead of returning the saved one
+ *   avoid: string[]    — questions already on the tutor's screen, not to be repeated
+ *
+ * Tutor-only. It used to be open to anyone, signed in or not, which let any
+ * visitor run paid model calls and — with `force` — overwrite the worksheet
+ * every tutor is served for a topic.
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireTutor();
+    if (isAuthErr(auth)) return auth.error;
+
     const body = await req.json().catch(() => ({}));
     const stageId: string = body.stageId || "gcse";
     const stageLabel: string = body.stageLabel || "GCSE";
@@ -31,12 +48,28 @@ export async function POST(req: NextRequest) {
     const level: string | null = body.level || null;
     const count: number = Math.min(Math.max(Number(body.count) || 8, 4), 16);
     const force: boolean = body.force === true;
+    const avoid: string[] = Array.isArray(body.avoid)
+      ? body.avoid
+          .filter((q: unknown): q is string => typeof q === "string" && q.trim().length > 0)
+          .slice(0, 16)
+          .map((q: string) => q.trim().slice(0, 300))
+      : [];
+
+    const cacheKey = tutorWorksheetCacheKey(topicId, examBoard, level, scienceTrack, count);
 
     if (topicId && !force) {
-      const cached = await lookupTutorWorksheetCache(
-        tutorLessonCacheKey(topicId, examBoard, level, "worksheet", scienceTrack),
-      );
+      const cached = await lookupTutorWorksheetCache(cacheKey);
       if (cached) return NextResponse.json({ ...cached, cached: true });
+    }
+
+    if (
+      force &&
+      !allowRequest(`tutor-worksheet:${auth.user.id}`, REGENERATIONS_PER_WINDOW, REGENERATION_WINDOW_MS)
+    ) {
+      return NextResponse.json(
+        { error: "That's a lot of new worksheets — try again in a few minutes." },
+        { status: 429 },
+      );
     }
 
     const sys = buildTutorWorksheetPrompt({
@@ -51,15 +84,25 @@ export async function POST(req: NextRequest) {
       count,
     });
 
+    // "Regenerate" means the tutor has seen the current set and wants another.
+    // Asking for the same thing again at the same temperature often returns
+    // much the same questions, so the ones on screen are named as off-limits.
+    const request =
+      force && avoid.length > 0
+        ? `Create a NEW ${count}-question worksheet on "${topicName}" now. It replaces an earlier one, so do not repeat or lightly reword any of these questions — use different numbers, contexts and question types:\n${avoid
+            .map((q) => `- ${q}`)
+            .join("\n")}`
+        : `Create the ${count}-question worksheet on "${topicName}" now.`;
+
     const completion = await getOpenAI().chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: `Create the ${count}-question worksheet on "${topicName}" now.` },
+        { role: "user", content: request },
       ],
       max_tokens: 3500,
-      temperature: 0.7,
+      temperature: force ? 0.9 : 0.7,
     });
 
     const raw = completion.choices[0]?.message?.content || "{}";
@@ -109,7 +152,7 @@ export async function POST(req: NextRequest) {
 
     if (topicId) {
       await writeTutorWorksheetCache({
-        cacheKey: tutorLessonCacheKey(topicId, examBoard, level, "worksheet", scienceTrack),
+        cacheKey,
         stageId,
         subject: subjectName,
         examBoard,

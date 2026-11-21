@@ -6,14 +6,26 @@ import {
   writeTutorLessonCache,
 } from "@/lib/tutor-lesson-cache";
 import { buildTutorLessonPrompt } from "@/lib/prompts/tutor";
+import { requireTutor, isAuthErr } from "@/lib/centre";
+import { allowRequest } from "@/lib/rate-limit";
 import type { TutorLesson } from "@/types";
 
 
 /**
  * POST /api/tutor-lesson
+ *
+ * Body: the topic context, and optionally `force: true` to write a new lesson
+ * instead of returning the saved one.
+ *
+ * Tutor-only. It used to be open to anyone, signed in or not, which let any
+ * visitor run paid model calls and — with `force` — overwrite the lesson every
+ * tutor is served for a topic.
  */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireTutor();
+    if (isAuthErr(auth)) return auth.error;
+
     const body = await req.json().catch(() => ({}));
     const stageId: string = body.stageId || "gcse";
     const stageLabel: string = body.stageLabel || "GCSE";
@@ -34,6 +46,13 @@ export async function POST(req: NextRequest) {
       if (cached) return NextResponse.json({ lesson: cached, cached: true });
     }
 
+    if (force && !allowRequest(`tutor-lesson:${auth.user.id}`, 20, 600_000)) {
+      return NextResponse.json(
+        { error: "That's a lot of new lessons — try again in a few minutes." },
+        { status: 429 },
+      );
+    }
+
     const sys = buildTutorLessonPrompt({
       stageLabel,
       subjectId,
@@ -50,10 +69,15 @@ export async function POST(req: NextRequest) {
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: `Create the lesson on "${topicName}" now.` },
+        {
+          role: "user",
+          content: force
+            ? `Create a NEW lesson on "${topicName}" now. It replaces an earlier one, so explain it a different way and use different worked examples.`
+            : `Create the lesson on "${topicName}" now.`,
+        },
       ],
       max_tokens: 2200,
-      temperature: 0.5,
+      temperature: force ? 0.8 : 0.5,
     });
 
     const raw = completion.choices[0]?.message?.content || "{}";

@@ -12,6 +12,22 @@ export function tutorLessonCacheKey(
   return `${topicId}|${examBoard || "any"}|${level || "std"}|${scienceTrack || "any"}|${kind}`;
 }
 
+/**
+ * Cache key for a worksheet, which — unlike a lesson — also depends on how many
+ * questions were asked for. Without the count in the key, an 8-question
+ * worksheet was saved once and then returned for every later request, so
+ * choosing 12 or 16 questions still printed 8.
+ */
+export function tutorWorksheetCacheKey(
+  topicId: string,
+  examBoard: string | null | undefined,
+  level: string | null | undefined,
+  scienceTrack: string | null | undefined,
+  count: number,
+): string {
+  return tutorLessonCacheKey(topicId, examBoard, level, `worksheet:${count}`, scienceTrack);
+}
+
 export async function lookupTutorLessonCache(cacheKey: string): Promise<TutorLesson | null> {
   const { data, error } = await supabaseAdmin
     .from("tutor_lesson_cache")

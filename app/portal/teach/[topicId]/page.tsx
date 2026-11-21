@@ -146,6 +146,18 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
     level: level || null,
   };
 
+  /** A message a tutor can act on, whatever the server actually sent back. */
+  function failureMessage(status: number, serverError: unknown, what: string): string {
+    if (status === 401) return "You've been signed out. Sign in again to generate.";
+    if (status === 403) return "Your account isn't linked to a tuition centre yet.";
+    if (status === 429 && typeof serverError === "string") return serverError;
+    return `Could not generate the ${what}. Please try again.`;
+  }
+
+  // "Regenerate" has to ask for something NEW. Both buttons used to send the
+  // same request whether or not a lesson was already on screen, and the server
+  // answers that request from its saved copy — so Regenerate returned exactly
+  // what was already there, every time. `force` is what asks for a fresh one.
   async function generateLesson() {
     setLoadingLesson(true);
     setError("");
@@ -153,13 +165,13 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
       const res = await fetch("/api/tutor-lesson", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(genBody),
+        body: JSON.stringify({ ...genBody, force: !!lesson }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.lesson) setLesson(data.lesson);
-      else setError(data.error || "Could not generate lesson");
+      else setError(failureMessage(res.status, data.error, "lesson"));
     } catch {
-      setError("Could not generate lesson");
+      setError("Could not generate the lesson. Please check your connection and try again.");
     }
     setLoadingLesson(false);
   }
@@ -171,13 +183,19 @@ function TeachTopic({ topicId, board }: { topicId: string; board: ExamBoardId | 
       const res = await fetch("/api/tutor-worksheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...genBody, count }),
+        body: JSON.stringify({
+          ...genBody,
+          count,
+          force: !!worksheet,
+          // The questions on screen now, so the new set is actually different.
+          avoid: worksheet ? worksheet.questions.map((q) => q.questionText) : [],
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.questions) setWorksheet(data as TutorWorksheet);
-      else setError(data.error || "Could not generate worksheet");
+      else setError(failureMessage(res.status, data.error, "worksheet"));
     } catch {
-      setError("Could not generate worksheet");
+      setError("Could not generate the worksheet. Please check your connection and try again.");
     }
     setLoadingWorksheet(false);
   }
