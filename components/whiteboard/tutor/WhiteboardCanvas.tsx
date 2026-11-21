@@ -13,7 +13,7 @@ interface Props {
 }
 
 /**
- * Stable camera: gently pans so the active step sits in the comfortable
+ * Stable camera: pans only when the line being written leaves the comfortable
  * viewing band. The board itself never scales; scaling the whole canvas while
  * cards are revealing content was a major source of perceived flicker.
  */
@@ -33,10 +33,19 @@ export default function WhiteboardCanvas({
     const frame = requestAnimationFrame(() => {
       const boardRect = board.getBoundingClientRect();
       const elRect = focusEl.getBoundingClientRect();
-      const targetY = boardRect.height * 0.2;
-      const currentY = elRect.top - boardRect.top;
-      const delta = currentY - targetY;
+      const top = elRect.top - boardRect.top;
+      const bottom = elRect.bottom - boardRect.top;
 
+      // The board keeps its earlier lines, and they are the point: the pen
+      // goes back to them. So the camera does not drag each new line to the
+      // top (which scrolled everything above it away). It leaves the board
+      // alone while the line being written is comfortably in view, and only
+      // when the line runs off the bottom — or is above the top, on a step
+      // back — moves it to the middle, where the lines above stay visible.
+      const inView = top >= boardRect.height * 0.06 && bottom <= boardRect.height * 0.8;
+      if (inView) return;
+
+      const delta = top - boardRect.height * 0.42;
       if (Math.abs(delta) > 16) {
         board.scrollBy({
           top: delta,

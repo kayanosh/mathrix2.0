@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { estimateMathWriteMs, prefersReducedMotion } from "@/lib/handwriting";
+import { tracePen } from "@/lib/ink-pen";
 
 interface Props {
   latex: string;
@@ -16,11 +17,12 @@ interface Props {
 }
 
 /**
- * Renders LaTeX via KaTeX, then reveals it symbol by symbol from left to
- * right — a handwriting "ink sweep". KaTeX renders atomically, so after
- * rendering we walk its HTML output, collect the visible leaf elements,
- * sort them in reading order, and stagger their opacity with the Web
- * Animations API (layout-safe: opacity never reflows).
+ * Renders LaTeX via KaTeX, then writes it on symbol by symbol from left to
+ * right. KaTeX renders atomically, so after rendering we walk its HTML output,
+ * collect the visible leaf elements, sort them in reading order, and uncover
+ * each in turn with the Web Animations API (layout-safe: neither opacity nor
+ * clip-path reflows). The teacher's pen is driven off the same schedule, so its
+ * tip is on the glyph being drawn.
  */
 export default function MathWriteIn({
   latex,
@@ -88,23 +90,40 @@ export default function MathWriteIn({
     const totalMs = estimateMathWriteMs(latex);
     const perLeaf = totalMs / ordered.length;
 
+    // Each glyph is uncovered from left to right, in step with the pen crossing
+    // it, so the ink appears to come out of the nib. It used to fade in whole,
+    // which reads as text appearing, not as writing. The insets are generous
+    // above, below and to the left so an italic's overhang is never clipped;
+    // only the right edge moves. Where a browser does not clip an inline box,
+    // the glyph simply appears as the pen reaches it.
     ordered.forEach((item, i) => {
       const anim = item.n.animate(
         [
-          { opacity: 0, transform: "translateY(1px)" },
-          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0, clipPath: "inset(-30% 100% -30% -20%)" },
+          { opacity: 1, clipPath: "inset(-30% 100% -30% -20%)", offset: 0.02 },
+          { opacity: 1, clipPath: "inset(-30% -40% -30% -20%)" },
         ],
         {
           delay: startDelay + i * perLeaf,
-          duration: Math.min(180, perLeaf + 90),
-          easing: "ease-out",
+          duration: Math.max(70, perLeaf),
+          easing: "linear",
           fill: "backwards",
         },
       );
       animsRef.current.push(anim);
     });
 
+    // The pen follows the same schedule, glyph for glyph.
+    const stopPen = tracePen(
+      ordered.map((item, i) => ({
+        element: item.n,
+        at: startDelay + i * perLeaf,
+        duration: perLeaf,
+      })),
+    );
+
     return () => {
+      stopPen();
       animsRef.current.forEach((a) => a.cancel());
       animsRef.current = [];
     };

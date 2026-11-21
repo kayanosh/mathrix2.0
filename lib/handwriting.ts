@@ -10,8 +10,16 @@
 
 /** Per-character pace for plain handwritten text. */
 export const HAND_CHAR_MS = 32;
-/** Per-symbol pace for KaTeX ink (maths symbols are slower to draw). */
-export const MATH_CHAR_MS = 45;
+/**
+ * Per-symbol pace for KaTeX ink (maths symbols are slower to draw).
+ *
+ * This was 45, which wrote "3x + 7 = 25" in about a third of a second: fine
+ * for a fade, far too quick to watch a pen do it. At 100 a line of working
+ * takes around a second — brisk, but visibly written.
+ */
+export const MATH_CHAR_MS = 100;
+/** Pause between finishing a line and starting the note beside it. */
+export const NOTE_GAP_MS = 180;
 /** Per-cell pace when writing digits into a column-method grid. */
 export const CELL_WRITE_MS = 160;
 
@@ -56,6 +64,15 @@ export function estimateTextWriteMs(text: string): number {
         : visibleLatexLength(part) * MATH_CHAR_MS;
   });
   return clamp(ms, 300, 3500);
+}
+
+/**
+ * How long the teacher's margin note for a line of working adds to the writing:
+ * the pause after the line, then the note itself.
+ */
+export function estimateNoteWriteMs(note: string): number {
+  if (!note) return 0;
+  return NOTE_GAP_MS + clamp(note.length * HAND_CHAR_MS, 200, 2000);
 }
 
 /** How long writing `keyCount` grid cells/carries/notes of a column step takes. */

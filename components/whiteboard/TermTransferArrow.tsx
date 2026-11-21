@@ -76,8 +76,14 @@ export default function TermTransferArrow({
     } else {
       // Fallback: find the "before" and "after" equation rows and anchor
       // the arrow at the right edge of each equation's KaTeX content
-      const beforeRow = container.querySelector(".wb-step-before") as HTMLElement | null;
-      const afterRow = container.querySelector(".wb-step-after") as HTMLElement | null;
+      // On the full board the two rows are whole lines of the lesson, marked by
+      // role rather than by the step-pair classes (which also restyle them).
+      const beforeRow = container.querySelector(
+        '.wb-step-before, [data-board-line="above"] [data-teacher-target="visual"]',
+      ) as HTMLElement | null;
+      const afterRow = container.querySelector(
+        '.wb-step-after, [data-board-line="active"] [data-teacher-target="visual"]',
+      ) as HTMLElement | null;
 
       if (beforeRow && afterRow) {
         const bRect = beforeRow.getBoundingClientRect();

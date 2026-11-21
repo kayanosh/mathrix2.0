@@ -216,16 +216,26 @@ export default function ActiveStepCard({
   );
 }
 
-function StepVisual({
+export function StepVisual({
   step,
   data,
   runId,
   animateWrite,
+  equationLayout = "pair",
+  lineLatex,
 }: {
   step: TutorStepModel;
   data: WhiteboardResponse;
   runId: number;
   animateWrite: boolean;
+  /**
+   * "pair" repeats the line above, dimmed, inside the step (a step shown on its
+   * own needs it). "line" writes only the new line: on the full board the line
+   * above is already there, a few centimetres up.
+   */
+  equationLayout?: "pair" | "line";
+  /** For "line": the exact LaTeX to put on this line, when the board decides it. */
+  lineLatex?: string | null;
 }) {
   const v = step.visual;
 
@@ -259,6 +269,8 @@ function StepVisual({
         isFirst={v.isFirst}
         isFinal={v.isFinal}
         animateWrite={animateWrite}
+        layout={equationLayout}
+        lineLatex={lineLatex}
       />
     );
   }
@@ -302,20 +314,25 @@ function EquationVisual({
   isFirst,
   isFinal,
   animateWrite,
+  layout,
+  lineLatex,
 }: {
   step: EquationStep;
   isFirst: boolean;
   isFinal: boolean;
   animateWrite: boolean;
+  layout: "pair" | "line";
+  lineLatex?: string | null;
 }) {
   const lineRef = useRef<HTMLDivElement>(null);
   const pairRef = useRef<HTMLDivElement>(null);
-  const latex = isFirst ? step.latexBefore || step.latexAfter : step.latexAfter;
+  const ownLatex = isFirst ? step.latexBefore || step.latexAfter : step.latexAfter;
+  const latex = layout === "line" && lineLatex ? lineLatex : ownLatex;
   const markDelay = latex ? estimateMathWriteMs(latex) / 1000 + 0.2 : 0.4;
   const hasArrows = !!(step.arrows && step.arrows.length > 0);
   const hasBefore = !!step.latexBefore && !isFirst;
 
-  if (hasArrows && hasBefore) {
+  if (layout === "pair" && hasArrows && hasBefore) {
     return (
       <div ref={pairRef} data-teacher-target="primary" className="relative space-y-2">
         <div className="opacity-45">
@@ -359,7 +376,10 @@ function EquationVisual({
 
   return (
     <div ref={lineRef} data-teacher-target="primary" className="relative">
-      {step.balanceNotation && (
+      {/* On the full board the operation is the teacher's note beside the line
+          and the arrow from the line above; repeating it here floats a stray
+          "−7" over the working. */}
+      {step.balanceNotation && layout === "pair" && (
         <div className="font-[family-name:var(--font-caveat)] text-lg text-blue-700 mb-2 ml-1">
           <MathRenderer latex={step.balanceNotation} />
         </div>

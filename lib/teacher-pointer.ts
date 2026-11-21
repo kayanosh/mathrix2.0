@@ -23,7 +23,7 @@ const STOP_WORDS = new Set([
   "with",
 ]);
 
-function normalizedWords(text: string): string[] {
+export function normalizedWords(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9.+\-÷×=/%]+/g, " ")

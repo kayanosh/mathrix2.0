@@ -20,6 +20,7 @@ import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 import {
   estimateColumnStepWriteMs,
   estimateMathWriteMs,
+  estimateNoteWriteMs,
   estimateTextWriteMs,
 } from "@/lib/handwriting";
 import { getVerificationBadge } from "@/lib/verification-badge";
@@ -35,8 +36,12 @@ import {
   type PlaybackPhase,
 } from "@/lib/whiteboard-playback";
 import WhiteboardCanvas from "@/components/whiteboard/tutor/WhiteboardCanvas";
-import StepTimeline from "@/components/whiteboard/tutor/StepTimeline";
-import TeacherPointer from "@/components/whiteboard/tutor/TeacherPointer";
+import BoardTimeline from "@/components/whiteboard/tutor/BoardTimeline";
+import TeacherPointer, {
+  type PointerHighlight,
+} from "@/components/whiteboard/tutor/TeacherPointer";
+import { visibleTerms, TERM_ATTRIBUTE } from "@/lib/board-terms";
+import { spokenTermIndex } from "@/lib/spoken-terms";
 import ProgressRail from "@/components/whiteboard/tutor/ProgressRail";
 import SpeechHighlighter, {
   wordIndexAtProgress,
@@ -142,6 +147,11 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const [pointerPos, setPointerPos] = useState({ x: 0, y: 0 });
   const [pointerVisible, setPointerVisible] = useState(false);
   const [focusEl, setFocusEl] = useState<HTMLElement | null>(null);
+  // The line directly above the one being written. The pen goes back to it:
+  // "this 7" is up there, not on the line it is about to write.
+  const [aboveEl, setAboveEl] = useState<HTMLElement | null>(null);
+  const [highlight, setHighlight] = useState<PointerHighlight | null>(null);
+  const [pointerSide, setPointerSide] = useState<"below" | "above">("below");
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const currentStep = steps[activeCue];
@@ -257,10 +267,74 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       return { targets: visual ? [visual] : [], authored: false };
     };
 
+    /**
+     * Put the pen's tip on an element and wash it with highlighter. On the line
+     * being worked on the pen comes up from below, as a writing hand does. On
+     * the line above it comes down from above instead — from below, its barrel
+     * would lie across the very line being explained.
+     */
+    const pointAt = (el: HTMLElement) => {
+      const rect = el.getBoundingClientRect();
+      const fromAbove = !!aboveEl && aboveEl.contains(el);
+      setPointerSide(fromAbove ? "above" : "below");
+      const next = {
+        x: rect.left + rect.width / 2,
+        y: fromAbove ? rect.top - 3 : rect.bottom + 3,
+      };
+      setPointerPos((current) =>
+        Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
+          ? current
+          : next,
+      );
+      setHighlight((current) =>
+        current &&
+        Math.abs(current.left - rect.left) < 0.5 &&
+        Math.abs(current.top - rect.top) < 0.5 &&
+        Math.abs(current.width - rect.width) < 0.5
+          ? current
+          : { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+      );
+      setPointerVisible(true);
+    };
+
     const place = () => {
       frame = 0;
-      const { targets, authored: authoredPath } = findTargets();
       const playback = pointerPlaybackRef.current;
+
+      // Before writing a line, a teacher taps the thing they are about to act
+      // on. If this step moves a term down from the line above, that term is
+      // where the pen goes while the board settles.
+      if ((playback.phase === "focus" || playback.phase === "point") && aboveEl) {
+        const source = aboveEl.querySelector<HTMLElement>('[id$="-from"]');
+        const sourceRect = source?.getBoundingClientRect();
+        if (source && sourceRect && sourceRect.width > 0) {
+          pointAt(source);
+          return;
+        }
+      }
+
+      // While explaining, the pen is on the term being said — on this line or
+      // the one above. Only a term whose own value is spoken is ever chosen;
+      // see lib/spoken-terms.ts for why this is not the anchor walk below.
+      if (playback.phase === "explain" || playback.phase === "check") {
+        const terms = [...visibleTerms(aboveEl), ...visibleTerms(focusEl)];
+        if (terms.length > 0) {
+          const index = spokenTermIndex(
+            terms.map((el) => el.getAttribute(TERM_ATTRIBUTE) || ""),
+            playback.narration,
+            playback.activeWord,
+          );
+          if (index >= 0) {
+            focusEl.dataset.teacherPath = "spoken";
+            pointAt(terms[index]);
+            return;
+          }
+        }
+      }
+      setHighlight(null);
+      setPointerSide("below");
+
+      const { targets, authored: authoredPath } = findTargets();
       // Which branch actually supplied the anchors. Read by the cursor audit
       // so it can tell "the authored path works" from "the authored path is
       // dormant and inference happened to agree".
@@ -318,7 +392,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         return;
       }
       const rect = target.getBoundingClientRect();
-      const next = teacherPointerPoint(
+      const swept = teacherPointerPoint(
         rect,
         teacherSpeechProgress(
           playback.narration,
@@ -326,6 +400,13 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           playback.phase,
         ),
       );
+      // A small target (a digit in a column, a single term) is touched at its
+      // lower edge, not its middle: the nib of a pen held from below would
+      // otherwise sit on top of the very digit being pointed at.
+      const compact = rect.width <= 90 && rect.height <= 90;
+      const next = compact
+        ? { x: rect.left + rect.width / 2, y: rect.bottom - 2 }
+        : swept;
       setPointerPos((current) =>
         Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
           ? current
@@ -358,7 +439,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       document.removeEventListener("scroll", schedulePlace, true);
       window.removeEventListener("resize", schedulePlace);
     };
-  }, [focusEl, activeCue, runId]);
+  }, [focusEl, aboveEl, activeCue, runId]);
 
   // Word updates arrive from the cloud audio duration (or browser speech word
   // boundaries), so pointer movement and voice share one playback clock.
@@ -417,9 +498,16 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     } else if (phase === "point") {
       schedule("write", POINTER_SETTLE_MS / speed);
     } else if (phase === "write") {
+      // A line of working is followed by the note beside it, written with the
+      // same pen — so the explanation waits for both, or the pen would still be
+      // writing the note when it should be pointing.
+      const noteMs =
+        currentStep?.visual.type === "equation"
+          ? estimateNoteWriteMs(currentStep.title)
+          : 0;
       schedule(
         "explain",
-        (writeMsPlan[activeCue] ?? WRITE_MS) / speed,
+        ((writeMsPlan[activeCue] ?? WRITE_MS) + noteMs) / speed,
       );
     } else if (phase === "explain" || phase === "check") {
       const text =
@@ -468,6 +556,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     advance,
     cancel,
     clearTimers,
+    currentStep,
     isMuted,
     isPlaying,
     phase,
@@ -632,14 +721,17 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           </div>
         )}
 
-        <StepTimeline
+        <BoardTimeline
           steps={steps}
           activeIndex={activeCue}
           justCompletedIndex={justCompleted}
           data={data}
           runId={runId}
           playbackPhase={phase}
+          isPlaying={isPlaying}
+          writeMs={(writeMsPlan[activeCue] ?? WRITE_MS) / speed}
           setActiveStepRef={setActiveStepRef}
+          setLineAboveRef={setAboveEl}
           onSelectStep={handleSelectStep}
         />
 
@@ -672,6 +764,8 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         y={pointerPos.y}
         visible={pointerVisible}
         mode={isPlaying ? pointerMode : "point"}
+        highlight={isPlaying ? highlight : null}
+        side={pointerSide}
       />
 
       {/* Controls */}

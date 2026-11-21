@@ -412,22 +412,29 @@ body {
 
 .animate-float { animation: float 5s ease-in-out infinite; }
 
-/* ── Handwriting write-in (letter-by-letter reveal) ──── */
+/* ── Handwriting write-in (letter-by-letter reveal) ────
+   Each letter is uncovered from left to right, as the pen crosses it, rather
+   than fading in whole. The clip is loose on every side but the right so that
+   the handwriting font's tails and loops are never cut off. */
 @keyframes wb-char-in {
   from {
     opacity: 0;
-    transform: translateY(2px) rotate(-2deg) scale(0.92);
+    clip-path: inset(-40% 100% -40% -30%);
+  }
+  8% {
+    opacity: 1;
+    clip-path: inset(-40% 100% -40% -30%);
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotate(0deg) scale(1);
+    clip-path: inset(-40% -40% -40% -30%);
   }
 }
 
 .wb-char {
   display: inline-block;
   opacity: 0;
-  animation: wb-char-in 0.16s ease-out forwards;
+  animation: wb-char-in 0.14s linear forwards;
 }
 
 /* Keep whole words on one line — chars are separate inline-blocks,

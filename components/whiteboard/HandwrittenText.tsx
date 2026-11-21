@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { HAND_CHAR_MS, prefersReducedMotion } from "@/lib/handwriting";
+import { tracePen } from "@/lib/ink-pen";
 
 interface Props {
   text: string;
@@ -21,7 +22,8 @@ const MAX_RUN_MS = 3500;
  * Renders text one character at a time, like a teacher writing on the board.
  * Characters are staggered CSS animations (no timers, no re-renders), grouped
  * into non-breaking word spans so line wrapping stays natural. Whitespace
- * renders as plain text to preserve wrap opportunities.
+ * renders as plain text to preserve wrap opportunities. The teacher's pen is
+ * moved along the same characters on the same schedule.
  */
 export default function HandwrittenText({
   text,
@@ -30,6 +32,8 @@ export default function HandwrittenText({
   className,
   animate = true,
 }: Props) {
+  const rootRef = useRef<HTMLSpanElement>(null);
+
   // Words with their character offset into the full string, so per-character
   // delays keep flowing across word boundaries.
   const words = useMemo(() => {
@@ -44,16 +48,29 @@ export default function HandwrittenText({
     return out;
   }, [text]);
 
+  const effMs = Math.min(charMs, MAX_RUN_MS / Math.max(text.length, 1));
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !text || !animate || prefersReducedMotion()) return;
+    // Each character carries its own offset into the text, so the pen crosses
+    // the spaces between words at the same pace the ink does.
+    const strokes = Array.from(root.querySelectorAll<HTMLElement>(".wb-char")).map((element) => ({
+      element,
+      at: startDelay + Number(element.dataset.charIndex || 0) * effMs,
+      duration: effMs,
+    }));
+    return tracePen(strokes);
+  }, [text, animate, startDelay, effMs]);
+
   if (!text) return null;
 
   if (!animate || prefersReducedMotion()) {
     return <span className={className}>{text}</span>;
   }
 
-  const effMs = Math.min(charMs, MAX_RUN_MS / Math.max(text.length, 1));
-
   return (
-    <span className={className}>
+    <span ref={rootRef} className={className}>
       {words.map((w, wi) =>
         w.isSpace ? (
           <span key={wi}>{w.part}</span>
@@ -63,6 +80,7 @@ export default function HandwrittenText({
               <span
                 key={ci}
                 className="wb-char"
+                data-char-index={w.start + ci}
                 style={{
                   animationDelay: `${Math.round(startDelay + (w.start + ci) * effMs)}ms`,
                 }}
