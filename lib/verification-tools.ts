@@ -14,7 +14,7 @@ require("nerdamer/Solve");
 require("nerdamer/Extra");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-import type { WhiteboardResponse, EquationStepBlock, LabeledShapeBlock } from "@/types/whiteboard";
+import type { WhiteboardResponse, EquationStepBlock, LabeledShapeBlock, TableBlock } from "@/types/whiteboard";
 import { evaluateExact, readMathsExpression } from "@/lib/maths-question";
 import { rationalEquals } from "@/lib/maths-value";
 import { assignedValues, plain } from "@/lib/answer-text";
@@ -37,6 +37,9 @@ function asNumber(text: string): number | null {
 
 /** Evaluate to a number, or null when unknowns remain or it cannot be read. */
 function evaluateNumber(expression: string, scope?: Record<string, string>): number | null {
+  // Nothing is not zero. "\text{Area} = 3 × 2" has no number on its left once
+  // the word is taken away, and was being checked as 0 = 6 and failed.
+  if (!expression.trim()) return null;
   return asNumber(nerdamer(expression, scope).evaluate().text());
 }
 
@@ -46,6 +49,12 @@ export interface ToolCheckResult {
   check: string;
   passed: boolean;
   detail: string;
+  /**
+   * A failure that is certain: the numbers on the board contradict each other.
+   * The answer is sent back to be corrected, with `detail` as the reason, even
+   * if the reviewing model passed it.
+   */
+  decisive?: boolean;
 }
 
 export interface VerificationReport {
@@ -74,7 +83,9 @@ function normaliseLaTeX(expr: string): string {
   s = s.replace(/\\cdot/g, "*");
   s = s.replace(/\\div/g, "/");
   s = s.replace(/\\pi/g, "pi");
-  s = s.replace(/\\text\{[^}]*\}/g, "");
+  // A unit goes with its power: "40\text{ cm}^2" is 40, and was read as 40².
+  s = s.replace(/\\,|\;|\\!/g, "");
+  s = s.replace(/\\text\{[^}]*\}(?:\s*\^\s*\{?\s*[23]\s*\}?)?/g, "");
   s = s.replace(/\\(?:left|right)([()[\]])/g, "$1");
   s = s.replace(/\\htmlId\{[^}]+\}\{([^}]+)\}/g, "$1");
   s = s.replace(/\\[a-zA-Z]+\{([^}]+)\}/g, "$1");
@@ -343,6 +354,13 @@ function verifyTriangleAngleSum(block: LabeledShapeBlock): ToolCheckResult[] {
     return results;
   }
 
+  // An angle the question asks for is on the drawing too, as "x" with no size.
+  // It is not an angle of zero degrees, and a triangle with one still to find
+  // does not add up to 180 yet.
+  const toFind = (a: { degrees: number; label: string }) =>
+    a.degrees === 0 || /[a-z?]/i.test(String(a.label ?? "").replace(/°|deg(?:rees)?/gi, ""));
+  if (block.angles.some(toFind)) return results;
+
   // Only check if all 3 angles are given (fully solved)
   if (block.angles.length === 3) {
     const sum = block.angles.reduce((acc, a) => acc + a.degrees, 0);
@@ -380,7 +398,13 @@ function verifyPythagorasOnShape(block: LabeledShapeBlock): ToolCheckResult[] {
   if (block.shape !== "triangle") return results;
 
   // Check if there's a right angle
-  const hasRightAngle = block.angles?.some((a) => a.isRightAngle || Math.abs(a.degrees - 90) < 0.5);
+  // The right angle has to be at one of the triangle's own corners. The right
+  // angle where a height meets the base is not one, and an isosceles triangle
+  // with sides 10, 10 and 12 and its height drawn was failed for 10² + 10² ≠ 12².
+  const corners = new Set((block.vertices ?? []).map((v) => v.label));
+  const hasRightAngle = block.angles?.some(
+    (a) => (a.isRightAngle || Math.abs(a.degrees - 90) < 0.5) && (corners.size === 0 || corners.has(a.vertex)),
+  );
   if (!hasRightAngle) return results;
 
   // Need all 3 sides with numeric labels
@@ -388,6 +412,9 @@ function verifyPythagorasOnShape(block: LabeledShapeBlock): ToolCheckResult[] {
 
   const sideLengths: number[] = [];
   for (const s of block.sides) {
+    // A height is not one of the three sides.
+    if (/height|perpendicular/i.test(s.label)) continue;
+    if (corners.size > 0 && !(corners.has(s.from) && corners.has(s.to))) continue;
     const num = parseFloat(s.label.replace(/\s*(?:cm|m|mm|km)\s*/i, ""));
     if (!isNaN(num) && num > 0) {
       sideLengths.push(num);
@@ -501,6 +528,228 @@ function verifyGeometryArithmetic(block: EquationStepBlock): ToolCheckResult[] {
   return results;
 }
 
+// ── Checks added after testing photo questions ───────────────────────────────
+
+const plainNumber = (cell: string): number | null => {
+  const text = String(cell ?? "").replace(/[$,\s]/g, "");
+  return /^-?\d+(?:\.\d+)?$/.test(text) ? Number(text) : null;
+};
+
+/**
+ * The mean from a frequency table, against the mean in the answer.
+ *
+ * A photo of a table (scores 1 to 4, frequencies 3, 5, 8, 4) was read and
+ * multiplied out correctly, 53 over 20, and then answered "2.6". The mean is
+ * 2.65. Nothing checked the last line against the table it sat under.
+ */
+function verifyFrequencyTableMean(block: TableBlock, conclusion: string): ToolCheckResult[] {
+  if (!/\bmean\b/i.test(conclusion)) return [];
+  const freq = block.headers.findIndex((h) => /freq/i.test(h));
+  const value = block.headers.findIndex((h, i) => i !== freq && !/f\s*(?:\\times|×|x|\*)\s*x|\bfx\b|product|total/i.test(h));
+  if (freq < 0 || value < 0) return [];
+
+  let sumF = 0;
+  let sumFx = 0;
+  for (const row of block.rows) {
+    const x = plainNumber(row[value]);
+    const f = plainNumber(row[freq]);
+    // A totals row, or a grouped table (10–20) that needs midpoints: not this check.
+    if (x === null || f === null) {
+      if (/total|sum/i.test(row.join(" "))) continue;
+      return [];
+    }
+    sumF += f;
+    sumFx += f * x;
+  }
+  if (sumF <= 0) return [];
+  const mean = sumFx / sumF;
+
+  // The sentence may hold other numbers ("to 1 decimal place", "of the 20
+  // students"). A mean is nearly always a decimal, so decimals are looked at
+  // first, and whole numbers only when there are none.
+  const numbers = conclusion.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/g) ?? [];
+  const decimals = numbers.filter((n) => n.includes("."));
+  const candidates = decimals.length > 0 ? decimals : numbers;
+  if (candidates.length === 0) return [];
+
+  // Right if it is the mean, or the mean correctly rounded to the places given.
+  const matches = (text: string) => {
+    const value = Number(text);
+    const places = (text.split(".")[1] ?? "").length;
+    const rounded = Math.round((mean + Number.EPSILON) * 10 ** places) / 10 ** places;
+    return Math.abs(value - mean) < 1e-9 || Math.abs(value - rounded) < 1e-9;
+  };
+  const passed = candidates.some(matches);
+  const stated = candidates[0];
+  return [
+    {
+      check: "Mean from the frequency table",
+      passed,
+      decisive: !passed,
+      detail: passed
+        ? `${sumFx} ÷ ${sumF} = ${Number(mean.toFixed(4))} ✓`
+        : `the table gives ${sumFx} ÷ ${sumF} = ${Number(mean.toFixed(4))}, but the answer says ${stated}. Do not round unless the question asks.`,
+    },
+  ];
+}
+
+/**
+ * The six sides of an L-shape, as read, have to fit together.
+ *
+ * Going round an L-shape the sides alternate across and down. The longest side
+ * across is the other two added together, and the same for the sides going
+ * down. A photo of an L-shape (10, 4, 4, 4, 6, 8) was read as 10, 4, 4, 6, 8,
+ * 8, which cannot be drawn, and the area came out as 72 instead of 64.
+ */
+function verifyLShapeSides(block: LabeledShapeBlock): ToolCheckResult[] {
+  if ((block.vertices?.length ?? 0) !== 6 || (block.sides?.length ?? 0) !== 6) return [];
+  const order = block.vertices!.map((v) => v.label);
+  const lengths: number[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = order[i];
+    const b = order[(i + 1) % 6];
+    const side = block.sides!.find((s) => (s.from === a && s.to === b) || (s.from === b && s.to === a));
+    const found = side?.label.replace(/,/g, "").match(/\d+(?:\.\d+)?/);
+    if (!found) return [];
+    lengths.push(Number(found[0]));
+  }
+  const fits = (three: number[]) => {
+    const [big, ...rest] = [...three].sort((p, q) => q - p);
+    return Math.abs(big - (rest[0] + rest[1])) < 1e-9;
+  };
+  const across = [lengths[0], lengths[2], lengths[4]];
+  const down = [lengths[1], lengths[3], lengths[5]];
+  const passed = fits(across) && fits(down);
+  return [
+    {
+      check: "L-shape sides fit together",
+      passed,
+      decisive: !passed,
+      detail: passed
+        ? `${across.join(", ")} across and ${down.join(", ")} down ✓`
+        : `the side lengths read from the shape (${lengths.join(", ")} going round) cannot make an L-shape: the longest side one way must equal the other two that way added together. Read each label on the diagram again and match it to its own side.`,
+    },
+  ];
+}
+
+/**
+ * Each step of working with a formula in it must keep its value.
+ *
+ * "Area = ½ × (10 + 6) × 4" becoming "Area = ½ × 16 × 4" becoming "Area = 32"
+ * is three lines that must all be worth the same. The existing checks only
+ * read a line that is numbers on both sides, so working written the way a
+ * formula is used, with "Area =" or "c² =" on one side, was never checked at
+ * all. That is every area, volume, Pythagoras and trigonometry answer, and it
+ * is why correct shape answers were shown with the red "not verified" badge:
+ * nothing had been able to check them.
+ *
+ * A later line may be the earlier one rounded (153.938… then 153.9).
+ */
+function verifyWorkingKeepsItsValue(block: EquationStepBlock): ToolCheckResult[] {
+  const sides = (raw: string | undefined) => {
+    if (!raw) return null;
+    const latex = raw
+      .replace(/\\approx|≈/g, "=")
+      // sin 35° is the sine of 35 degrees. Models also write the degree sign as
+      // a raised 0 or o.
+      .replace(
+        /\\(sin|cos|tan)\s*\(?\s*(\d+(?:\.\d+)?)\s*(?:\^\s*\{?\s*(?:\\circ|0|o)\s*\}?|°)\s*\)?/g,
+        "$1($2*pi/180)",
+      );
+    // A line with no "=" at all is one expression: "80 - 12", then "68".
+    if (!latex.includes("=")) {
+      const lone = latex.replace(/\\text\{[^}]*\}(?:\s*\^\s*\{?[23]\}?)?/g, "").trim();
+      if (!lone || /\d\s*\\[dt]?frac/.test(lone) || /[a-zA-Z]/.test(lone.replace(/\\(?:frac|times|div|cdot|sqrt|pi|left|right)|sin|cos|tan|pi/g, ""))) return null;
+      let only: number | null = null;
+      try {
+        only = evaluateNumber(normaliseLaTeX(lone).replace(/[{}]/g, ""));
+      } catch {
+        only = null;
+      }
+      return only === null ? null : { left: "", right: lone.replace(/\s+/g, ""), leftValue: null, rightValue: only };
+    }
+    if ((latex.match(/=/g) ?? []).length !== 1) return null;
+    // Units and words are not part of the sum.
+    const [left, right] = latex
+      .replace(/\\htmlId\{[^}]*\}/g, "")
+      .replace(/\\textcolor\{[^}]*\}/g, "")
+      .replace(/\\,|\;|\\!|\\ /g, " ")
+      .split("=");
+    const value = (side: string) => {
+      const stripped = side.replace(/\\text\{[^}]*\}(?:\s*\^\s*\{?[23]\}?)?/g, "").trim();
+      // A whole number then a fraction is a mixed number, which this reader
+      // would multiply. Leave those lines alone.
+      if (/\d\s*\\[dt]?frac/.test(stripped)) return null;
+      if (!stripped || /[a-zA-Z]/.test(stripped.replace(/\\(?:frac|times|div|cdot|sqrt|pi|left|right)|sin|cos|tan|pi/g, ""))) return null;
+      try {
+        return evaluateNumber(normaliseLaTeX(stripped).replace(/[{}]/g, ""));
+      } catch {
+        return null;
+      }
+    };
+    return { left: left.replace(/\s+/g, ""), right: right.replace(/\s+/g, ""), leftValue: value(left), rightValue: value(right) };
+  };
+  const same = (earlier: number, later: number, laterText: string) => {
+    if (Math.abs(earlier - later) < 1e-6 * Math.max(1, Math.abs(earlier))) return true;
+    const places = (laterText.match(/\.(\d+)/)?.[1] ?? "").length;
+    const rounded = Math.round((earlier + Number.EPSILON) * 10 ** places) / 10 ** places;
+    return Math.abs(rounded - later) < 1e-9;
+  };
+
+  const results: ToolCheckResult[] = [];
+  for (const step of block.steps) {
+    const before = sides(step.latexBefore);
+    const after = sides(step.latexAfter);
+    if (!before || !after) continue;
+    // The same thing is being worked out on both lines: "Area =" or "= c²".
+    let pair: [number, number, string] | null = null;
+    if (before.left === after.left && before.leftValue === null && before.rightValue !== null && after.rightValue !== null) {
+      pair = [before.rightValue, after.rightValue, after.right];
+    } else if (before.right === after.right && before.rightValue === null && before.leftValue !== null && after.leftValue !== null) {
+      pair = [before.leftValue, after.leftValue, after.left];
+    }
+    if (!pair || before.left + before.right === after.left + after.right) continue;
+    const passed = same(pair[0], pair[1], pair[2]);
+    results.push({
+      check: `Step ${step.stepNumber} keeps its value`,
+      passed,
+      detail: passed
+        ? `${Number(pair[0].toFixed(4))} → ${Number(pair[1].toFixed(4))} ✓`
+        : `the line before is worth ${Number(pair[0].toFixed(4))} but the line after says ${Number(pair[1].toFixed(4))}`,
+    });
+  }
+  return results;
+}
+
+/**
+ * The area or perimeter of an L-shape on the board, against the answer given.
+ * The shape is four numbers, so its area is not a matter of opinion.
+ */
+function verifyLShapeAnswer(block: LabeledShapeBlock, conclusion: string): ToolCheckResult[] {
+  const r = block.rectilinear;
+  if (block.shape !== "rectilinear" || !r) return [];
+  const wantsArea = /\barea\b/i.test(conclusion);
+  const wantsPerimeter = /\bperimeter\b/i.test(conclusion);
+  if (wantsArea === wantsPerimeter) return [];
+  const exact = wantsArea ? r.width * r.height - r.notchWidth * r.notchHeight : 2 * (r.width + r.height);
+  const stated = conclusion
+    .replace(/(?:mm|cm|km|m)\s*(?:²|³|\^\s*\{?\s*[23]\s*\}?)/g, " ")
+    .match(/-?\d+(?:\.\d+)?/g)
+    ?.map(Number);
+  if (!stated?.length) return [];
+  const passed = stated.some((n) => Math.abs(n - exact) < 1e-9);
+  return [
+    {
+      check: `L-shape ${wantsArea ? "area" : "perimeter"} matches the drawing`,
+      passed,
+      decisive: !passed,
+      detail: passed
+        ? `${exact} ✓`
+        : `the shape drawn has ${wantsArea ? "an area" : "a perimeter"} of ${exact}, but the answer says ${stated.join(", ")}`,
+    },
+  ];
+}
+
 // ── Main verification function ────────────────────────────────────────────────
 
 /**
@@ -515,8 +764,14 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
       checks.push(...verifyEquationSteps(block));
       checks.push(...verifyStepsAgainstAnswer(block));
       checks.push(...verifyGeometryArithmetic(block));
+      checks.push(...verifyWorkingKeepsItsValue(block));
+    }
+    if (block.type === "table") {
+      checks.push(...verifyFrequencyTableMean(block, data.conclusion || ""));
     }
     if (block.type === "labeled_shape") {
+      checks.push(...verifyLShapeSides(block));
+      checks.push(...verifyLShapeAnswer(block, data.conclusion || ""));
       checks.push(...verifyTriangleAngleSum(block));
       checks.push(...verifyPythagorasOnShape(block));
       checks.push(...verifyQuadrilateralAngleSum(block));

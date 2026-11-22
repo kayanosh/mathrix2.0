@@ -20,13 +20,24 @@ export function normalizeQuestion(text: string): string {
  * Create a SHA-256 hash of the normalized question + context params.
  * Same question at different tiers or levels produces different hashes.
  */
+/**
+ * Bump to stop every answer saved so far being served again.
+ *
+ * 2: answers saved before this could have had their working replaced by a
+ *    sub-calculation lifted from it. "Area of a trapezium, parallel sides 6 cm
+ *    and 10 cm, 4 cm apart" was saved, and would have been served to everyone
+ *    who asked it, as "1/2 × 16 = 8". A saved answer is the working after that
+ *    replacement, so the rows cannot be repaired, only solved again.
+ */
+const CACHE_VERSION = 2;
+
 export function hashQuestion(
   normalizedText: string,
   level: string,
   tier?: string | null,
   examBoard?: string | null,
 ): string {
-  const input = [normalizedText, level, tier || "", examBoard || ""].join("|");
+  const input = [normalizedText, level, tier || "", examBoard || "", `v${CACHE_VERSION}`].join("|");
   return createHash("sha256").update(input).digest("hex");
 }
 

@@ -411,9 +411,23 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       // lower edge, not its middle: the nib of a pen held from below would
       // otherwise sit on top of the very digit being pointed at.
       const compact = rect.width <= 90 && rect.height <= 90;
-      const next = compact
-        ? { x: rect.left + rect.width / 2, y: rect.bottom - 2 }
-        : swept;
+      // A label on a drawing (a corner letter, a side length) is pointed at from
+      // outside the drawing. The pen used to sit on the label itself, so the
+      // corner being named was the one thing that could not be read, and its
+      // barrel lay across the shape. A label in the top half is touched from
+      // above with the barrel going up; one in the bottom half from below.
+      const drawing = target.closest("svg");
+      const onDrawing = compact && !!drawing;
+      let next = compact ? { x: rect.left + rect.width / 2, y: rect.bottom - 2 } : swept;
+      if (onDrawing && drawing) {
+        const box = drawing.getBoundingClientRect();
+        const inTopHalf = rect.top + rect.height / 2 < box.top + box.height / 2;
+        setPointerSide(inTopHalf ? "above" : "below");
+        next = {
+          x: rect.left + rect.width / 2,
+          y: inTopHalf ? rect.top - 5 : rect.bottom + 5,
+        };
+      }
       setPointerPos((current) =>
         Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5
           ? current
@@ -717,15 +731,25 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
 
       {/* Board */}
       <WhiteboardCanvas focusEl={focusEl} focusKey={`${activeCue}-${runId}`}>
-        {data.questionImageUrl && activeCue === 0 && (
-          <div className="mb-5 mx-auto max-w-2xl rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm max-w-xs sm:max-w-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={data.questionImageUrl}
-              alt="Uploaded question"
-              className="w-full h-auto"
-            />
-          </div>
+        {/* The photo stays at the top of the board for the whole lesson. It
+            used to vanish after the first step, which was just before the
+            tutor's own drawing of the shape appeared, so the pupil could never
+            hold the two side by side. A drawing made from a photo can be
+            misread, and the pupil is the only one who can see that. */}
+        {data.questionImageUrl && (
+          <figure className="mb-5 mx-auto max-w-xs sm:max-w-sm">
+            <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={data.questionImageUrl}
+                alt="Your photo of the question"
+                className="w-full h-auto"
+              />
+            </div>
+            <figcaption className="mt-2 text-center text-xs text-slate-500">
+              Your photo. Check the numbers I use match the ones in it.
+            </figcaption>
+          </figure>
         )}
 
         <BoardTimeline

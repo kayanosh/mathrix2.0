@@ -543,6 +543,35 @@ For circles, use the "circle" field:
 
 Always label ALL vertices. For right angles, set isRightAngle: true.
 
+Angles go in "angles", never in "sides". For an angle the question asks for, use "degrees": 0 and "label": "x".
+
+A HEIGHT (the perpendicular height of a triangle, trapezium or parallelogram) goes in "sides" with the word height in its label. It is drawn as a dashed line with a right angle, not along a side:
+  {"from": "A", "to": "BC", "label": "8 cm (height)"}
+
+For a TRAPEZIUM list the corners going round, the two ends of the top parallel side first: A, B, then C, D along the bottom. Label AB and CD with the two parallel sides.
+
+For an L-SHAPE (any shape made of two rectangles) use "rectilinear". Never use "polygon" or "rectangle" for one:
+{
+  "type": "labeled_shape",
+  "shape": "rectilinear",
+  "rectilinear": { "width": 10, "height": 8, "notchWidth": 4, "notchHeight": 4, "unit": "cm" }
+}
+"width" and "height" are the full distance across and down. "notchWidth" and "notchHeight" are the size of the corner that is missing.
+
+For TWO PARALLEL LINES CROSSED BY A THIRD LINE (alternate, corresponding and co-interior angles) use "parallel_lines":
+{
+  "type": "labeled_shape",
+  "shape": "parallel_lines",
+  "parallel": {
+    "lines": ["AB", "CD"],
+    "angles": [
+      {"at": "top", "corner": "below-left", "label": "65°"},
+      {"at": "bottom", "corner": "above-right", "label": "x"}
+    ]
+  }
+}
+"at" is which parallel line the angle is on. "corner" is where it sits at that crossing: above or below the parallel line, left or right of the crossing line.
+
 ─── type: "probability_tree" ───
 {
   "type": "probability_tree",
@@ -1419,7 +1448,11 @@ CRITICAL RULES FOR IMAGE QUESTIONS:
 4. If the image shows a diagram (triangle, circle, graph, etc.), recreate it using the appropriate block type (labeled_shape, coordinate_graph, etc.) with accurate labels matching the image.
 5. Throughout your explanation, refer back to the specific elements shown in the diagram (e.g. "angle ABC from the diagram", "side PQ shown in the figure") so the student connects your working to what they see.
 6. If you cannot read part of the image clearly, say so honestly in the intro.
-7. Double-check your arithmetic — image questions cannot be pre-verified by our CAS, so accuracy is extra important.`;
+7. Double-check your arithmetic — image questions cannot be pre-verified by our CAS, so accuracy is extra important.
+8. READING A SHAPE: before you solve, go round the shape one side at a time and match each printed number to the side it is written next to. A number belongs to the side it is closest to. Write those lengths, in order round the shape, in your intro.
+   For an L-shape, test your reading: the longest side across must equal the other two sides across added together, and the same for the sides going down. If they do not add up you have put a number on the wrong side. Read the picture again before you go on.
+9. READING A GRAPH: find two points where the line goes exactly through a crossing of two grid lines, as far apart as you can. Read the x and the y of each from the numbers on the axes, counting squares from zero. Test the equation you get on a third point of the line before you give it.
+10. ANGLES ON PARALLEL LINES: name the pair by where the two angles sit. Between the parallel lines and on opposite sides of the crossing line: alternate angles (a Z shape), equal. In the same corner at each crossing: corresponding angles (an F shape), equal. Between the parallel lines on the same side: co-interior angles, adding to 180°.`;
 
     parts.push(imageBlock);
   }

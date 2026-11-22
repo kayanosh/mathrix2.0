@@ -82,7 +82,7 @@ describe("which paper", () => {
     expect(prompt).toContain("AQA June 2022 Higher Paper 1");
     expect(prompt).toMatch(/must be the answer in the mark scheme/);
     expect(prompt).toMatch(/Never reproduce the wording of a question/);
-    expect(prompt).toMatch(/non-calculator paper/);
+    expect(prompt).toMatch(/NON-CALCULATOR paper/);
   });
 });
 

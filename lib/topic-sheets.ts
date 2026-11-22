@@ -15,6 +15,8 @@
  *     off the sheet. A wrong mark scheme is worse than a shorter sheet.
  */
 import { GCSE_SYLLABUS, getSubtopicsForTier, isHigherOnly } from "./syllabus";
+import { mathsInDollars } from "./maths-text";
+import { plainLanguage } from "./plain-language";
 import type { SyllabusTopic } from "@/types";
 
 export type SheetBoard = keyof typeof GCSE_SYLLABUS;
@@ -25,7 +27,7 @@ export const SHEET_QUESTION_COUNT = 10;
 /** Fewer than this after checking and the sheet is not worth handing out. */
 export const SHEET_MIN_QUESTIONS = 4;
 /** Bump to make every saved sheet be written again. */
-const SHEET_VERSION = 1;
+const SHEET_VERSION = 3;
 
 export interface MarkPoint {
   /** M1, A1, B1 … as on a real mark scheme. */
@@ -140,7 +142,7 @@ export function sheetsFor(board: SheetBoard, tier: SheetTier) {
 export function buildSheetPrompt(request: SheetRequest): string {
   const tierLine =
     request.tier === "higher"
-      ? "Higher tier (grades 4–9). Include questions that reach grades 7–9."
+      ? "Higher tier (grades 4–9). The easy questions are grade 4–5. The hard and exam-style questions must be grade 7–9 standard, the kind found near the end of a Higher paper."
       : "Foundation tier (grades 1–5). Nothing beyond grade 5.";
   return `You write GCSE Mathematics exam questions for UK students, in the style of ${request.board} papers.
 
@@ -161,7 +163,8 @@ RULES FOR THE QUESTIONS
 
 RULES FOR THE MARK SCHEME
 • "answer" is the final answer only, exactly as it would be written on the answer line, with units.
-• "method" is the full working, one short step per item, so a student can follow it.
+• "method" is the full working, one short step per item, so a student can follow it. Write each step in plain everyday words: "work out" (not calculate or evaluate), "the number in front" (not the coefficient), "the power" (not the exponent). Say what you do, then show it.
+• Give each answer in its simplest usual form. A number that is not large or small is written as an ordinary number, not as something times $10^0$.
 • "markScheme" lists each mark as on a real mark scheme: M1 for a correct method step, A1 for a correct answer that follows from it, B1 for a correct statement or value on its own. The number of items must equal "marks".
 • Work every question out yourself before you write its answer. Check each answer by putting it back into the question. An answer that is wrong makes the sheet useless.
 
@@ -193,7 +196,7 @@ export function parseSheetQuestions(raw: string): SheetQuestion[] {
   }
   const list = (parsed as { questions?: unknown })?.questions;
   if (!Array.isArray(list)) return [];
-  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+  const text = (value: unknown) => (typeof value === "string" ? mathsInDollars(value.trim()) : "");
 
   const questions: SheetQuestion[] = [];
   for (const item of list) {
@@ -204,6 +207,9 @@ export function parseSheetQuestions(raw: string): SheetQuestion[] {
     if (!question || !answer) continue;
     // The sheet has no pictures, so a question that points at one cannot be done.
     if (NEEDS_A_PICTURE.test(question)) continue;
+    // "3 × 10^0" is 3. Right, but no mark scheme would print it, and a pupil
+    // marking their own work against it would think they were wrong.
+    if (/10\^\s*\{?\s*0\s*\}?(?![\d.])/.test(answer)) continue;
 
     const markScheme: MarkPoint[] = (Array.isArray(q.markScheme) ? q.markScheme : [])
       .map((point) => {
@@ -222,7 +228,11 @@ export function parseSheetQuestions(raw: string): SheetQuestion[] {
       marks,
       difficulty,
       answer,
-      method: (Array.isArray(q.method) ? q.method : []).map(text).filter(Boolean),
+      // Wording only: a mark scheme has no room for a word explained in brackets.
+      method: (Array.isArray(q.method) ? q.method : [])
+        .map(text)
+        .filter(Boolean)
+        .map((step) => plainLanguage(step, { gloss: false })),
       markScheme:
         markScheme.length > 0
           ? markScheme

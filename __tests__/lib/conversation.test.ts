@@ -290,3 +290,62 @@ describe("the conversation survives a reload", () => {
     expect(parseConversation(JSON.stringify({ v: 1, messages: [{ id: 1 }] }))).toBeNull();
   });
 });
+
+/**
+ * Found by asking the running app "Why did you subtract 5 first?". The model's
+ * answer was good and in the right shape, but it was all words and mentioned
+ * "3x + 5 = 20", so a check written for full solutions failed it, and the
+ * pupil was shown the reply as raw JSON.
+ */
+describe("a follow-up answer never reaches the pupil as code", () => {
+  const { followUpFallback } = jest.requireActual("@/lib/conversation") as typeof import("@/lib/conversation");
+  const { validateResponse } = jest.requireActual("@/lib/validate") as typeof import("@/lib/validate");
+
+  const reply = JSON.stringify({
+    intro: "Great question! We subtracted 5 first to make it simpler to solve.",
+    blocks: [
+      {
+        type: "text",
+        content:
+          "In the equation 3x + 5 = 20, the 5 is added to 3x. Subtracting 5 from both sides cancels out the +5. That leaves 3x = 15.",
+      },
+    ],
+    conclusion: "That step sets us up to get x on its own.",
+  });
+
+  it("a words-only answer that mentions an equation fails the solution checks but keeps its data", () => {
+    const result = validateResponse(reply, []);
+    expect(result.ok).toBe(false);
+    // The chat route shows result.data when there is any, so this is what the pupil sees.
+    expect(result.data?.intro).toMatch(/^Great question/);
+    expect(result.data?.blocks[0]).toMatchObject({ type: "text" });
+  });
+
+  it("reads the sentences out of a reply in the wrong shape", () => {
+    const odd = JSON.stringify({ intro: "Good thinking.", blocks: [{ type: "note", content: "We take 5 away first." }], conclusion: "Done." });
+    const shown = followUpFallback(odd);
+    expect(shown).toEqual({
+      intro: "Good thinking.",
+      blocks: [{ type: "text", content: "We take 5 away first." }],
+      conclusion: "Done.",
+    });
+  });
+
+  it("shows no braces or field names, whatever comes back", () => {
+    for (const raw of [reply, "```json\n" + reply + "\n```", '{"intro": "cut off mid', "[1, 2, 3]", "{}", ""]) {
+      const shown = followUpFallback(raw);
+      const all = [shown.intro, ...shown.blocks.map((b) => b.content), shown.conclusion].join(" ");
+      expect(all).not.toMatch(/[{}]|"blocks"|"content"|"intro"/);
+      expect(shown.blocks.length).toBeGreaterThan(0);
+      expect(shown.blocks[0].content.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps a plain-text reply as it is", () => {
+    expect(followUpFallback("We take 5 away so that 3x is on its own.")).toEqual({
+      intro: "Good question!",
+      blocks: [{ type: "text", content: "We take 5 away so that 3x is on its own." }],
+      conclusion: "",
+    });
+  });
+});

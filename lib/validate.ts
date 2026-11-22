@@ -130,8 +130,13 @@ function semanticChecks(
         }
         if (block.shape === "triangle" && block.angles) {
           const total = block.angles.reduce((s, a) => s + a.degrees, 0);
-          // Only check if all 3 angles are provided
-          if (block.angles.length === 3 && Math.abs(total - 180) > 1) {
+          // Only when all three are known. The angle a question asks for is
+          // drawn too, as "x" or "?" with no size, and a triangle with two
+          // given angles and one to find does not add up to 180 yet.
+          const allKnown = block.angles.every(
+            (a) => a.degrees > 0 && !/[a-z?]/i.test(String(a.label ?? "").replace(/°|deg(?:rees)?/gi, "")),
+          );
+          if (block.angles.length === 3 && allKnown && Math.abs(total - 180) > 1) {
             errors.push(`Triangle angles sum to ${total}°, expected 180°`);
           }
         }
@@ -608,4 +613,34 @@ export function validateResponse(
   }
 
   return { ok: true, data };
+}
+
+/**
+ * The same answer without the arrows that cannot be drawn.
+ *
+ * An arrow is drawn between two anchors in the working, `\htmlId{id-from}` on
+ * the line before and `\htmlId{id-to}` on the line after. A model often
+ * declares the arrow and forgets one anchor. That is a missing decoration, not
+ * a wrong answer, so the arrow is dropped and the working is kept.
+ */
+export function withoutBrokenArrows(data: WhiteboardResponse): WhiteboardResponse {
+  return {
+    ...data,
+    blocks: data.blocks.map((block) => {
+      if (block.type !== "equation_steps") return block;
+      return {
+        ...block,
+        steps: block.steps.map((step) => {
+          if (!step.arrows || step.arrows.length === 0) return step;
+          const drawable = step.arrows.filter(
+            (arrow) =>
+              (step.latexBefore ?? "").includes(`\\htmlId{${arrow.id}-from}`) &&
+              step.latexAfter.includes(`\\htmlId{${arrow.id}-to}`),
+          );
+          if (drawable.length === step.arrows.length) return step;
+          return { ...step, arrows: drawable.length > 0 ? drawable : undefined };
+        }),
+      };
+    }),
+  };
 }

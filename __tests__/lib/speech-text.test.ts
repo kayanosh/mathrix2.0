@@ -165,3 +165,69 @@ describe("the pen can still follow the words", () => {
     expect(spokenTermIndex(terms, spoken, at("x"))).toBe(1);
   });
 });
+
+/**
+ * Found by having the real voice read lines out and a speech-to-text model
+ * write down what it heard: "(x - 2)(x - 3)" came back as "x minus 2x minus 3".
+ * A voice does not say brackets, so they have to be words.
+ */
+describe("brackets are said aloud", () => {
+  const cases: Array<[string, string]> = [
+    ["(x - 2)(x - 3) = 0", "bracket x minus 2, bracket x minus 3, equals 0"],
+    ["(x - 2)(x - 3)", "bracket x minus 2, bracket x minus 3"],
+    ["3(x + 4)", "3 bracket x plus 4"],
+    ["(x + 1)^2 = x^2 + 2x + 1", "bracket x plus 1, all squared equals x squared plus 2 x plus 1"],
+    ["(2x)^2 = 4x^2", "bracket 2 x, all squared equals 4 x squared"],
+    ["(-3)^2 = 9", "bracket minus 3, all squared equals 9"],
+    ["y = 2(x - 1)^2 + 3", "y equals 2 bracket x minus 1, all squared plus 3"],
+    ["2(3 + 4) \\times 5", "2 bracket 3 plus 4 close bracket times 5"],
+    ["\\left(\\frac{1}{2}\\right)^3", "bracket 1 over 2, all cubed"],
+    ["\\frac{(x + 1)(x - 2)}{x - 2}", "bracket x plus 1, bracket x minus 2, all over x minus 2"],
+  ];
+  it.each(cases)("%s", (tex, spoken) => {
+    expect(mathsToSpeech(tex)).toBe(spoken);
+  });
+
+  it("says brackets inside brackets, square ones too", () => {
+    expect(mathsToSpeech("3(2(x + 1) - 4) = 6")).toBe(
+      "3 bracket 2 bracket x plus 1 close bracket minus 4, equals 6",
+    );
+    expect(mathsToSpeech("2[3 + (4 - 1)] = 12")).toBe(
+      "2 bracket 3 plus bracket 4 minus 1 close bracket, equals 12",
+    );
+  });
+
+  it("leaves out the words where brackets are not a group", () => {
+    // One thing in brackets.
+    expect(mathsToSpeech("(-3) + 5 = 2")).toBe("minus 3 plus 5 equals 2");
+    // A point: the comma is the pause.
+    expect(mathsToSpeech("(2, 5)")).toBe("2, 5");
+    expect(mathsToSpeech("(0, -3)")).toBe("0, minus 3");
+    // A function, a probability, an angle.
+    expect(mathsToSpeech("f(x) = 2x + 1")).toBe("f of x equals 2 x plus 1");
+    expect(mathsToSpeech("P(A) = 0.3")).toBe("P of A equals 0.3");
+    expect(mathsToSpeech("\\sin(30^\\circ) = 0.5")).toBe("sin 30 degrees equals 0.5");
+  });
+
+  it("does not touch brackets in an ordinary sentence", () => {
+    expect(sanitizeForTTS("Nice work (well done)!")).toBe("Nice work (well done)!");
+  });
+
+  it("no bracket character reaches the voice from a line of maths", () => {
+    const spoken = sanitizeForTTS("$x^2 - 5x + 6 = 0$ factorises to $(x - 2)(x - 3) = 0$.");
+    expect(spoken).not.toMatch(/[()[\]]/);
+    expect(spoken).toBe(
+      "x squared minus 5 x plus 6, equals 0 factorises to bracket x minus 2, bracket x minus 3, equals 0.",
+    );
+  });
+});
+
+describe("a unit outside the maths with its power inside", () => {
+  it("is one unit, not 'cmsquared'", () => {
+    expect(sanitizeForTTS("The area is $\\frac{1}{2} \\times 8 \\times 6 = 24$ cm$^2$.")).toBe(
+      "The area is 1 over 2 times 8 times 6, equals 24 centimetres squared.",
+    );
+    expect(sanitizeForTTS("The volume is $60$ m$^3$.")).toBe("The volume is 60 metres cubed.");
+    expect(sanitizeForTTS("It is $9$ cm$^{2}$ in area.")).toBe("It is 9 centimetres squared in area.");
+  });
+});

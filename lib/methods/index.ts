@@ -380,7 +380,9 @@ function tryCuboidVolume(text: string): MethodBuildResult | null {
   const parsed = parseRectMeasure(text);
   if (!parsed || parsed.kind !== "volume") return null;
   try {
-    return buildCuboidVolume(parsed.l, parsed.w, parsed.h);
+    // The unit, if every measurement in the question shares one.
+    const units = new Set((text.match(/\d\s*(mm|cm|km|m)\b/gi) ?? []).map((u) => u.replace(/[\d\s]/g, "").toLowerCase()));
+    return buildCuboidVolume(parsed.l, parsed.w, parsed.h, units.size === 1 ? [...units][0] : undefined);
   } catch {
     return null;
   }

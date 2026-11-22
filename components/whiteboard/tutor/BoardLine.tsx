@@ -94,6 +94,39 @@ export default function BoardLine({
 
   const isEquation = kind === "equation";
   const isAnswer = kind === "conclusion";
+
+  // A line of working that is wider than the board is written smaller until it
+  // fits, the way a teacher writes a long line smaller rather than off the edge.
+  // On a phone a line such as "Area = ½ × (10 + 6) × 4" ran off the right and
+  // had to be dragged sideways to be read. Never below 60% of the normal size:
+  // past that it is better to scroll than to squint.
+  useEffect(() => {
+    const el = visualRef.current;
+    if (!el || !isEquation) return;
+    const fit = () => {
+      el.style.fontSize = "";
+      const clipped = Array.from(el.querySelectorAll<HTMLElement>("*")).find(
+        (node) => node.scrollWidth > node.clientWidth + 2 && getComputedStyle(node).overflowX !== "visible",
+      );
+      const box = clipped ?? el;
+      if (box.clientWidth <= 0 || box.scrollWidth <= box.clientWidth + 2) return;
+      const normal = parseFloat(getComputedStyle(el).fontSize);
+      const fitted = normal * (box.clientWidth / box.scrollWidth) * 0.97;
+      el.style.fontSize = `${Math.max(normal * 0.6, fitted)}px`;
+    };
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    // Only the width matters: fitting changes the height, which must not
+    // start another round.
+    let lastWidth = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (Math.abs(el.clientWidth - lastWidth) < 2) return;
+      lastWidth = el.clientWidth;
+      fit();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isEquation, shownLatex, role]);
   const showNote = kind !== "intro" && kind !== "conclusion" && kind !== "hint";
   const hidden = { visibility: notYetWritten ? ("hidden" as const) : ("visible" as const) };
 

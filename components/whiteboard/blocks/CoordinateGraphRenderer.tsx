@@ -324,15 +324,18 @@ export default function CoordinateGraphRenderer({ block, baseDelay }: Props) {
               cx={xPos(p.point.x)}
               cy={yPos(p.point.y)}
               r="5.5"
-              fill="#818cf8"
-              stroke="#07070e"
+              fill="#4f46e5"
+              stroke="#ffffff"
               strokeWidth="2"
             />
             <text
               x={xPos(p.point.x) + 10}
               y={yPos(p.point.y) - 10}
-              fill="#c7d2fe"
-              fontSize="14"
+              fill="#312e81"
+              fontSize="15"
+              stroke="#ffffff"
+              strokeWidth={3}
+              paintOrder="stroke"
               fontWeight="600"
               fontFamily="var(--font-caveat), cursive"
             >

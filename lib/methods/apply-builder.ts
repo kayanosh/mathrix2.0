@@ -307,11 +307,76 @@ function matchesWorkedAnswer(
   return Number(actual) === Number(expected);
 }
 
+/**
+ * Whether a graph is there for its points, and not for a line or a curve.
+ *
+ * The "read the coordinates" lesson used to take over every answer that had a
+ * graph with a point marked on it. "Draw the graph of y = 2x - 1 and say where
+ * it crosses the x-axis" has one, where the line crosses, so the line was
+ * thrown away and the pupil got "X: move 0.5 right" about that single point.
+ */
+function isAboutReadingPoints(question: string, block: CoordinateGraphBlock): boolean {
+  if ((block.plots?.length ?? 0) > 0 || (block.segments?.length ?? 0) > 0) return false;
+  return !/\by\s*=|\bx\s*=|graph of|gradient|equation|\bline\b|curve|cross|intersect|parabola|quadratic/i.test(
+    question,
+  );
+}
+
+/** Every number and fraction written in a piece of the model's answer. */
+function numbersIn(text: string): string[] {
+  return (
+    normalizeMathText(text.replace(/\\htmlId\{[^}]*\}\{([^}]*)\}/g, "$1"))
+      .replace(/,/g, " ")
+      .match(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?/g)
+      ?.map((n) => n.replace(/\s/g, "")) ?? []
+  );
+}
+
+/**
+ * Whether a build recovered from the model's own working reaches the answer
+ * the model reached.
+ *
+ * A chat answer has no stated answer to compare a recovered build with, so
+ * every recovered build used to be accepted. The fraction rule reads the
+ * model's working for anything shaped like "a/b × n", and the working for the
+ * area of a trapezium or a triangle contains exactly that: "½ × 16 × 4". The
+ * whole solution was replaced by "½ × 16 = 8", and the pupil was told the area
+ * of a trapezium with parallel sides 6 cm and 10 cm, 4 cm apart, is 8.
+ *
+ * A recovered build is now used only when its answer is the number the model
+ * itself finished on: in its conclusion, or on the last line of its working.
+ * If that cannot be told, the model's working stays.
+ */
+function agreesWithModelAnswer(built: MethodBuildResult, data: WhiteboardResponse): boolean {
+  const blockAnswer = (built.block as { answer?: unknown }).answer;
+  const actual = expectedNumericAnswer(
+    String(built.answer || (typeof blockAnswer === "string" ? blockAnswer : "") || ""),
+  );
+  if (!actual) return false;
+
+  const working = (data.blocks || []).filter((b): b is EquationStepBlock => b.type === "equation_steps");
+  const lastLine = working[working.length - 1]?.steps?.slice(-1)[0]?.latexAfter ?? "";
+  const stated = [...numbersIn(data.conclusion || ""), ...numbersIn(lastLine)];
+  return stated.some((n) =>
+    n.includes("/") || actual.includes("/") ? n === actual : Number(n) === Number(actual),
+  );
+}
+
 function resolveBuild(
   example: WorkedExampleLike,
   topic?: string,
   subtopics?: string[],
+  /**
+   * The test a build must pass when it was recovered from the model's own
+   * working rather than from the question. A worksheet example carries its
+   * stated answer, and the default compares against that. A chat answer
+   * carries none, so the default passed everything: see
+   * agreesWithModelAnswer.
+   */
+  acceptRecovered?: (built: MethodBuildResult) => boolean,
 ): MethodBuildResult | null {
+  const accept = (built: MethodBuildResult) =>
+    acceptRecovered ? acceptRecovered(built) : matchesWorkedAnswer(built, example);
   const subs = Array.isArray(subtopics) ? subtopics : [];
   const preferred = preferredBuilderId(
     [example.question, topic, ...subs].filter(Boolean).join(" "),
@@ -339,9 +404,13 @@ function resolveBuild(
   const coordinateBlock = example.whiteboard?.blocks?.find(
     (block) => block.type === "coordinate_graph",
   );
-  if (coordinateBlock && coordinateBlock.type === "coordinate_graph") {
+  if (
+    coordinateBlock &&
+    coordinateBlock.type === "coordinate_graph" &&
+    isAboutReadingPoints(example.question, coordinateBlock)
+  ) {
     const fromGraph = buildFromCoordinateBlock(coordinateBlock, example.question);
-    if (fromGraph) return fromGraph;
+    if (fromGraph && (!acceptRecovered || acceptRecovered(fromGraph))) return fromGraph;
   }
 
   // 2b. Recover the complete calculation from the main board before scanning
@@ -349,13 +418,13 @@ function resolveBuild(
   for (const block of example.whiteboard?.blocks || []) {
     if (block.type === "column_method") {
       const fromBlock = buildFromColumnBlock(block);
-      if (fromBlock && matchesWorkedAnswer(fromBlock, example)) return fromBlock;
+      if (fromBlock && accept(fromBlock)) return fromBlock;
       // Decimal boards: try decimal builder from the question on the block
       const dec = parseDecimalOp(block.question || "");
       if (dec) {
         try {
           const built = buildDecimalColumn(dec);
-          if (matchesWorkedAnswer(built, example)) return built;
+          if (accept(built)) return built;
         } catch {
           /* ignore */
         }
@@ -363,15 +432,15 @@ function resolveBuild(
     }
     if (block.type === "table") {
       const fromTable = buildFromTableBlock(block);
-      if (fromTable) return fromTable;
+      if (fromTable && (!acceptRecovered || acceptRecovered(fromTable))) return fromTable;
     }
     if (block.type === "number_line") {
       const fromLine = buildFromNumberLineBlock(block);
-      if (fromLine && matchesWorkedAnswer(fromLine, example)) return fromLine;
+      if (fromLine && accept(fromLine)) return fromLine;
     }
     if (block.type === "equation_steps") {
       const fromEq = buildFromEquationBlock(block);
-      if (fromEq && matchesWorkedAnswer(fromEq, example)) return fromEq;
+      if (fromEq && accept(fromEq)) return fromEq;
     }
     // coordinate_graph already handled in step 2a above.
   }
@@ -379,10 +448,10 @@ function resolveBuild(
   // 3. Inspect only complete-problem prose (never digit-level sub-steps).
   for (const text of collectCandidateTexts(example)) {
     const built = buildMethodForQuestion(text, preferred);
-    if (built && matchesWorkedAnswer(built, example)) return built;
+    if (built && accept(built)) return built;
     // Also try without preferred lock in case topic mis-routes
     const any = buildMethodForQuestion(text, null);
-    if (any && matchesWorkedAnswer(any, example)) return any;
+    if (any && accept(any)) return any;
   }
 
   // Last resort: parse operands with loose helpers from the joined blob
@@ -391,7 +460,7 @@ function resolveBuild(
   if (mult && ![10, 100, 1000].includes(mult.b)) {
     try {
       const built = buildColumnMultiplication(mult.a, mult.b);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -400,7 +469,7 @@ function resolveBuild(
   if (add) {
     try {
       const built = buildColumnAddition(add.a, add.b);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -409,7 +478,7 @@ function resolveBuild(
   if (sub) {
     try {
       const built = buildColumnSubtraction(sub.a, sub.b);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -418,7 +487,7 @@ function resolveBuild(
   if (div && ![10, 100, 1000].includes(div.b)) {
     try {
       const built = buildLongDivision(div.a, div.b);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -427,7 +496,7 @@ function resolveBuild(
   if (frac) {
     try {
       const built = buildFractionOps(frac);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -436,7 +505,7 @@ function resolveBuild(
   if (dec) {
     try {
       const built = buildDecimalColumn(dec);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -448,7 +517,7 @@ function resolveBuild(
         decRound.value,
         decRound.decimalPlaces,
       );
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -457,7 +526,7 @@ function resolveBuild(
   if (round) {
     try {
       const built = buildRoundingNumberLine(round.value, round.place);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -466,7 +535,7 @@ function resolveBuild(
   if (chart) {
     try {
       const built = buildPlaceValueChart(chart.value, chart.digit);
-      if (matchesWorkedAnswer(built, example)) return built;
+      if (accept(built)) return built;
     } catch {
       /* ignore */
     }
@@ -674,7 +743,7 @@ export function applyMethodBuilderToWhiteboard(
       conclusion: data.conclusion || "",
     },
   };
-  const built = resolveBuild(fake, topic, subtopics);
+  const built = resolveBuild(fake, topic, subtopics, (recovered) => agreesWithModelAnswer(recovered, data));
   if (!built) return data;
 
   // Column and division builders keep their answer on the block, not on
@@ -703,6 +772,27 @@ export function applyMethodBuilderToWhiteboard(
     intro: applied.whiteboard?.intro || data.intro,
     blocks: applied.whiteboard?.blocks || data.blocks,
     teachingSteps: applied.teachingSteps || data.teachingSteps,
-    conclusion: applied.whiteboard?.conclusion || data.conclusion,
+    conclusion: finishChatAnswer(question, applied.whiteboard?.conclusion || data.conclusion || ""),
   };
+}
+
+/**
+ * The answer line of a built-in method, as the chat's Answer card shows it.
+ *
+ * The card is headed "Answer", so the answer alone is right (see
+ * answerSentence). Two things were not: a fraction arrived as typed text,
+ * "17/12", instead of being drawn as one, and when the question asked for a
+ * mixed number it was still given top-heavy.
+ */
+export function finishChatAnswer(question: string, conclusion: string): string {
+  const fraction = conclusion.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
+  if (!fraction) return conclusion;
+  const n = Number(fraction[1]);
+  const d = Number(fraction[2]);
+  const top = Math.abs(n);
+  const drawn = `\\frac{${n}}{${d}}`;
+  if (/mixed number/i.test(question) && d > 0 && top > d && top % d !== 0) {
+    return `$${drawn} = ${n < 0 ? "-" : ""}${Math.floor(top / d)}\\frac{${top % d}}{${d}}$`;
+  }
+  return `$${drawn}$`;
 }

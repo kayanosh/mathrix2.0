@@ -250,6 +250,12 @@ export function summariseVerification(checks: {
   postCasVerified: boolean;
   criticVerified: boolean;
   toolChecksPassed: boolean;
+  /**
+   * The model that reviewed the answer is not the model that wrote it. A second
+   * opinion from the same model is one mind checking itself; from a different
+   * one it is independent.
+   */
+  crossModel?: boolean;
 }): VerificationSummary {
   const agreementCount = [
     checks.preCasVerified,
@@ -261,8 +267,16 @@ export function summariseVerification(checks: {
   if (checks.agreement === "disagree") {
     return { confidence: "low", agreementCount, casVerified: false };
   }
+  // A shape, statistics or word question has no equation for the algebra engine
+  // to solve, so two of the four checks can never apply to it and it could
+  // never reach "high" however right it was. For those, an independent model
+  // agreeing AND every line of arithmetic checking out is the strongest
+  // evidence there is, and it counts as high. A same-model review does not.
+  const independentAndExact =
+    checks.criticVerified && checks.crossModel === true && checks.toolChecksPassed;
   return {
-    confidence: agreementCount >= 3 ? "high" : agreementCount === 2 ? "medium" : "low",
+    confidence:
+      agreementCount >= 3 || independentAndExact ? "high" : agreementCount === 2 ? "medium" : "low",
     agreementCount,
     casVerified: checks.preCasVerified || checks.postCasVerified,
   };

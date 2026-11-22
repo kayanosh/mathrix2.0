@@ -43,8 +43,9 @@ describe("tool checks on an equation's working", () => {
     const report = runToolChecks(board(LIVE_BOARD));
     expect(report.ran).toBe(true);
     expect(report.allPassed).toBe(true);
-    // One check per line of working before the answer.
-    expect(report.total).toBe(4);
+    // One check per line of working before the answer, plus one for each step
+    // that only works a number out (25 − 7 to 18, and 18 ÷ 3 to 6).
+    expect(report.total).toBe(6);
     expect(report.checks.every((check) => !/≠/.test(check.detail))).toBe(true);
   });
 

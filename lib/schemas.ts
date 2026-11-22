@@ -120,7 +120,15 @@ export const CircleDataSchema = z.object({
 
 export const LabeledShapeBlockSchema = z.object({
   type: z.literal("labeled_shape"),
-  shape: z.enum(["triangle", "circle", "rectangle", "parallelogram", "trapezium", "polygon"]),
+  // "rectilinear" (an L-shape) and the angle drawings were missing from this
+  // list, and their data and the caption were not in the object at all, so a
+  // model that sent a correct L-shape failed the check, and one that sent a
+  // caption had it silently removed. That is why an L-shaped floor came back
+  // as a six-cornered "polygon", which the board drew as a hexagon.
+  shape: z.enum([
+    "triangle", "circle", "rectangle", "square", "parallelogram", "trapezium", "polygon",
+    "rectilinear", "straight_line", "around_point", "parallel_lines",
+  ]),
   vertices: z.array(z.object({
     label: z.string(),
     position: Point2DSchema.optional(),
@@ -128,6 +136,24 @@ export const LabeledShapeBlockSchema = z.object({
   sides: z.array(SideLabelSchema).optional(),
   angles: z.array(AngleArcSchema).optional(),
   circle: CircleDataSchema.optional(),
+  rectilinear: z.object({
+    width: z.number().positive(),
+    height: z.number().positive(),
+    notchWidth: z.number().positive(),
+    notchHeight: z.number().positive(),
+    unit: z.string().optional(),
+    showMissing: z.boolean().optional(),
+  }).optional(),
+  parallel: z.object({
+    lines: z.tuple([z.string(), z.string()]).optional(),
+    angles: z.array(z.object({
+      at: z.enum(["top", "bottom"]),
+      corner: z.enum(["above-left", "above-right", "below-left", "below-right"]),
+      label: z.string(),
+    })).min(1).max(8),
+  }).optional(),
+  symmetryLines: z.number().optional(),
+  caption: z.string().optional(),
   constructions: z.array(z.object({
     type: z.enum(["angle_bisector", "perpendicular_bisector", "arc"]),
     description: z.string(),

@@ -41,12 +41,12 @@ const FREE_DAILY_LIMIT = 5;
 /* ─────────────────────────────────────────────────────── */
 const INTRO_SLIDES = [
   {
-    title: "Welcome to the System",
-    sub: "GCSE Maths. Step by step. Higher/Foundation Tier.",
+    title: "Welcome to Mathrix",
+    sub: "GCSE Maths, explained one step at a time.",
   },
   {
-    title: "Choose Your Topic",
-    sub: "Number, Algebra, Geometry, Ratio & Proportion, Statistics.\nAll mapped to GCSE Higher/Foundation Tier.",
+    title: "Ask any question",
+    sub: "Type it, say it, or take a photo of it.\nNumber, Algebra, Geometry, Ratio and Statistics, Foundation and Higher.",
   },
 ];
 

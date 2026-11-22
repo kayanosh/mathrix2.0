@@ -23,9 +23,12 @@
  * that list.
  */
 import { PAST_PAPERS, type PastPaper } from "./past-papers";
+import { mathsInDollars } from "./maths-text";
+import { plainLanguage } from "./plain-language";
+import { PLAIN_ENGLISH_RULES } from "./prompts/plain-english";
 
 /** Bump to make every saved solutions paper be written again. */
-const SOLUTIONS_VERSION = 1;
+const SOLUTIONS_VERSION = 3;
 /** Fewer worked answers than this and the paper was not read properly. */
 export const SOLUTIONS_MIN_ITEMS = 8;
 
@@ -106,7 +109,8 @@ THE MARK SCHEME IS THE AUTHORITY
 HOW TO WRITE THE WORKING
 • Write for a pupil who got the question wrong and wants to see how it is done.
 • One short step per line, in plain everyday English: say what you do, then show it. Three to six steps for most questions; one step is enough for a one-mark question.
-• ${paper.note === "Non-calculator" ? "This is a non-calculator paper: show the arithmetic a pupil would do by hand." : "This is a calculator paper: say what to type where a calculator is used."}
+• ${paper.note === "Non-calculator" ? "This is a NON-CALCULATOR paper. Every step must be one a pupil can do by hand. Never work out a large power, product or division in full when a rule gives the answer directly: for $3^{12} \\div 3^{7}$ take the powers away to get $3^{5}$, do not write out $531441 \\div 2187$." : "This is a calculator paper: say what to type where a calculator is used."}
+• UK spelling ("labelled", "centre", "metres").
 • When a value is read from a diagram, graph or table on the paper, say so: "From the diagram, angle $ABC = 40°$."
 • For "show that", "prove" and "explain" questions, write out the full argument as the working and put a short closing statement in "answer".
 • For a question answered by drawing or completing something on the paper, describe exactly what to draw in the working and summarise it in "answer".
@@ -115,11 +119,17 @@ HOW TO WRITE THE WORKING
 DO NOT COPY THE QUESTION
 • Never reproduce the wording of a question. Refer to it only by its number. You may restate the numbers you are using as part of the working.
 
+${PLAIN_ENGLISH_RULES}
+
+HOW MATHS IS WRITTEN — plain words do not mean plain typing
+• Every sum, power, fraction and letter goes inside $...$ as LaTeX, even a short one. Write "$150 \\div 5 = 30$", never "150 ÷ 5 = 30". Write "$3^{5}$" and "$\\frac{5}{18}$", never "3^5" or "5/18".
+• The "answer" is in $...$ too when it is a number, a fraction, a power or algebra.
+
 Return ONLY valid JSON, no markdown fences:
 {
   "solutions": [
-    { "ref": "1", "marks": 1, "working": ["step"], "answer": "final answer" },
-    { "ref": "7(a)", "marks": 2, "working": ["step 1", "step 2"], "answer": "final answer" }
+    { "ref": "1", "marks": 1, "working": ["Share 150 into 5 equal parts: $150 \\\\div 5 = 30$."], "answer": "$30$" },
+    { "ref": "7(a)", "marks": 2, "working": ["The two powers are being divided, so take one power from the other: $12 - 7 = 5$.", "So the answer is $3^{5}$. Work it out: $3^{5} = 243$."], "answer": "$243$" }
   ]
 }
 Use the question references exactly as printed: "7", "7(a)", "7(b)(ii)". One entry per part.`;
@@ -139,19 +149,25 @@ export function parseSolutions(raw: string): SolutionItem[] {
     typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
 
   const seen = new Set<string>();
+  // Each maths word is explained once on the paper, the first time it is used.
+  const explained = new Set<string>();
   const items: SolutionItem[] = [];
   for (const entry of list) {
     if (!entry || typeof entry !== "object") continue;
     const e = entry as Record<string, unknown>;
     const ref = text(e.ref).replace(/^(?:question|q)\s*/i, "").replace(/\s+/g, "").slice(0, 16);
-    const answer = text(e.answer);
+    const answer = mathsInDollars(text(e.answer));
     if (!/^\d{1,2}(?:\([a-z]+\)|\([ivx]+\))*$/i.test(ref) || !answer || seen.has(ref)) continue;
     seen.add(ref);
     const marks = Math.round(Number(e.marks));
     items.push({
       ref,
       marks: Number.isFinite(marks) && marks >= 1 && marks <= 10 ? marks : null,
-      working: (Array.isArray(e.working) ? e.working : []).map(text).filter(Boolean).slice(0, 14),
+      working: (Array.isArray(e.working) ? e.working : [])
+        .map(text)
+        .filter(Boolean)
+        .slice(0, 14)
+        .map((step) => plainLanguage(mathsInDollars(step), { explained })),
       answer,
       confirmed: false,
     });

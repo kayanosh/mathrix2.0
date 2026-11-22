@@ -31,6 +31,7 @@ import {
   sanitizeWhiteboardResponse,
   validateNoMissingSteps,
   buildContinuityRetryMessage,
+  withoutBrokenArrows,
 } from "@/lib/validate";
 import { casSolve } from "@/lib/cas-solver";
 import { sympySolve, inferSympyTask } from "@/lib/sympy-solver";
@@ -39,7 +40,14 @@ import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/
 import { logAiUsage } from "@/lib/ai-usage-log";
 import type { CallUsage } from "@/lib/ai-cost";
 import { simplifyLanguage } from "@/lib/plain-language";
-import { followUpMessages as buildFollowUpMessages, readTurn, solverMessages } from "@/lib/conversation";
+import { drawBareMaths } from "@/lib/maths-text";
+import { settleShapeAnswers } from "@/lib/shape-answers";
+import {
+  followUpFallback,
+  followUpMessages as buildFollowUpMessages,
+  readTurn,
+  solverMessages,
+} from "@/lib/conversation";
 import { runCasChecks, summariseVerification, type Agreement } from "@/lib/answer-agreement";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
@@ -90,7 +98,7 @@ export async function POST(req: NextRequest) {
         // Every answer leaves through here — fresh, saved, corrected, or a
         // follow-up — so this is where its wording is made plain. See
         // lib/plain-language.ts.
-        const payload = event === "error" ? data : simplifyLanguage(data);
+        const payload = event === "error" ? data : drawBareMaths(simplifyLanguage(data));
         controller.enqueue(
           encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
         );
@@ -292,7 +300,7 @@ export async function POST(req: NextRequest) {
         // shown. The critic and tool results are the only things reused.
         const cachedCas = casSolve(questionText);
         const cachedTruth = cachedCas?.verified && cachedCas.answers.length ? cachedCas.answers : null;
-        const board = applyMethodBuilderToWhiteboard(
+        const overlaid = applyMethodBuilderToWhiteboard(
           cached.response_json,
           questionText,
           typeof topicContext === "string" ? topicContext : undefined,
@@ -304,7 +312,11 @@ export async function POST(req: NextRequest) {
               : undefined,
           },
         );
+        const board = settleShapeAnswers(overlaid, questionText);
         const cachedChecks = runCasChecks(board, questionText, cachedTruth);
+        // The arithmetic checks are local and instant too, so a saved answer
+        // gets today's checks rather than the ones it was saved with.
+        const cachedTools = runToolChecks(board);
 
         // A cached answer the CAS contradicts is not served. Rows cached while
         // the old question reader was live were written by a model that had
@@ -324,7 +336,8 @@ export async function POST(req: NextRequest) {
             preCasVerified: cachedChecks.preCasVerified,
             postCasVerified: cachedChecks.postCasVerified,
             criticVerified: storedVerification?.criticVerified === true,
-            toolChecksPassed: storedVerification?.toolChecksPassed === true,
+            toolChecksPassed: cachedTools.ran && cachedTools.allPassed,
+            crossModel: storedVerification?.crossModelVerified === true,
           };
           const cachedSummary = summariseVerification(cachedFlags);
           // The badge is drawn from these fields on the board itself, so the
@@ -432,14 +445,14 @@ export async function POST(req: NextRequest) {
         followUpRaw = fb.choices[0]?.message?.content || "";
         recordOpenAI("gpt-4o", fb);
       }
+      // The checks in validateResponse are written for a full solution: one of
+      // them fails any answer that is all words and mentions an equation, which
+      // is what a good answer to "why did you subtract 5?" looks like. A reply
+      // in the right shape is used whether or not it passed them. One that is
+      // not is read for its sentences; the raw reply is never shown, because
+      // it is JSON and pupils were being shown the JSON.
       const followUpResult = validateResponse(followUpRaw, []);
-      const followUpData: WhiteboardResponse = followUpResult.ok && followUpResult.data
-        ? followUpResult.data
-        : {
-            intro: "Good question!",
-            blocks: [{ type: "text", content: followUpRaw.replace(/```json|```/g, "").trim() }],
-            conclusion: "Does that help clarify things?",
-          };
+      const followUpData: WhiteboardResponse = followUpResult.data ?? followUpFallback(followUpRaw);
       send("solver_done", { whiteboard: followUpData, response: whiteboardToLegacy(followUpData), category, validationWarnings: [] });
       send("verification_done", { verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
       logAiUsage({
@@ -947,25 +960,50 @@ export async function POST(req: NextRequest) {
     if (!result.ok && result.errors) {
       console.log(`[Pass 1] Validation failed, retrying: ${result.errors.join("; ")}`);
 
+      const fixRequest = `Your JSON had validation errors:\n${result.errors.join("\n")}\n\nFix these and output corrected JSON matching the WhiteboardResponse schema. Output ONLY valid JSON.`;
       const retryAnthropicMessages = convertToAnthropicMessages([
         ...formattedMessages,
         { role: "assistant" as const, content: rawContent },
-        {
-          role: "user" as const,
-          content: `Your JSON had validation errors:\n${result.errors.join("\n")}\n\nFix these and output corrected JSON matching the WhiteboardResponse schema. Output ONLY valid JSON.`,
-        },
+        { role: "user" as const, content: fixRequest },
       ]);
 
+      let retried = "";
       try {
         const retryResult = await claudeSolve(systemPrompt, retryAnthropicMessages);
-        rawContent = retryResult.content;
+        retried = retryResult.content;
         solverModel = CLAUDE_SOLVER_MODEL;
         recordClaude(retryResult);
       } catch {
-        // If retry also fails, keep original rawContent
+        // Claude is unavailable. The retry used to stop here, so with Claude
+        // down every answer that failed a check first time got no second go
+        // and reached the pupil as a block of text.
+        try {
+          const retryResponse = await getOpenAI().chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 8192,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system" as const, content: systemPrompt },
+              ...formattedMessages,
+              { role: "assistant" as const, content: rawContent },
+              { role: "user" as const, content: fixRequest },
+            ],
+          });
+          retried = retryResponse.choices[0]?.message?.content || "";
+          recordOpenAI("gpt-4o", retryResponse);
+        } catch {
+          // Keep the first attempt.
+        }
       }
 
-      result = validateResponse(rawContent, requiredBlockTypes);
+      // Keep the retry only if it is no worse than the first attempt.
+      if (retried) {
+        const retriedResult = validateResponse(retried, requiredBlockTypes);
+        if (retriedResult.ok || !result.data) {
+          rawContent = retried;
+          result = retriedResult;
+        }
+      }
     }
 
     // ── Continuity-aware retry: fix unexplained jumps in the working ──
@@ -1037,12 +1075,29 @@ export async function POST(req: NextRequest) {
         controller.close();
         return;
       }
+      // An answer in the right shape that still fails a check has failed on
+      // presentation: an arrow without its anchor tags, a drawing we asked for
+      // and did not get. None of those checks is about the maths. It used to
+      // be flattened to a block of text, which cost the pupil the drawing and
+      // the steps, and skipped every accuracy check below. It now carries on,
+      // without the arrows that cannot be drawn, and is checked like any other.
+      const kept = result.data ? withoutBrokenArrows(result.data) : null;
+      if (kept && kept.blocks.some((block) => block.type !== "text")) {
+        console.log(`[Pass 1] Keeping the structured answer despite: ${(result.errors || []).join("; ")}`);
+        result = { ok: true, data: kept, errors: result.errors };
+      } else {
+        sendFallback(send, rawContent, category, result.errors);
+        controller.close();
+        return;
+      }
+    }
+
+    // At this point result.data is guaranteed to exist — capture the reference
+    if (!result.data) {
       sendFallback(send, rawContent, category, result.errors);
       controller.close();
       return;
     }
-
-    // At this point result.data is guaranteed to exist — capture the reference
     let solutionData: WhiteboardResponse = result.data;
 
     // Prefer deterministic method builders whenever the question parses
@@ -1069,6 +1124,10 @@ export async function POST(req: NextRequest) {
         },
       );
     }
+
+    // What follows from the drawing is worked out from the drawing: the area of
+    // an L-shape, and which corner of a triangle is the right angle.
+    solutionData = settleShapeAnswers(solutionData, questionText);
 
     // Attach uploaded image URL so the whiteboard can display it inline
     if (hasImage && lastUserMsg?.imageUrl) {
@@ -1240,6 +1299,22 @@ export async function POST(req: NextRequest) {
       casAgreement = applyCasChecks(solutionData, verification, checkQuestion, checkTruth);
     }
 
+    // A check that is certain outranks the reviewing model's opinion. The mean
+    // of a frequency table was passed by the reviewer as 2.6 with 53 ÷ 20
+    // written above it.
+    const decisiveFailures = toolReport.checks.filter((c) => !c.passed && c.decisive);
+    if (criticResult && decisiveFailures.length > 0) {
+      criticResult.verified = false;
+      for (const failure of decisiveFailures) {
+        criticResult.issues.push({
+          step: 0,
+          type: "arithmetic",
+          severity: "critical",
+          description: `${failure.check}: ${failure.detail}`,
+        });
+      }
+    }
+
     if (criticResult) {
       console.log(
         `[Pass 2] Critic verdict: verified=${criticResult.verified}, ` +
@@ -1297,7 +1372,7 @@ export async function POST(req: NextRequest) {
 
         if (correctedResult.ok && correctedResult.data) {
           console.log("[Pass 2] Correction accepted, using corrected solution");
-          solutionData = correctedResult.data;
+          solutionData = settleShapeAnswers(correctedResult.data, questionText);
           rawContent = correctedContent;
           solverModel = correctionModel;
           // The critic rejected the first draft and has never seen this
@@ -1359,6 +1434,7 @@ export async function POST(req: NextRequest) {
       postCasVerified: verification.postCasVerified,
       criticVerified: verification.criticVerified,
       toolChecksPassed: verification.toolChecksPassed,
+      crossModel: verification.crossModelVerified === true,
     });
     verification.agreementCount = summary.agreementCount;
     verification.confidence = summary.confidence;

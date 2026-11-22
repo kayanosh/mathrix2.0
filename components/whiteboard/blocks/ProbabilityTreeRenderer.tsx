@@ -9,7 +9,29 @@ interface Props {
   baseDelay: number;
 }
 
-const LEVEL_COLORS = ["#818cf8", "#22d3ee", "#fbbf24", "#f472b6"];
+// The tree is drawn on a white card. These were chosen for a dark one: the
+// outcome names were white on white, and the amber used to pick out a path
+// could not be read either.
+const LEVEL_COLORS = ["#4f46e5", "#0e7490", "#b45309", "#be185d"];
+const HIGHLIGHT = "#c2410c";
+const INK = "#1e293b";
+
+/**
+ * A probability as the fraction a pupil would write. 3/8 × 2/7 is 3/28 on any
+ * mark scheme; the board showed it as 0.1071.
+ */
+function asFraction(value: number): string {
+  if (!Number.isFinite(value) || value <= 0 || value >= 1) {
+    return String(Number(value.toFixed(4)));
+  }
+  // The values arrive as rounded decimals (0.1071 for 3/28), so "equal" has to
+  // allow for the rounding. The smallest denominator that fits is the fraction.
+  for (let den = 2; den <= 400; den++) {
+    const num = Math.round(value * den);
+    if (num > 0 && Math.abs(value - num / den) < 2e-4) return `${num}/${den}`;
+  }
+  return String(Number(value.toFixed(4)));
+}
 
 /**
  * Parse a LaTeX fraction string like "\\frac{x}{4+x}" into { num, den }.
@@ -165,10 +187,10 @@ export default function ProbabilityTreeRenderer({ block, baseDelay }: Props) {
       >
         {/* Root label */}
         <motion.text
-          x={startX - 14}
-          y={startY}
-          textAnchor="end"
-          fill="#f3f4f6"
+          x={8}
+          y={16}
+          textAnchor="start"
+          fill={INK}
           fontSize="18"
           fontFamily="var(--font-caveat), cursive"
           dominantBaseline="middle"
@@ -184,7 +206,7 @@ export default function ProbabilityTreeRenderer({ block, baseDelay }: Props) {
           cx={startX}
           cy={startY}
           r={6}
-          fill="#818cf8"
+          fill={LEVEL_COLORS[0]}
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: baseDelay, type: "spring" }}
@@ -272,7 +294,7 @@ function BranchGroup({
               y1={y}
               x2={nextX}
               y2={branchY}
-              stroke={isHighlighted ? "#fbbf24" : color}
+              stroke={isHighlighted ? HIGHLIGHT : color}
               strokeWidth={isHighlighted ? 3 : 2}
               strokeLinecap="round"
               initial={{ pathLength: 0, opacity: 0 }}
@@ -285,7 +307,7 @@ function BranchGroup({
               latex={branch.probability}
               cx={fracX}
               cy={fracY}
-              color={isHighlighted ? "#fbbf24" : color}
+              color={isHighlighted ? HIGHLIGHT : color}
               fontSize={15}
               delay={delay + 0.2}
             />
@@ -295,7 +317,7 @@ function BranchGroup({
               cx={nextX}
               cy={branchY}
               r={5}
-              fill={isHighlighted ? "#fbbf24" : color}
+              fill={isHighlighted ? HIGHLIGHT : color}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: delay + 0.3, type: "spring" }}
@@ -307,7 +329,7 @@ function BranchGroup({
               y={branchY}
               data-teacher-target="primary"
               data-teacher-label={`${inlineMathToPlainText(branch.event)} ${cleanLatex(branch.probability)}`}
-              fill={isHighlighted ? "#fbbf24" : "#ffffff"}
+              fill={isHighlighted ? HIGHLIGHT : INK}
               fontSize="17"
               fontWeight={isHighlighted ? 700 : 500}
               fontFamily="var(--font-caveat), cursive"
@@ -325,7 +347,7 @@ function BranchGroup({
                 <motion.text
                   x={nextX + 16 + branch.event.length * 10 + 10}
                   y={branchY}
-                  fill={isHighlighted ? "#fbbf24" : "#d1d5db"}
+                  fill={isHighlighted ? HIGHLIGHT : "#475569"}
                   fontSize="15"
                   fontWeight={isHighlighted ? 600 : 500}
                   dominantBaseline="middle"
@@ -333,7 +355,7 @@ function BranchGroup({
                   animate={{ opacity: 1 }}
                   transition={{ delay: delay + 0.5 }}
                 >
-                  = {branchProb.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}
+                  = {asFraction(branchProb)}
                 </motion.text>
               )}
 

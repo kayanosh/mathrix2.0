@@ -286,3 +286,56 @@ export function followUpMessages(turn: Turn): ModelMessage[] {
   // be answered without seeing what "that" was done to.
   return [withImages(about?.images ?? [], parts.join("\n").trim())];
 }
+
+/** An answer to a follow-up, as the three parts the chat page shows. */
+export interface FollowUpText {
+  intro: string;
+  blocks: Array<{ type: "text"; content: string }>;
+  conclusion: string;
+}
+
+/**
+ * What to show when a follow-up reply did not pass as a whiteboard answer.
+ *
+ * The reply used to be put on the page whole. When it was JSON that had failed
+ * a check, the pupil was shown the JSON: braces, "blocks", "content" and all.
+ * A reply is now read for its sentences, and code is never shown.
+ */
+export function followUpFallback(raw: string): FollowUpText {
+  const cleaned = (raw || "").replace(/```(?:json)?/gi, "").trim();
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+  if (/^[{[]/.test(cleaned)) {
+    try {
+      const data = JSON.parse(cleaned) as Record<string, unknown>;
+      const blocks = (Array.isArray(data.blocks) ? data.blocks : [])
+        .map((block) => (block && typeof block === "object" ? text((block as Record<string, unknown>).content) : ""))
+        .filter(Boolean);
+      const intro = text(data.intro);
+      const conclusion = text(data.conclusion);
+      if (blocks.length > 0 || intro) {
+        return {
+          intro: blocks.length > 0 ? intro || "Good question!" : "Good question!",
+          blocks: (blocks.length > 0 ? blocks : [intro]).map((content) => ({ type: "text" as const, content })),
+          conclusion,
+        };
+      }
+    } catch {
+      // Not readable: fall through to the apology, never to the raw reply.
+    }
+    return {
+      intro: "Sorry, I could not put that answer together.",
+      blocks: [{ type: "text", content: "Please ask again, or ask it in a different way." }],
+      conclusion: "",
+    };
+  }
+
+  if (!cleaned) {
+    return {
+      intro: "Sorry, I could not put that answer together.",
+      blocks: [{ type: "text", content: "Please ask again, or ask it in a different way." }],
+      conclusion: "",
+    };
+  }
+  return { intro: "Good question!", blocks: [{ type: "text", content: cleaned }], conclusion: "" };
+}

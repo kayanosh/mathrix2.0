@@ -163,6 +163,16 @@ export interface RectilinearShape {
   showMissing?: boolean;
 }
 
+/** Where an angle sits at a crossing: which side of the parallel line, and which side of the crossing line. */
+export type CrossingCorner = "above-left" | "above-right" | "below-left" | "below-right";
+
+export interface ParallelLines {
+  /** Names of the two parallel lines, top then bottom, e.g. ["AB", "CD"]. */
+  lines?: [string, string];
+  /** The angles marked where the crossing line meets each parallel line. */
+  angles: { at: "top" | "bottom"; corner: CrossingCorner; label: string }[];
+}
+
 export interface LabeledShapeBlock {
   type: "labeled_shape";
   shape:
@@ -177,7 +187,10 @@ export interface LabeledShapeBlock {
     | "cuboid"
     | "net"
     | "straight_line"
-    | "around_point";
+    | "around_point"
+    | "parallel_lines";
+  /** For parallel_lines: two parallel lines with a third line crossing them. */
+  parallel?: ParallelLines;
   /** For rectilinear L-shapes: bounding box + notch dimensions */
   rectilinear?: RectilinearShape;
   /** For cuboids: [length, width, height] shown as edge labels */

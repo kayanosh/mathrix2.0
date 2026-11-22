@@ -25,6 +25,7 @@ import type {
 } from "@/types/whiteboard";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 import { mathsToSpeech, pauseBeforeEquals, proseToSpeech } from "@/lib/speech-text";
+import { describeShape } from "@/lib/shape-geometry";
 
 export interface NarrationCue {
   /** Index into WhiteboardResponse.blocks (-1 for intro / conclusion) */
@@ -276,7 +277,10 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
   }
 
   // ── Hint ────────────────────────────────────────────────
-  if (data.hint) {
+  // A model often gives the same sentence as both. Said once.
+  const sameAsKeyIdea =
+    (data.hint ?? "").trim().toLowerCase() === (data.keyTakeaway ?? "").trim().toLowerCase();
+  if (data.hint && !sameAsKeyIdea) {
     cues.push({ blockIndex: -4, text: data.hint, kind: "hint" });
   }
 
@@ -339,12 +343,7 @@ function cuesForShape(
   block: LabeledShapeBlock,
   bi: number,
 ) {
-  const sides = block.sides?.map((s) => `${s.from}${s.to} = ${s.label}`).join(", ");
-  const angles = block.angles?.map((a) => `${a.label} at ${a.vertex}`).join(", ");
-  let text = `Here's the ${block.shape}.`;
-  if (sides) text += ` Sides: ${sides}.`;
-  if (angles) text += ` Angles: ${angles}.`;
-  cues.push({ blockIndex: bi, text, kind: "shape" });
+  cues.push({ blockIndex: bi, text: describeShape(block), kind: "shape" });
 }
 
 function cuesForCuboidArray(
@@ -450,7 +449,14 @@ function cuesForColumn(
  * The rules themselves live in lib/speech-text.ts.
  */
 export function sanitizeForTTS(raw: string): string {
-  let s = raw.replace(/\$\$?([^$]+)\$\$?/g, (_match, tex: string) => mathsToSpeech(tex));
+  // "24$ cm$^2$": a unit written outside the maths with only its power inside.
+  // Left alone, the power is read on its own and the unit comes out "cmsquared".
+  let s = raw.replace(
+    /\b(km|cm|mm|m)\s?\$\s*\^\s*\{?\s*([23])\s*\}?\s*\$/g,
+    (_match, unit: string, power: string) => `${unit}${power === "2" ? "²" : "³"}`,
+  );
+
+  s = s.replace(/\$\$?([^$]+)\$\$?/g, (_match, tex: string) => mathsToSpeech(tex));
 
   if (/\\[a-zA-Z%]/.test(s)) {
     s = mathsToSpeech(s, { prose: true });

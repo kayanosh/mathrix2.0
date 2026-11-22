@@ -8,6 +8,15 @@ import { inlineMathToPlainText } from "@/lib/inline-math";
 import RectilinearShapeRenderer from "@/components/whiteboard/blocks/RectilinearShapeRenderer";
 import CuboidRenderer from "@/components/whiteboard/blocks/CuboidRenderer";
 import NetRenderer from "@/components/whiteboard/blocks/NetRenderer";
+import ParallelLinesRenderer from "@/components/whiteboard/blocks/ParallelLinesRenderer";
+import {
+  altitudeFoot,
+  isHeightMark,
+  quadrilateralPoints,
+  shapeHeight,
+  tidyShapeBlock,
+  triangleHeight,
+} from "@/lib/shape-geometry";
 
 interface Props {
   block: LabeledShapeBlock;
@@ -219,14 +228,17 @@ const COLORS = {
   angle: "#d97706",
 };
 
-export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
+export default function LabeledShapeRenderer({ block: rawBlock, baseDelay }: Props) {
+  // Blank labels dropped, and an L-shape that arrived as a six-cornered
+  // polygon turned back into an L-shape.
+  const block = useMemo(() => tidyShapeBlock(rawBlock), [rawBlock]);
   const { shape, vertices: vertexDefs, sides, angles } = block;
 
   const width = 400;
   const height = 300;
   const cx = width / 2;
   const cy = height / 2;
-  const r = 100;
+  const r = 120;
 
   // Compute vertices
   const numV = vertexDefs?.length || (shape === "triangle" ? 3 : shape === "rectangle" || shape === "square" ? 4 : 5);
@@ -235,11 +247,16 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
     if (shape === "triangle") {
       const labels = vertexDefs?.map((v) => v.label) ||
         Array.from({ length: numV }, (_, i) => String.fromCharCode(65 + i));
-      const accurate = computeTriangleFromData(angles, sides, labels, cx, cy, r);
+      const realSides = sides?.filter((side) => !isHeightMark(side, labels));
+      const accurate = computeTriangleFromData(angles, realSides, labels, cx, cy, r);
       if (accurate) return accurate;
     }
+    // Four-sided shapes are drawn to their labelled lengths, so the side
+    // marked 10 cm is longer on the board than the side marked 6 cm.
+    const toScale = quadrilateralPoints(block);
+    if (toScale) return scaleAndCenter(toScale, cx, cy, r);
     return computeVertices(shape, numV, cx, cy, r);
-  }, [shape, numV, cx, cy, r, vertexDefs, angles, sides]);
+  }, [shape, numV, cx, cy, r, vertexDefs, angles, sides, block]);
 
   // Handle circle separately, after hooks have been called consistently.
   if (shape === "circle") {
@@ -274,6 +291,9 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
   }
   if (shape === "rectilinear") {
     return <RectilinearShapeRenderer block={block} baseDelay={baseDelay} />;
+  }
+  if (shape === "parallel_lines") {
+    return <ParallelLinesRenderer block={block} baseDelay={baseDelay} />;
   }
   if (shape === "cuboid") {
     return <CuboidRenderer block={block} baseDelay={baseDelay} />;
@@ -410,6 +430,8 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           const fromIdx = vertexLabels.indexOf(side.from);
           const toIdx = vertexLabels.indexOf(side.to);
           if (fromIdx < 0 || toIdx < 0) return null;
+          // Drawn below as a dashed line, not written across a diagonal.
+          if (isHeightMark(side, vertexLabels)) return null;
 
           const p1 = points[fromIdx];
           const p2 = points[toIdx];
@@ -482,6 +504,89 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
           );
         })}
 
+        {/* Height: a dashed line straight down, as it is drawn in an exam paper */}
+        {(() => {
+          const mark = points.length === 4 ? shapeHeight(block) : null;
+          if (!mark) return null;
+          const topY = Math.min(points[0].y, points[1].y);
+          const bottomY = Math.max(points[2].y, points[3].y);
+          // Inside both the top and the bottom edge.
+          const x = Math.max(points[0].x, points[3].x) + 0.001;
+          const corner = 9;
+          return (
+            <motion.g
+              data-teacher-target="primary"
+              data-teacher-label={`height ${inlineMathToPlainText(mark.label)}`}
+              data-teacher-sequence={vertexLabels.length + (sides?.length || 0)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: baseDelay + 1 }}
+            >
+              <line x1={x} y1={topY} x2={x} y2={bottomY} stroke="#0e7490" strokeWidth="1.75" strokeDasharray="5 4" />
+              <path
+                d={`M ${x + corner},${bottomY} L ${x + corner},${bottomY - corner} L ${x},${bottomY - corner}`}
+                fill="none"
+                stroke="#0e7490"
+                strokeWidth="1.25"
+              />
+              <foreignObject x={x + 6} y={(topY + bottomY) / 2 - 12} width={70} height={24}>
+                <div className="flex items-center justify-start">
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: "rgba(7,7,14,0.8)", color: COLORS.side }}
+                  >
+                    <InlineMath text={mark.label} />
+                  </span>
+                </div>
+              </foreignObject>
+            </motion.g>
+          );
+        })()}
+
+        {/* A triangle's height: dashed, from the top corner straight down to the
+            side opposite, with the right-angle mark where it lands. The answer
+            to "find the area" turns on this line, and it was never drawn. */}
+        {(() => {
+          const mark = points.length === 3 ? triangleHeight(block) : null;
+          if (!mark) return null;
+          const apex = points[mark.apex];
+          const foot = altitudeFoot(points, mark.apex);
+          const base = points[(mark.apex + 1) % 3];
+          const len = Math.hypot(apex.x - foot.x, apex.y - foot.y) || 1;
+          const up = { x: (apex.x - foot.x) / len, y: (apex.y - foot.y) / len };
+          const baseLen = Math.hypot(base.x - foot.x, base.y - foot.y) || 1;
+          const along = { x: (base.x - foot.x) / baseLen, y: (base.y - foot.y) / baseLen };
+          const c = 9;
+          return (
+            <motion.g
+              data-teacher-target="primary"
+              data-teacher-label={`height ${inlineMathToPlainText(mark.label)}`}
+              data-teacher-sequence={vertexLabels.length + (sides?.length || 0)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: baseDelay + 1 }}
+            >
+              <line x1={apex.x} y1={apex.y} x2={foot.x} y2={foot.y} stroke="#0e7490" strokeWidth="1.75" strokeDasharray="5 4" />
+              <path
+                d={`M ${foot.x + along.x * c},${foot.y + along.y * c} L ${foot.x + along.x * c + up.x * c},${foot.y + along.y * c + up.y * c} L ${foot.x + up.x * c},${foot.y + up.y * c}`}
+                fill="none"
+                stroke="#0e7490"
+                strokeWidth="1.25"
+              />
+              <foreignObject x={(apex.x + foot.x) / 2 + 6} y={(apex.y + foot.y) / 2 - 12} width={70} height={24}>
+                <div className="flex items-center justify-start">
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: "rgba(7,7,14,0.8)", color: COLORS.side }}
+                  >
+                    <InlineMath text={mark.label} />
+                  </span>
+                </div>
+              </foreignObject>
+            </motion.g>
+          );
+        })()}
+
         {/* Angle arcs */}
         {angles?.map((angle, i) => {
           const vIdx = vertexLabels.indexOf(angle.vertex);
@@ -532,9 +637,12 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
 
           const arcPath = `M ${v.x + arcR * Math.cos(sa)},${v.y + arcR * Math.sin(sa)} A ${arcR},${arcR} 0 ${largeArc} ${sweep} ${v.x + arcR * Math.cos(ea)},${v.y + arcR * Math.sin(ea)}`;
 
-          const midAngle = (sa + ea) / 2;
-          const labelX = v.x + (arcR + 14) * Math.cos(midAngle);
-          const labelY = v.y + (arcR + 14) * Math.sin(midAngle);
+          // Half-way round the arc that was drawn. Averaging the two ends put
+          // the label on the far side of the corner, outside the shape,
+          // whenever the angle crossed the left-hand direction.
+          const midAngle = sa + sweepAngle / 2;
+          const labelX = v.x + (arcR + 16) * Math.cos(midAngle);
+          const labelY = v.y + (arcR + 16) * Math.sin(midAngle);
 
           return (
             <motion.g
@@ -557,9 +665,13 @@ export default function LabeledShapeRenderer({ block, baseDelay }: Props) {
                 y={labelY}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={COLORS.angle}
-                fontSize="11"
+                fill="#b45309"
+                fontSize="16"
+                fontWeight="bold"
                 fontFamily="var(--font-caveat), cursive"
+                stroke="#ffffff"
+                strokeWidth={3}
+                paintOrder="stroke"
               >
                 {inlineMathToPlainText(angle.label)}
               </text>
@@ -780,10 +892,11 @@ function CircleRenderer({
             data-teacher-target="primary"
             data-teacher-label={inlineMathToPlainText(circleData.center)}
             data-teacher-sequence={0}
-            x={cx + 8}
-            y={cy - 8}
-            fill="#e8e8f0"
-            fontSize="13"
+            x={cx - 12}
+            y={cy + 18}
+            fill={COLORS.label}
+            fontSize="16"
+            fontWeight="bold"
             fontFamily="var(--font-caveat), cursive"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -818,8 +931,12 @@ function CircleRenderer({
             x={cx + r / 2}
             y={cy - 10}
             textAnchor="middle"
-            fill="#22d3ee"
-            fontSize="13"
+            fill="#0e7490"
+            fontSize="17"
+            fontWeight="bold"
+            stroke="#ffffff"
+            strokeWidth={3}
+            paintOrder="stroke"
             fontFamily="var(--font-caveat), cursive"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

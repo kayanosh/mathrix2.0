@@ -220,16 +220,26 @@ export function buildRectPerimeterArea(
   };
 }
 
-export function buildCuboidVolume(l: number, w: number, h: number): MethodBuildResult {
+export function buildCuboidVolume(
+  l: number,
+  w: number,
+  h: number,
+  /** The unit the question measured in ("cm"), when it gave one. */
+  unit?: string,
+): MethodBuildResult {
   const volume = l * w * h;
   const layerSize = l * w;
+  // "A cuboid 5 cm by 4 cm by 3 cm" was answered "60 cubic units". The cubes
+  // are centimetre cubes, and the mark is for 60 cm³.
+  const cubed = unit ? `${unit}³` : "cubic units";
+  const cubeName = unit ? `${unit} cubes` : "unit cubes";
   const shape: CuboidArrayBlock = {
     type: "cuboid_array",
     length: l,
     width: w,
     height: h,
-    unit: "unit",
-    caption: `${h} equal layers of ${layerSize} unit cubes`,
+    unit: unit ?? "unit",
+    caption: `${h} equal layers of ${layerSize} ${cubeName}`,
   };
   const steps: EquationStepBlock = {
     type: "equation_steps",
@@ -287,9 +297,9 @@ export function buildCuboidVolume(l: number, w: number, h: number): MethodBuildR
     },
     {
       title: "Find the volume",
-      explanation: `${layerSize} cubes in each layer × ${h} layers = ${volume} cubic units.`,
+      explanation: `${layerSize} cubes in each layer × ${h} layers = ${volume} ${cubed}.`,
       why: "Volume is the total number of unit cubes that fill the solid.",
-      narration: `${layerSize} times ${h} is ${volume}, so the volume is ${volume} cubic units.`,
+      narration: `${layerSize} times ${h} is ${volume}, so the volume is ${volume} ${cubed}.`,
       cellKeys: [],
       carryKeys: [],
       noteKeys: [],
@@ -304,6 +314,8 @@ export function buildCuboidVolume(l: number, w: number, h: number): MethodBuildR
     captions: teachingSteps.map((s) => s.explanation),
     answer: String(volume),
     intro: `See ${h} equal layers. Each layer is ${l} cubes long and ${w} cubes deep.`,
-    conclusion: `The cuboid contains ${volume} unit cubes, so its volume is ${volume} cubic units.`,
+    conclusion: unit
+      ? `The cuboid holds ${volume} ${cubeName}, so its volume is ${volume} ${cubed}.`
+      : `The cuboid contains ${volume} unit cubes, so its volume is ${volume} cubic units.`,
   };
 }

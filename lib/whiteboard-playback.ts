@@ -52,12 +52,16 @@ export function buildTeacherSpeechParts(
 
   let explanation = step.explanation?.trim() || step.narration.trim();
 
+  // What is added next starts a new sentence, so the one before has to end.
+  // "X: move 0.5 right Here is why." was being read out as one run.
+  const closed = (text: string) => (/[.!?]["')\]]?\$?$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
+
   if (step.rule && !includesMeaningfully(explanation, step.rule)) {
-    explanation = `${explanation} We are using the ${step.rule} rule.`;
+    explanation = `${closed(explanation)} We are using the ${step.rule} rule.`;
   }
 
   if (step.why && !includesMeaningfully(explanation, step.why)) {
-    explanation = `${explanation} Here is why. ${step.why}`;
+    explanation = `${closed(explanation)} Here is why. ${step.why}`;
   }
 
   const check = step.check?.trim();

@@ -184,6 +184,9 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
     hold(`d ${top} by d ${bottom}`.replace(/\s+/g, " ").trim()),
   );
 
+  // sin(30°) is "sin 30 degrees": these brackets are never said.
+  s = s.replace(/\\(sin|cos|tan|log|ln)\s*\(([^()]*)\)/g, "\\$1 $2 ");
+
   s = s.replace(/\\([a-zA-Z]+)/g, (whole, name: string) => (name in NAMED ? hold(NAMED[name]) : whole));
 
   if (!prose) {
@@ -259,6 +262,8 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
     s = s.replace(/\*/g, " times ");
     s = s.replace(/[-−–]/g, " minus ");
     s = s.replace(new RegExp(`([\\w)${HELD}])\\s*/\\s*(?=[\\w(${HELD}])`, "g"), "$1 over ");
+
+    s = speakBrackets(s);
   }
 
   // Whatever LaTeX is left has no spoken form.
@@ -266,8 +271,62 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
   s = s.replace(/[{}\\]/g, " ");
 
   s = s.replace(HELD_ANY, (mark) => held[mark.charCodeAt(0) - 0xe000] ?? "");
-  return s.replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+  return s
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/,(\s*,)+/g, ",")
+    .trim();
 }
+
+/**
+ * Brackets, said aloud. A voice skips them, so "(x - 2)(x - 3)" was heard as
+ * "x minus 2 x minus 3", which is a different sum.
+ *
+ *   (x - 2)(x - 3) = 0   bracket x minus 2, bracket x minus 3, equals 0
+ *   3(x + 4)             3 bracket x plus 4
+ *   (x + 1)^2            bracket x plus 1, all squared
+ *   2(3 + 4) × 5         2 bracket 3 plus 4 close bracket times 5
+ *   f(x)                 f of x
+ *   (2, 5)               2, 5          a point: the comma is the pause
+ *   (-3) + 5             minus 3 plus 5   one thing in brackets needs no words
+ *
+ * Runs on maths whose signs are already words, innermost brackets first.
+ */
+function speakBrackets(text: string): string {
+  // Square brackets are said the same way. Roots, the one other use of them,
+  // have been read by now.
+  let s = text.replace(/\[/g, "(").replace(/\]/g, ")");
+
+  // f(x), and P(A) in probability.
+  s = s.replace(/(^|[^A-Za-z])([fghP])\s*\(([^()]*)\)/g, "$1$2 of $3 ");
+
+  for (let depth = 0; depth < 6 && /\([^()]*\)/.test(s); depth++) {
+    s = s.replace(/\(([^()]*)\)/g, (whole: string, inner: string, offset: number, all: string) => {
+      const content = inner.trim();
+      if (!content) return " ";
+      if (content.includes(",")) return ` ${content} `;
+
+      const after = all.slice(offset + whole.length).trimStart();
+      const raised = /^(?:squared|cubed|to the power)/.test(after);
+      const parts = content.split(/\s+/);
+      const oneThing = parts.length === 1 || (parts.length === 2 && parts[0] === "minus" && !raised);
+      if (oneThing) return ` ${content} `;
+
+      if (raised) return ` bracket ${content}${PAUSE} all `;
+      // Nothing follows: the sentence around the maths supplies the pause.
+      if (after === "") return ` bracket ${content} `;
+      const pauseIsEnough = /^(?:equals|is |[(,.;:!?])/.test(after);
+      return pauseIsEnough ? ` bracket ${content}${PAUSE} ` : ` bracket ${content} close bracket `;
+    });
+  }
+  return s.replace(new RegExp(PAUSE, "g"), ",");
+}
+
+/**
+ * A pause the bracket rule adds. It becomes a comma only at the end, so that a
+ * comma already inside brackets still means a point, "(2, 5)".
+ */
+const PAUSE = "\u0001";
 
 /**
  * A sentence, with any maths typed into it made speakable. Call this after the

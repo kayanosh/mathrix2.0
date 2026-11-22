@@ -121,13 +121,18 @@ export function buildTutorSteps(
     }
 
     if (cue.kind === "hint") {
+      // Two closing lines share this kind: the key idea (blockIndex -3) and the
+      // hint (-4). Both used to be shown as the hint, so the board wrote the
+      // same sentence twice while the voice read out two different ones.
+      const isKeyIdea = cue.blockIndex === -3;
+      const text = (isKeyIdea ? data.keyTakeaway : data.hint) || narration;
       return {
         cueIndex,
         kind: cue.kind,
-        title: "Watch out",
-        explanation: data.hint || narration,
+        title: isKeyIdea ? "Key idea" : "Watch out",
+        explanation: text,
         narration,
-        visual: { type: "hint", text: data.hint || narration },
+        visual: { type: "hint", text },
       };
     }
 
