@@ -62,6 +62,13 @@ interface Props {
 
 const WRITE_MS = 900;
 
+/**
+ * The speed button's settings. 0.75× is for a pupil who wants the teacher to
+ * slow right down: the voice and the writing both go at three-quarter pace.
+ */
+const PLAYBACK_SPEEDS = [1, 1.5, 2, 0.75] as const;
+type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
+
 // ── Main tutor ────────────────────────────────────────────────────────────────
 
 export default function WhiteboardTutor({ data, onClose }: Props) {
@@ -140,7 +147,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const [runId, setRunId] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
-  const [speed, setSpeed] = useState<1 | 1.5 | 2>(1);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [phase, setPhase] = useState<PlaybackPhase>("focus");
   const [activeWord, setActiveWord] = useState(-1);
   const [justCompleted, setJustCompleted] = useState<number | null>(null);
@@ -473,9 +480,9 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       nextSpeechParts.explanation,
       nextSpeechParts.check,
     ].forEach((text) => {
-      if (text) void prepare(text, speed);
+      if (text) void prepare(text);
     });
-  }, [nextSpeechParts, prepare, speechParts, speed]);
+  }, [nextSpeechParts, prepare, speechParts]);
 
   useEffect(() => {
     clearTimers();
@@ -641,7 +648,7 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
 
   const toggleMute = () => setIsMuted((m) => !m);
   const cycleSpeed = () =>
-    setSpeed((s) => (s === 1 ? 1.5 : s === 1.5 ? 2 : 1) as 1 | 1.5 | 2);
+    setSpeed((s) => PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(s) + 1) % PLAYBACK_SPEEDS.length]);
 
   const isLast = activeCue === totalCues - 1;
   const isSpeaking =
@@ -827,8 +834,9 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
             <button
               onClick={cycleSpeed}
               aria-label={`Playback speed ${speed}x`}
+              title={speed === 0.75 ? "Slow" : speed === 1 ? "Normal speed" : "Faster"}
               className="h-10 px-2.5 rounded-xl text-xs font-bold tabular-nums hover:bg-slate-100 transition-all"
-              style={{ color: speed === 1 ? "#94a3b8" : "#2563eb", minWidth: 40 }}
+              style={{ color: speed === 1 ? "#94a3b8" : "#2563eb", minWidth: 48 }}
             >
               {speed}×
             </button>

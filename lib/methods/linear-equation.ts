@@ -240,6 +240,8 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
   if (b !== 0) {
     const inv = -b;
     const opWord = b > 0 ? "Subtract" : "Add";
+    // "Subtract 7 from both sides", but "Add 7 to both sides".
+    const sideWord = b > 0 ? "from" : "to";
     const opAbs = Math.abs(b);
     const balance = b > 0 ? `-${opAbs}` : `+${opAbs}`;
     const toLatex = inv > 0 ? `+ ${inv}` : `- ${Math.abs(inv)}`;
@@ -253,13 +255,13 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
 
     steps.push({
       stepNumber: stepNumber++,
-      operationLabel: `${opWord} ${opAbs} from both sides`,
+      operationLabel: `${opWord} ${opAbs} ${sideWord} both sides`,
       explanation: `That $${signedTerm(b, false).replace(" ", "")}$ is in the way — ${opWord.toLowerCase()} $${opAbs}$ on both sides so it cancels. Watch the arrow!`,
       rule: "Inverse operations",
       why:
         b > 0
-          ? "Subtracting undoes the addition, isolating the term with the variable."
-          : "Adding undoes the subtraction, isolating the term with the variable.",
+          ? "Subtracting undoes the adding. That leaves the letter part on its own."
+          : "Adding undoes the subtracting. That leaves the letter part on its own.",
       latexBefore: beforeTagged,
       latexAfter: afterTagged,
       arrowDirection: "both_sides",
@@ -280,16 +282,16 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
     });
     pushTeaching(
       `${opWord} ${opAbs}`,
-      `${opWord} ${opAbs} from both sides to isolate the ${v} term.`,
-      `${opWord} ${opAbs} from both sides.`,
-      "Inverse operations keep the equation balanced.",
+      `${opWord} ${opAbs} ${sideWord} both sides. This gets the ${v} part on its own.`,
+      `${opWord} ${opAbs} ${sideWord} both sides.`,
+      "Doing the same thing to both sides keeps the equation balanced.",
     );
 
     const right = c - b;
     steps.push({
       stepNumber: stepNumber++,
       operationLabel: "Simplify the right side",
-      explanation: `Quick arithmetic: $${c} ${signedTerm(-b)} = ${right}$.`,
+      explanation: `Now do the sum: $${c} ${signedTerm(-b)} = ${right}$.`,
       latexBefore: `${a === 1 ? v : a === -1 ? `-${v}` : `${a}${v}`} = ${c} ${signedTerm(-b)}`,
       latexAfter: `${a === 1 ? v : a === -1 ? `-${v}` : `${a}${v}`} = ${right}`,
       arrowDirection: "simplify",
@@ -311,7 +313,7 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
         operationLabel: "Multiply both sides by −1",
         explanation: `There's a minus in front of $${v}$. Multiply both sides by $-1$ to flip the sign.`,
         rule: "Inverse operations",
-        why: "Multiplying by −1 undoes the leading minus.",
+        why: "Multiplying by −1 takes away the minus at the front.",
         latexBefore: `\\htmlId{arrow-2-from}{-${v}} = ${rightNow}`,
         latexAfter: `${v} = \\htmlId{arrow-2-to}{${-rightNow}}`,
         arrowDirection: "both_sides",
@@ -336,9 +338,9 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
       steps.push({
         stepNumber: stepNumber++,
         operationLabel: `Divide both sides by ${a}`,
-        explanation: `$${v}$ is being multiplied by $${a}$, so divide both sides by $${a}$ to free it.`,
+        explanation: `$${v}$ is being multiplied by $${a}$, so divide both sides by $${a}$ to get it on its own.`,
         rule: "Inverse operations",
-        why: "Dividing undoes the multiplication, leaving the variable on its own.",
+        why: "Dividing undoes the multiplying. That leaves the letter on its own.",
         latexBefore: `\\htmlId{arrow-2-from}{${a}}${v} = ${rightNow}`,
         latexAfter: `${v} = \\htmlId{arrow-2-to}{\\frac{${rightNow}}{${a}}}`,
         arrowDirection: "both_sides",
@@ -427,6 +429,6 @@ export function buildLinearEquation(problem: LinearProblem): MethodBuildResult {
     teachingSteps,
     captions: teachingSteps.map((s) => s.explanation),
     answer: `${v} = ${solution}`,
-    intro: `Very well — we need to isolate $${v}$ on one side. Allow me to walk you through it.`,
+    intro: `We need to get $${v}$ on its own. Let's go through it one step at a time.`,
   };
 }

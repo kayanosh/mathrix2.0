@@ -5,6 +5,7 @@ import { KS2_PROMPT_VERSION } from "@/lib/ks2-lesson-version";
 import { BLOCKING_LESSON_ISSUES } from "@/lib/ks2-lesson-issues";
 import { getCallerProfile } from "@/lib/centre";
 import { isStaffRole, lessonForRole } from "@/lib/ks2-staff-content";
+import { simplifyLanguage } from "@/lib/plain-language";
 import { NextRequest, NextResponse } from "next/server";
 import { englishExplainExtra, englishLessonExtra } from "@/lib/ks2-english";
 import { scienceLessonExtra } from "@/lib/ks2-science";
@@ -71,6 +72,14 @@ import {
   hardenKS2MathsPracticeAnswers,
   mathsAnswersEquivalent,
 } from "@/lib/ks2-maths-accuracy";
+
+/** A lesson as the caller's role may see it, with its wording made plain. */
+function plainLesson<T extends Record<string, unknown>>(
+  lesson: T,
+  role: Parameters<typeof lessonForRole>[1],
+) {
+  return simplifyLanguage(lessonForRole(lesson, role));
+}
 
 const LESSON_MODEL = process.env.OPENAI_KS2_LESSON_MODEL || "gpt-5.6-terra";
 const FAST_MODEL = process.env.OPENAI_KS2_FAST_MODEL || "gpt-5.6-luna";
@@ -940,7 +949,9 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
       if (!explanation || explanation.steps.length === 0) {
         return NextResponse.json({ error: "Could not generate explanation" }, { status: 502 });
       }
-      return NextResponse.json({ explanation });
+      return NextResponse.json({
+        explanation: simplifyLanguage(explanation, { alsoProse: ["text"] }),
+      });
     }
 
     // ── Full lesson / guided lesson ──────────────────────────────────────────
@@ -1029,7 +1040,7 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
           );
           if (cachedBlockers.length === 0) {
             return NextResponse.json({
-              lesson: lessonForRole(
+              lesson: plainLesson(
                 enriched as unknown as Record<string, unknown>,
                 callerRole,
               ),
@@ -1063,7 +1074,7 @@ ${englishExplainExtra(subject, topic, subtopics)}${detectPromptInjection(questio
           );
           if (reasoningBlockers.length === 0) {
             return NextResponse.json({
-              lesson: lessonForRole(
+              lesson: plainLesson(
                 cached as unknown as Record<string, unknown>,
                 callerRole,
               ),
@@ -1559,7 +1570,7 @@ Use 3-5 sections, ${teachingSubject ? "3-6" : "2-4"} meaningful worked-example s
     }
 
     return NextResponse.json({
-      lesson: lessonForRole(lesson as unknown as Record<string, unknown>, callerRole),
+      lesson: plainLesson(lesson as unknown as Record<string, unknown>, callerRole),
       cached: false,
       isStaff: callerIsStaff,
       // Retained for the client cache contract (LessonPanel skips storing when

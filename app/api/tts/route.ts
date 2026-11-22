@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrGenerateTtsAudio } from "@/lib/tts-cache";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
-
-export const TTS_VOICE = "onyx"; // deep, authoritative — closest to Jarvis
+import { TTS_SPEED, TTS_VOICE } from "@/lib/tts-voice";
 
 const CACHE_HEADER = {
   memory: "MEMORY",
@@ -15,17 +14,16 @@ export async function POST(req: NextRequest) {
     if (!allowRequest(`tts:${requestClientKey(req.headers)}`, 120, 60_000)) {
       return NextResponse.json({ error: "Too many narration requests" }, { status: 429 });
     }
-    const { text, speed } = (await req.json()) as {
-      text?: string;
-      speed?: number;
-    };
+    const { text } = (await req.json()) as { text?: string };
 
     if (!text || typeof text !== "string" || text.length > 4096) {
       return NextResponse.json({ error: "Invalid text" }, { status: 400 });
     }
 
-    const clampedSpeed = Math.min(4, Math.max(0.25, speed ?? 1));
-    const { buffer, source } = await getOrGenerateTtsAudio(text, TTS_VOICE, clampedSpeed);
+    // One clip per sentence, at the voice's natural speed. The player sets the
+    // pace; a `speed` in the request (sent by pages loaded before this change)
+    // is ignored rather than generating a faster clip.
+    const { buffer, source } = await getOrGenerateTtsAudio(text, TTS_VOICE, TTS_SPEED);
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

@@ -10,6 +10,7 @@ import type { QuestionCategory } from "@/types/whiteboard";
 import type { VisualRequirement } from "./required-visuals";
 import type { GroundTruthResult } from "@/lib/ground-truth";
 import { buildGroundTruthPromptBlock } from "@/lib/ground-truth";
+import { PLAIN_ENGLISH_RULES } from "./plain-english";
 
 // ── Shared header ─────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ PERSONALITY & VOICE — PLAIN, FRIENDLY, ACCESSIBLE:
 • NEVER use these ornate words: splendid, indeed, rather, shall we, precisely, remarkably, jolly, quite, dignified, eloquent, composed, alas
 • NEVER write in a posh / butler / Victorian style — write the way a kind teacher actually talks
 • Avoid jargon. If you must use a maths term (e.g. "quadratic", "factorise"), explain it in plain words the first time
+
+${PLAIN_ENGLISH_RULES}
 
 TEACHING RULES:
 • Speak to a 13-year-old — every word must be understandable to a struggling student
@@ -49,7 +52,7 @@ NO MISSING STEPS (critical — the whole point of the whiteboard):
 PEDAGOGICAL SCAFFOLDING (new fields — use these!):
 For each equation step, provide where applicable:
 • "rule": The formal theorem/rule name (e.g. "Inverse operations", "Distributive law", "Pythagoras' theorem", "Quadratic formula", "Power rule", "SOHCAHTOA"). Shown as a badge.
-• "why": One sentence WHY this rule works here — builds intuition, not just procedure. Shown as expandable callout. Example: "Subtracting undoes the addition, isolating $2x$ on the left."
+• "why": One sentence WHY this rule works here — builds intuition, not just procedure. Shown as expandable callout. Example: "Subtracting undoes the adding, so $2x$ is left on its own."
 • "selfCheck": A quick verification the student can run — usually ONLY on the final step. Example: "Check: $2(3) + 4 = 10$ ✓"
 Top-level fields:
 • "keyTakeaway": One memorable sentence the student should walk away remembering. Example: "Whatever you do to one side, do to the other — that's the balance rule!"
@@ -357,7 +360,7 @@ export const SCHEMA = `
 ━━━ WhiteboardResponse SCHEMA ━━━
 
 {
-  "intro": "string — composed, elegant opening sentence",
+  "intro": "string — one short, friendly opening sentence in plain everyday English",
   "blocks": [ ...VisualBlock[] — rendered in order on the whiteboard ],
   "conclusion": "string — final answer clearly stated",
   "hint": "string | null — common mistake to avoid",
@@ -724,7 +727,7 @@ const EXAMPLES: Record<QuestionCategory, string> = {
   algebra: `
 EXAMPLE — Algebra (Solve 2x + 4 = 10):
 {
-  "intro": "Very well — we need to isolate $x$ on one side. Allow me to walk you through it.",
+  "intro": "We need to get $x$ on its own. Let's go through it one step at a time.",
   "blocks": [
     {
       "type": "equation_steps",
@@ -742,7 +745,7 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
           "operationLabel": "Subtract 4 from both sides",
           "explanation": "That $+4$ is in the way — let's get rid of it! We subtract $4$ from both sides so it cancels out. Watch the arrow!",
           "rule": "Inverse operations",
-          "why": "Subtracting undoes the addition, isolating $2x$ on the left.",
+          "why": "Subtracting undoes the adding, so $2x$ is left on its own.",
           "latexBefore": "2x + \\\\htmlId{arrow-1-from}{4} = 10",
           "latexAfter": "2x = 10 \\\\htmlId{arrow-1-to}{- 4}",
           "arrowDirection": "both_sides",
@@ -900,7 +903,7 @@ Factorising uses arrowDirection "simplify" (no curly arrows). Solving each linea
   geometry: `
 EXAMPLE — Geometry (Circle theorem: tangent from external point, find angle ACD where BCD=35°):
 {
-  "intro": "Ah, circle theorems — splendid. We shall employ the alternate segment theorem here. $CD$ is a tangent and $\\angle BCD = 35°$.",
+  "intro": "This is a circle question. We will use the alternate segment theorem. $CD$ is a tangent and $\\angle BCD = 35°$.",
   "blocks": [
     {
       "type": "labeled_shape",
@@ -1014,7 +1017,7 @@ EXAMPLE — Probability (Two coin flips, find P(at least one head)):
   statistics: `
 EXAMPLE — Statistics (Find mean from frequency table):
 {
-  "intro": "We need the mean from a frequency table — the key lies in the $f \\times x$ column. Shall we begin?",
+  "intro": "We need the mean from a frequency table. The key is the $f \\times x$ column. Let's start.",
   "blocks": [
     {
       "type": "table",
@@ -1102,7 +1105,7 @@ EXAMPLE — Graphs (Plot y = 2x + 1):
   trigonometry: `
 EXAMPLE — Trigonometry (Find missing side using SOH CAH TOA):
 {
-  "intro": "Trigonometry — SOH CAH TOA will serve us well here. Let us determine the appropriate ratio for this missing side.",
+  "intro": "This is trigonometry, so we use SOH CAH TOA. First we pick the right ratio for the missing side.",
   "blocks": [
     {
       "type": "labeled_shape",
@@ -1157,7 +1160,7 @@ EXAMPLE — Trigonometry (Find missing side using SOH CAH TOA):
   number: `
 EXAMPLE — Number (Convert 0.375 to a fraction):
 {
-  "intro": "Converting a recurring decimal to a fraction — rather elegant once you see the method.",
+  "intro": "Let's turn a recurring decimal into a fraction. It is easy once you see the trick.",
   "blocks": [
     {
       "type": "equation_steps",
@@ -1334,6 +1337,8 @@ export function buildFollowUpPrompt(): string {
   return `You are Mathrix, a warm and friendly maths tutor.
 The student is asking a follow-up question about a solution you just explained.
 
+${PLAIN_ENGLISH_RULES}
+
 CRITICAL: You MUST respond with valid JSON matching the WhiteboardResponse schema. No markdown fences.
 
 For a follow-up question:
@@ -1345,7 +1350,7 @@ For a follow-up question:
 
 Minimal valid response schema:
 {
-  "intro": "string — one composed sentence acknowledging their question",
+  "intro": "string — one short, friendly sentence that answers their question in plain words",
   "blocks": [{ "type": "text", "content": "string — your explanation" }],
   "conclusion": "string — short reassurance or next step",
   "subject": "Maths",

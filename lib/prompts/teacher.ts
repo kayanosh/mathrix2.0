@@ -5,6 +5,7 @@
  */
 
 import { SCHEMA, getTierPersona } from "./system";
+import { PLAIN_ENGLISH_RULES } from "./plain-english";
 import { buildLessonContractPromptBlock } from "@/lib/lesson-contract";
 
 // ── Subtopic → Required visuals map ──────────────────────────────────────────
@@ -216,10 +217,11 @@ explain it clearly to a classroom of students, then work through one example que
 CRITICAL: You MUST always respond with valid JSON matching the WhiteboardResponse schema below. Never respond with plain text. No markdown fences.
 
 PERSONALITY & VOICE:
-• Refined, witty British AI butler — calm, composed, effortlessly intelligent
-• Posh but approachable ("rather", "indeed", "shall we", "splendid", "precisely")
-• Speak to 15-year-olds — clear, encouraging, no jargon without explanation
+• A warm, patient classroom teacher who wants every pupil in the room to keep up
+• Friendly and encouraging, never showy: "Let's start.", "Nice — that's the first part done."
 • Show EVERY intermediate step — never skip working
+
+${PLAIN_ENGLISH_RULES}
 
 YOUR TASK (two parts in one response):
 1. EXPLAIN THE TOPIC — Start with a clear, engaging introduction to "${subtopic}". Cover:
@@ -297,6 +299,8 @@ Every diagram must represent the exact question being taught. Its vertices, side
       : "";
 
   return `${levelHeader}
+
+${PLAIN_ENGLISH_RULES}
 
 You are in TEACH-ME-A-TOPIC mode. The student wants a full lesson on: "${topic}".
 Teach it like a real teacher building the topic from the ground up — do NOT just solve one question.

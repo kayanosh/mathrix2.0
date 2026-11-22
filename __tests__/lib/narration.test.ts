@@ -219,7 +219,8 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const nlCue = plan.find((c) => c.kind === "number_line");
     expect(nlCue).toBeDefined();
-    expect(nlCue!.text).toContain("x > 3");
+    // The voice is given words, not the symbol it would have to guess at.
+    expect(nlCue!.text).toContain("x is greater than 3");
   });
 
   it("generates table cue", () => {
@@ -276,7 +277,7 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const colCues = plan.filter((c) => c.kind === "column");
     expect(colCues.length).toBeGreaterThanOrEqual(1);
-    expect(colCues.some((c) => c.text.includes("384 ÷ 12"))).toBe(true);
+    expect(colCues.some((c) => c.text.includes("384 divided by 12"))).toBe(true);
     expect(colCues.some((c) => c.text.includes("32"))).toBe(true);
   });
 

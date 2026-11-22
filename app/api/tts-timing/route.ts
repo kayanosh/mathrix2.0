@@ -7,7 +7,7 @@ import {
   type CachedTtsSegment,
 } from "@/lib/tts-cache";
 import { allowRequest, requestClientKey } from "@/lib/rate-limit";
-import { TTS_VOICE } from "@/app/api/tts/route";
+import { TTS_SPEED, TTS_VOICE } from "@/lib/tts-voice";
 
 /**
  * POST /api/tts-timing — real per-sentence timestamps for a narration clip
@@ -25,17 +25,15 @@ export async function POST(req: NextRequest) {
     if (!allowRequest(`tts-timing:${requestClientKey(req.headers)}`, 120, 60_000)) {
       return NextResponse.json({ error: "Too many narration requests" }, { status: 429 });
     }
-    const { text, speed } = (await req.json()) as {
-      text?: string;
-      speed?: number;
-    };
+    const { text } = (await req.json()) as { text?: string };
 
     if (!text || typeof text !== "string" || text.length > 4096) {
       return NextResponse.json({ error: "Invalid text" }, { status: 400 });
     }
 
-    const clampedSpeed = Math.min(4, Math.max(0.25, speed ?? 1));
-    const { buffer, hash } = await getOrGenerateTtsAudio(text, TTS_VOICE, clampedSpeed);
+    // Must ask for exactly the clip /api/tts serves, or these are timings for
+    // different audio.
+    const { buffer, hash } = await getOrGenerateTtsAudio(text, TTS_VOICE, TTS_SPEED);
 
     const cachedSegments = await lookupTtsSegments(hash);
     if (cachedSegments) {

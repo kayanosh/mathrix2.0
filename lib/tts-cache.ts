@@ -13,6 +13,12 @@
 import { supabaseAdmin } from "./supabase/admin";
 import { getOpenAI } from "./openai";
 import { normalizeTtsText, normalizeSpeed, hashTtsKey } from "./tts-cache-key";
+import {
+  TTS_FALLBACK_MODEL,
+  TTS_INSTRUCTIONS,
+  TTS_MODEL,
+  acceptsInstructions,
+} from "./tts-voice";
 
 // Re-export the pure key helpers so callers can import everything from here.
 export { normalizeTtsText, normalizeSpeed, hashTtsKey };
@@ -22,18 +28,26 @@ let storageAvailable = true;
 
 const memoryTtsCache = new Map<string, Buffer>();
 
+/** After the chosen model is refused, go straight to the fallback for a while. */
+const RETRY_PRIMARY_AFTER_MS = 10 * 60_000;
+let primaryRefusedAt = 0;
+
 /**
  * Get narration audio for text+voice+speed, generating it only on a full
  * miss. Shared by /api/tts and /api/tts-timing so the timing endpoint never
  * pays for (or waits on) a second OpenAI TTS call for audio the other route
  * already generated or cached.
+ *
+ * If the configured model is refused (a mistyped OPENAI_TTS_MODEL, or a model
+ * the account cannot use) the clip is made with the fallback model instead and
+ * saved under that model's key, so a setting can never silence the tutor.
  */
 export async function getOrGenerateTtsAudio(
   text: string,
   voice: string,
   speed: number,
 ): Promise<{ buffer: Buffer; hash: string; source: "memory" | "persisted" | "generated" }> {
-  const hash = hashTtsKey(text, voice, speed);
+  let hash = hashTtsKey(text, voice, speed, TTS_MODEL);
 
   const memoryCached = memoryTtsCache.get(hash);
   if (memoryCached) return { buffer: memoryCached, hash, source: "memory" };
@@ -44,14 +58,29 @@ export async function getOrGenerateTtsAudio(
     return { buffer: persisted, hash, source: "persisted" };
   }
 
-  const response = await getOpenAI().audio.speech.create({
-    model: "tts-1",
-    voice,
-    input: text,
-    speed,
-    response_format: "mp3",
-  });
-  const buffer = Buffer.from(await response.arrayBuffer());
+  let buffer: Buffer;
+  try {
+    if (Date.now() - primaryRefusedAt < RETRY_PRIMARY_AFTER_MS) {
+      throw new Error("recently refused");
+    }
+    buffer = await synthesise(text, voice, speed, TTS_MODEL);
+  } catch (err) {
+    if (TTS_MODEL === TTS_FALLBACK_MODEL) throw err;
+    if ((err as Error).message !== "recently refused") {
+      primaryRefusedAt = Date.now();
+      console.warn(
+        `[TTS] ${TTS_MODEL} failed, using ${TTS_FALLBACK_MODEL}:`,
+        (err as Error).message,
+      );
+    }
+    hash = hashTtsKey(text, voice, speed, TTS_FALLBACK_MODEL);
+    const fallbackCached = memoryTtsCache.get(hash) ?? (await lookupTtsAudio(hash));
+    if (fallbackCached) {
+      memoryTtsCache.set(hash, fallbackCached);
+      return { buffer: fallbackCached, hash, source: "persisted" };
+    }
+    buffer = await synthesise(text, voice, speed, TTS_FALLBACK_MODEL);
+  }
 
   if (memoryTtsCache.size >= 200) {
     const oldest = memoryTtsCache.keys().next().value;
@@ -64,6 +93,23 @@ export async function getOrGenerateTtsAudio(
   );
 
   return { buffer, hash, source: "generated" };
+}
+
+async function synthesise(
+  text: string,
+  voice: string,
+  speed: number,
+  model: string,
+): Promise<Buffer> {
+  const response = await getOpenAI().audio.speech.create({
+    model,
+    voice,
+    input: text,
+    response_format: "mp3",
+    // The gpt-4o voices take directions instead of a speed.
+    ...(acceptsInstructions(model) ? { instructions: TTS_INSTRUCTIONS } : { speed }),
+  });
+  return Buffer.from(await response.arrayBuffer());
 }
 
 function objectPath(hash: string): string {

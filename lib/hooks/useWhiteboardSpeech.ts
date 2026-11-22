@@ -18,8 +18,20 @@ const MAX_AUDIO_CACHE = 100;
 const segmentsCache = new Map<string, TranscriptSegment[]>();
 const pendingSegments = new Map<string, Promise<TranscriptSegment[]>>();
 
-function audioKey(text: string, rate: number): string {
-  return `${rate}|${text}`;
+/**
+ * How fast the voice plays at the "1×" setting, as a fraction of its natural
+ * speed. Clips used to be generated 10% FAST, which is why numbers ran
+ * together; now one natural-speed clip is fetched per sentence and played a
+ * little under natural speed, the pace of someone explaining rather than
+ * reading out. The speed button multiplies this, so 1.5× and 2× reuse the same
+ * clip instead of fetching new ones.
+ */
+export const NARRATION_PACE = 0.92;
+
+/** The playback rate for a speed setting (0.75, 1, 1.5, 2). */
+export function narrationPlaybackRate(rate: number): number {
+  const wanted = (Number.isFinite(rate) && rate > 0 ? rate : 1) * NARRATION_PACE;
+  return Math.min(4, Math.max(0.5, wanted));
 }
 
 /** Cloud narration with browser speech fallback and ahead-of-time preloading. */
@@ -82,8 +94,8 @@ export function useWhiteboardSpeech() {
     [clearProgress],
   );
 
-  const loadTiming = useCallback(async (text: string, rate: number) => {
-    const key = audioKey(text, rate);
+  const loadTiming = useCallback(async (text: string) => {
+    const key = text;
     const cached = segmentsCache.get(key);
     if (cached) return cached;
 
@@ -93,7 +105,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts-timing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, speed: rate * 1.1 }),
+      body: JSON.stringify({ text }),
     })
       .then(async (res) => {
         if (!res.ok) return [];
@@ -109,8 +121,8 @@ export function useWhiteboardSpeech() {
     return request;
   }, []);
 
-  const loadCloudAudio = useCallback(async (text: string, rate: number) => {
-    const key = audioKey(text, rate);
+  const loadCloudAudio = useCallback(async (text: string) => {
+    const key = text;
     const cached = audioBlobCache.get(key);
     if (cached) return cached;
 
@@ -120,7 +132,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, speed: rate * 1.1 }),
+      body: JSON.stringify({ text }),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("TTS API error");
@@ -139,13 +151,13 @@ export function useWhiteboardSpeech() {
   }, []);
 
   const prepare = useCallback(
-    async (text: string, rate: number): Promise<void> => {
+    async (text: string): Promise<void> => {
       if (!text.trim()) return;
       try {
-        await loadCloudAudio(text, rate);
+        await loadCloudAudio(text);
         // Best-effort: timing isn't required for playback to start, only for
         // the improved (segment-aware) sync once it's ready.
-        void loadTiming(text, rate);
+        void loadTiming(text);
       } catch {
         // The live speak call will use the browser voice if cloud TTS is down.
       }
@@ -176,7 +188,7 @@ export function useWhiteboardSpeech() {
 
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = rate * 0.88;
+      utterance.rate = Math.min(2, Math.max(0.5, rate * 0.85));
       utterance.pitch = 0.85;
       utterance.volume = 1;
 
@@ -227,7 +239,7 @@ export function useWhiteboardSpeech() {
 
       void (async () => {
         try {
-          const blob = await loadCloudAudio(text, rate);
+          const blob = await loadCloudAudio(text);
           if (generation !== generationRef.current) return;
 
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -257,10 +269,21 @@ export function useWhiteboardSpeech() {
           });
 
           if (generation !== generationRef.current) return;
+
+          // The pace is set here, on the one clip, rather than by fetching a
+          // different clip per speed. Loading a new source resets the rate, so
+          // it is set after the load and again as the default.
+          const playbackRate = narrationPlaybackRate(rate);
+          audio.defaultPlaybackRate = playbackRate;
+          audio.playbackRate = playbackRate;
+          audio.preservesPitch = true;
+
+          // Both of these are in the clip's own time, which is what
+          // audio.currentTime reports whatever the playback rate.
           const durationMs =
             Number.isFinite(audio.duration) && audio.duration > 0
               ? audio.duration * 1000
-              : Math.max(1400, countWords(text) * 300) / rate;
+              : Math.max(1400, countWords(text) * 330);
 
           const getElapsedMs = () => audio.currentTime * 1000;
           startWordProgress(text, durationMs, generation, onWord, { getElapsedMs });
@@ -268,7 +291,7 @@ export function useWhiteboardSpeech() {
           // ahead of time for the current AND next step); when they land,
           // swap to segment-aware tracking without losing playback position —
           // getElapsedMs reads the real <audio> position, not a restarted timer.
-          void loadTiming(text, rate).then((segments) => {
+          void loadTiming(text).then((segments) => {
             if (generation !== generationRef.current || !segments.length) return;
             startWordProgress(text, durationMs, generation, onWord, {
               getElapsedMs,

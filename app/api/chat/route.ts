@@ -38,6 +38,7 @@ import { buildGroundTruth } from "@/lib/ground-truth";
 import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/lib/claude-solver";
 import { logAiUsage } from "@/lib/ai-usage-log";
 import type { CallUsage } from "@/lib/ai-cost";
+import { simplifyLanguage } from "@/lib/plain-language";
 import { runCasChecks, summariseVerification, type Agreement } from "@/lib/answer-agreement";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
@@ -96,8 +97,12 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       /** Helper to send an SSE event */
       function send(event: string, data: unknown) {
+        // Every answer leaves through here — fresh, saved, corrected, or a
+        // follow-up — so this is where its wording is made plain. See
+        // lib/plain-language.ts.
+        const payload = event === "error" ? data : simplifyLanguage(data);
         controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
         );
       }
 

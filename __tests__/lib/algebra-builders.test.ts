@@ -35,7 +35,8 @@ describe("linear equation builder", () => {
     const withArrows = block.steps.filter((s) => (s.arrows?.length ?? 0) > 0);
     expect(withArrows.length).toBeGreaterThanOrEqual(2);
     expect(withArrows.some((s) => s.latexBefore.includes("htmlId"))).toBe(true);
-    expect(built.intro).toMatch(/isolate/i);
+    expect(built.intro).toMatch(/on its own/i);
+    expect(built.intro).not.toMatch(/isolate|very well|allow me/i);
   });
 
   it("is selected by buildMethodForQuestion", () => {
