@@ -39,12 +39,13 @@ import { claudeSolve, convertToAnthropicMessages, CLAUDE_SOLVER_MODEL } from "@/
 import { logAiUsage } from "@/lib/ai-usage-log";
 import type { CallUsage } from "@/lib/ai-cost";
 import { simplifyLanguage } from "@/lib/plain-language";
+import { followUpMessages as buildFollowUpMessages, readTurn, solverMessages } from "@/lib/conversation";
 import { runCasChecks, summariseVerification, type Agreement } from "@/lib/answer-agreement";
 import { runToolChecks } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { normalizeQuestion, hashQuestion, isCacheable, lookupCache, writeCache } from "@/lib/question-cache";
+import { normalizeQuestion, hashQuestion, lookupCache, writeCache } from "@/lib/question-cache";
 import { retrieveContentChunks, buildContentChunkBlock } from "@/lib/rag";
 import {
   detectKS2RequiredVisuals,
@@ -63,17 +64,6 @@ import { mathsAnswersEquivalent } from "@/lib/ks2-maths-accuracy";
 const CRITIC_MODEL = "gpt-4o";
 /** Max tokens for critic responses (much smaller — just JSON verdict) */
 const CRITIC_MAX_TOKENS = 2048;
-
-/** Detect whether the latest message is a follow-up clarification vs a new problem */
-function detectFollowUp(msgs: Array<{ role: string; content: string }>): boolean {
-  if (msgs.length < 2) return false;
-  const last = msgs[msgs.length - 1].content.toLowerCase();
-  const followUpWords =
-    /\b(explain|why|don't understand|confused|what do you mean|how did you|step \d|i don't get|can you re|what is that|show me again|unclear|i'm lost|i'm stuck|not sure|can you clarify|what does)\b/;
-  const freshProblemSignals =
-    /[=+\-*\/^√∫]|\d{3,}|\bsolve\b|\bfind\b|\bcalculate\b|\bwork out\b|\bfactoris|\bexpand\b|\bsimplif|\bprove\b|\bsketch\b/i;
-  return followUpWords.test(last) && !freshProblemSignals.test(last);
-}
 
 /**
  * POST /api/chat
@@ -255,10 +245,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Stage 0: Parse input ──────────────────────────────────────────
-    const hasImage = messages.some(
-      (m: { imageUrl?: string; imageUrls?: string[] }) =>
-        m.imageUrl || (m.imageUrls && m.imageUrls.length > 0)
-    );
+    // The conversation is read once, here (lib/conversation.ts). Everything
+    // below is about the message the pupil just sent: an earlier photo does
+    // not make this a photo question, and an earlier answer is background, not
+    // something to solve again.
+    const turn = readTurn(messages);
+    const hasImage = turn.images.length > 0;
+    // Only a question that makes sense on its own may be answered from, or
+    // saved to, the answer cache shared between pupils.
+    const cacheable = !hasImage && turn.standalone;
 
     const lastUserMsg = [...messages]
       .reverse()
@@ -276,7 +271,7 @@ export async function POST(req: NextRequest) {
     // ── Stage 1a: Check question cache ────────────────────────────────
     // Skip cache for image questions — hash is text-only, so different images
     // with the same generic text ("Solve this question from the photo") would collide.
-    if (!hasImage && isCacheable(messages)) {
+    if (cacheable) {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       const cached = await lookupCache(qHash);
@@ -409,40 +404,15 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Fast path: follow-up clarification question ──────────────────────
-    const isFollowUp = detectFollowUp(messages);
+    const isFollowUp = turn.kind === "follow_up" && !teacherMode && !lessonMode;
 
     if (isFollowUp) {
       console.log("[FastPath] Follow-up detected — skipping CAS/SymPy/critic");
       const followUpSystemPrompt = buildFollowUpPrompt() + injectionGuard;
-      // Preserve any image(s) from the original question so follow-ups ("why did
-      // you do step 2?") keep the visual context. Same multipart shape the main
-      // solver path uses — consumed by both Claude and the GPT-4o fallback.
-      const followUpMessages = messages.map(
-        (msg: { role: string; content: string; imageUrl?: string; imageUrls?: string[] }) => {
-          const images =
-            msg.imageUrls && msg.imageUrls.length > 0
-              ? msg.imageUrls
-              : msg.imageUrl
-                ? [msg.imageUrl]
-                : [];
-          if (images.length > 0 && msg.role === "user") {
-            return {
-              role: "user" as const,
-              content: [
-                ...images.map((url) => ({
-                  type: "image_url" as const,
-                  image_url: { url, detail: "high" as const },
-                })),
-                { type: "text" as const, text: msg.content || "Refer to the maths question shown in this image." },
-              ],
-            };
-          }
-          return {
-            role: msg.role as "user" | "assistant",
-            content: msg.content,
-          };
-        }
-      );
+      // The model is shown the question the pupil is asking about and the full
+      // working they were given — not the bare opening and closing lines, which
+      // is all it used to get.
+      const followUpMessages = buildFollowUpMessages(turn);
       const anthropicFollowUp = convertToAnthropicMessages(followUpMessages);
       let followUpRaw = "";
       try {
@@ -470,7 +440,7 @@ export async function POST(req: NextRequest) {
             blocks: [{ type: "text", content: followUpRaw.replace(/```json|```/g, "").trim() }],
             conclusion: "Does that help clarify things?",
           };
-      send("solver_done", { whiteboard: followUpData, response: { type: "explanation", intro: followUpData.intro, steps: [], conclusion: followUpData.conclusion }, category, validationWarnings: [] });
+      send("solver_done", { whiteboard: followUpData, response: whiteboardToLegacy(followUpData), category, validationWarnings: [] });
       send("verification_done", { verification: { confidence: "low", casVerified: false, criticVerified: false, toolChecksPassed: false }, whiteboard: followUpData });
       logAiUsage({
         userId: user?.id,
@@ -884,51 +854,7 @@ export async function POST(req: NextRequest) {
         ? `[Student context: ${level} student, ${examBoard} exam board]\n\n`
         : "";
 
-    const formattedMessages = messages.map(
-      (msg: { role: string; content: string; imageUrl?: string; imageUrls?: string[] }, i: number) => {
-        const isLast = i === messages.length - 1 && msg.role === "user";
-        const textContent = isLast ? contextPrefix + msg.content : msg.content;
-
-        // Collect every attached image (multi-page PDFs carry several).
-        const images =
-          msg.imageUrls && msg.imageUrls.length > 0
-            ? msg.imageUrls
-            : msg.imageUrl
-              ? [msg.imageUrl]
-              : [];
-
-        if (images.length > 0 && msg.role === "user") {
-          const parts: Array<
-            | { type: "text"; text: string }
-            | { type: "image_url"; image_url: { url: string; detail: "high" } }
-          > = [];
-
-          for (const url of images) {
-            parts.push({
-              type: "image_url" as const,
-              image_url: { url, detail: "high" as const },
-            });
-          }
-
-          const multi = images.length > 1;
-          parts.push({
-            type: "text" as const,
-            text:
-              textContent ||
-              (multi
-                ? "These images are the pages of one maths question sheet. Read them in order, then solve the question(s) step by step showing all working out."
-                : "Look at this maths question in the image. Read it carefully, then solve it step by step showing all working out."),
-          });
-
-          return { role: msg.role as "user", content: parts };
-        }
-
-        return {
-          role: msg.role as "user" | "assistant",
-          content: textContent,
-        };
-      }
-    );
+    const formattedMessages = solverMessages(turn, contextPrefix);
 
     // NOTE on verification metadata in the modes above (safety redirect,
     // follow-ups, teacher mode, lesson mode): these legitimately skip the
@@ -1490,7 +1416,7 @@ export async function POST(req: NextRequest) {
     // ── Write to question cache (async, non-blocking) ─────────────────
     // Never cache an answer the CAS contradicts: the cache has no expiry, so a
     // wrong answer stored once is a wrong answer served to every later pupil.
-    if (!hasImage && isCacheable(messages) && casAgreement !== "disagree") {
+    if (cacheable && casAgreement !== "disagree") {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       writeCache({
@@ -1686,6 +1612,11 @@ function whiteboardToLegacy(wb: WhiteboardResponse) {
     type: "explanation" as const,
     intro: wb.intro,
     steps: [],
+    // Not drawn by the page. Kept so that when this answer comes back as part
+    // of the conversation, the next turn knows what the pupil was told.
+    blocks: wb.blocks
+      .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+      .map((b) => ({ type: "text" as const, content: b.content })),
     conclusion: wb.conclusion,
     hint: wb.hint || undefined,
   };

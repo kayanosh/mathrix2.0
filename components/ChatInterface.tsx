@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { historyForRequest, loadConversation, saveConversation } from "@/lib/chat-memory";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, User, Sparkles, RotateCcw, ArrowUp, MonitorPlay, ImagePlus, X, Camera, Mic, ArrowRight, ArrowLeft, LogOut, CreditCard, GraduationCap, Menu, Sigma } from "lucide-react";
 import Link from "next/link";
@@ -134,6 +135,28 @@ export default function ChatInterface() {
   const [selectedSubject] = useState("");
   const [whiteboardData, setWhiteboardData] = useState<WhiteboardResponse | null>(null);
   const [whiteboardResponses, setWhiteboardResponses] = useState<Map<string, WhiteboardResponse>>(new Map());
+
+  // The conversation survives a reload (lib/chat-memory.ts). It is read after
+  // hydration, like the other browser storage here, and nothing is written
+  // until that read has happened — otherwise the empty first render would
+  // erase what was saved.
+  //
+  // "Restored" is state, not a ref, so that it changes in the same render as
+  // the restored messages arrive. A ref flips at once, and the save below would
+  // then run against the still-empty first render and wipe the saved chat.
+  const [conversationRestored, setConversationRestored] = useState(false);
+  useEffect(() => {
+    const saved = loadConversation();
+    if (saved) {
+      setMessages((current) => (current.length === 0 ? saved.messages : current));
+      setWhiteboardResponses((current) => (current.size === 0 ? saved.whiteboards : current));
+    }
+    setConversationRestored(true);
+  }, []);
+  useEffect(() => {
+    if (!conversationRestored) return;
+    saveConversation(messages, whiteboardResponses);
+  }, [conversationRestored, messages, whiteboardResponses]);
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [pendingExtraPages, setPendingExtraPages] = useState<string[]>([]);
   const [hintMode, setHintMode] = useState(false);
@@ -446,10 +469,7 @@ export default function ChatInterface() {
     setLoading(true);
 
     try {
-      const history = [
-        ...messages.map((m) => ({ role: m.role, content: m.content, imageUrl: m.imageUrl, imageUrls: m.imageUrls })),
-        { role: "user", content: userMsg.content, imageUrl: userMsg.imageUrl, imageUrls: userMsg.imageUrls },
-      ];
+      const history = historyForRequest([...messages, userMsg]);
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -707,6 +727,7 @@ export default function ChatInterface() {
             <Link href="/progress" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Progress</Link>
             <Link href="/revision" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Revision</Link>
             <Link href="/syllabus" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Syllabus</Link>
+            <Link href="/topics" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Topics</Link>
             <Link href="/exam-papers" className="px-2.5 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">Papers</Link>
           </nav>
 
@@ -818,6 +839,7 @@ export default function ChatInterface() {
                   <Link href="/progress" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Progress</Link>
                   <Link href="/revision" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Revision</Link>
                   <Link href="/syllabus" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Syllabus</Link>
+                  <Link href="/topics" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Topic questions</Link>
                   <Link href="/exam-papers" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Exam papers</Link>
                   <div className="my-1 h-px bg-gray-100" />
                   <Link href="/teacher" onClick={() => setShowMobileMenu(false)} className="px-3 py-2.5 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Teacher</Link>
