@@ -113,10 +113,17 @@ async function aqaListed() {
   } catch {
     return [];
   }
-  const entry =
-    /"_id":"sample-papers-and-mark-schemes\.(\d{4})\.(June|November)\.AQA-8300(\d)([FH])-(QP|MS|W-MS)-(?:JUN|NOV)\d\d_PDF"[\s\S]{0,900}?"url":"(https:\/\/[^"]+\.pdf)"/g;
+  // Each file on the page is a record with its address followed by a title
+  // such as "Mark scheme (Higher): Paper 2 Calculator - June 2025". Titles
+  // for modified, large-print and insert versions do not match and are left.
+  const record = /"url":"(https:\/\/[^"]+\.pdf)"[\s\S]{0,400}?"title":"([^"]+)"/g;
+  const title = /^(Question paper|Mark scheme) \((Foundation|Higher)\): Paper ([123]) .*? - (June|November) (\d{4})$/;
   const found = new Map();
-  for (const [, year, month, paper, letter, kind, url] of html.matchAll(entry)) {
+  for (const [, url, rawTitle] of html.matchAll(record)) {
+    const parts = rawTitle.trim().match(title);
+    if (!parts) continue;
+    const [, kind, tierName, paper, month, year] = parts;
+    const letter = tierName === "Foundation" ? "F" : "H";
     const key = `${year}-${month}-${letter}-${paper}`;
     const item = found.get(key) ?? {
       board: "AQA",
@@ -129,7 +136,7 @@ async function aqaListed() {
       questionPaper: null,
       markScheme: null,
     };
-    if (kind === "QP") item.questionPaper ??= url;
+    if (kind === "Question paper") item.questionPaper ??= url;
     else item.markScheme ??= url;
     found.set(key, item);
   }
@@ -142,63 +149,58 @@ async function aqaListed() {
 }
 
 // ── Edexcel 1MA1 ────────────────────────────────────────────────────────────
-// Files are named by date: the question paper by the day after the exam, the
-// mark scheme by results day. Exam days below; a small window is tried around
-// each because the offset is not perfectly regular.
-const EDEXCEL_DATES = {
-  "2017-June": { papers: ["2017-05-25", "2017-06-08", "2017-06-13"], results: "2017-08-24" },
-  "2017-November": { papers: ["2017-11-02", "2017-11-06", "2017-11-08"], results: "2018-01-11" },
-  "2018-June": { papers: ["2018-05-24", "2018-06-07", "2018-06-12"], results: "2018-08-23" },
-  "2018-November": { papers: ["2018-11-06", "2018-11-08", "2018-11-12"], results: "2019-01-17" },
-  "2019-June": { papers: ["2019-05-21", "2019-06-06", "2019-06-11"], results: "2019-08-22" },
-  "2019-November": { papers: ["2019-11-05", "2019-11-07", "2019-11-11"], results: "2020-01-16" },
-  "2020-November": { papers: ["2020-11-03", "2020-11-05", "2020-11-09"], results: "2021-01-14" },
-  "2021-November": { papers: ["2021-11-02", "2021-11-04", "2021-11-08"], results: "2022-01-13" },
-  "2022-June": { papers: ["2022-05-20", "2022-06-07", "2022-06-13"], results: "2022-08-25" },
-  "2022-November": { papers: ["2022-11-01", "2022-11-03", "2022-11-07"], results: "2023-01-12" },
-  "2023-June": { papers: ["2023-05-19", "2023-06-07", "2023-06-14"], results: "2023-08-24" },
-  "2023-November": { papers: ["2023-11-08", "2023-11-10", "2023-11-13"], results: "2024-01-11" },
-  "2024-June": { papers: ["2024-05-16", "2024-06-03", "2024-06-10"], results: "2024-08-22" },
-  "2024-November": { papers: ["2024-11-06", "2024-11-08", "2024-11-11"], results: "2025-01-09" },
-  "2025-June": { papers: ["2025-05-15", "2025-06-04", "2025-06-11"], results: "2025-08-21" },
+// Pearson names each file by a date that cannot be worked out (the question
+// paper by roughly the day after the exam, the mark scheme by results day), in
+// one of two spellings and one of two folders. So the dates are written down
+// here, read from Pearson's own course-materials page, and every candidate
+// spelling is tried until one answers.
+//
+// To add a series: open
+//   https://qualifications.pearson.com/en/qualifications/edexcel-gcses/mathematics-2015.coursematerials.html
+// choose "Exam materials", find the series, and copy the date out of the file
+// names of Paper 1, 2 and 3 and of any mark scheme.
+//
+// Pearson publishes from June 2019. The 2017 and 2018 papers are no longer on
+// its site, and the newest series stay locked to teachers for some months.
+const EDEXCEL_FILES = {
+  "2019-June": { papers: ["20190522", "20190607", "20190612"], markScheme: "20190822" },
+  "2019-November": { papers: ["20200116", "20200116", "20200116"], markScheme: "20200116" },
+  "2020-November": { papers: ["20201104", "20201106", "20201110"], markScheme: "20210114" },
+  "2021-November": { papers: ["20211103", "20211105", "20211109"], markScheme: "20220113" },
+  "2022-June": { papers: ["20220521", "20220608", "20220614"], markScheme: "20220825" },
+  "2022-November": { papers: ["20221102", "20221104", "20221108"], markScheme: "20230112" },
+  "2023-June": { papers: ["20230520", "20230608", "20230615"], markScheme: "20230824" },
+  "2023-November": { papers: ["20231109", "20231111", "20231114"], markScheme: "20240111" },
+  "2024-June": { papers: ["20240517", "20240604", "20240611"], markScheme: "20240822" },
+  "2024-November": { papers: ["20241107", "20241109", "20241112"], markScheme: "20250109" },
+  "2025-June": { papers: ["20250516", "20250605", "20250612"], markScheme: "20250821" },
 };
 
-function datesAround(iso, offsets) {
-  return offsets.map((offset) => {
-    const d = new Date(`${iso}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + offset);
-    return d.toISOString().slice(0, 10).replace(/-/g, "");
-  });
+const EDEXCEL_FOLDERS = [
+  "https://qualifications.pearson.com/content/dam/pdf/GCSE/mathematics/2015/exam-materials",
+  "https://qualifications.pearson.com/content/dam/pdf/GCSE/Mathematics/2015/Exam-materials",
+];
+
+/** Every way Pearson might have spelled one file. */
+function edexcelCandidates(paper, letter, kinds, date) {
+  const names = kinds.flatMap((kind) => [
+    `1ma1-${paper}${letter.toLowerCase()}-${kind}-${date}.pdf`,
+    `1MA1_${paper}${letter}_${kind}_${date}.pdf`,
+  ]);
+  return EDEXCEL_FOLDERS.flatMap((folder) => names.map((name) => `${folder}/${name}`));
 }
 
 async function edexcel() {
-  const base = "https://qualifications.pearson.com/content/dam/pdf/GCSE/mathematics/2015/exam-materials";
   const jobs = [];
   for (const { year, month } of SERIES) {
-    const dates = EDEXCEL_DATES[`${year}-${month}`];
-    if (!dates) continue;
+    const files = EDEXCEL_FILES[`${year}-${month}`];
+    if (!files) continue;
     for (const { tier, letter } of TIERS) {
       for (const paper of [1, 2, 3]) {
-        const code = `1MA1_${paper}${letter}`;
         jobs.push(async () => {
-          // Two naming styles: 1MA1_1F_que_20190522.pdf (to 2021) and
-          // 1ma1-1f-que-20220521.pdf (from 2022).
-          const newCode = code.toLowerCase().replace("_", "-");
-          const questionPaper = await firstPdf(
-            datesAround(dates.papers[paper - 1], [1, 0, 2, 3, -1]).flatMap((d) =>
-              year >= 2022
-                ? [`${base}/${newCode}-que-${d}.pdf`, `${base}/${code}_que_${d}.pdf`]
-                : [`${base}/${code}_que_${d}.pdf`, `${base}/${newCode}-que-${d}.pdf`],
-            ),
-          );
+          const questionPaper = await firstPdf(edexcelCandidates(paper, letter, ["que"], files.papers[paper - 1]));
           if (!questionPaper) return null;
-          const markScheme = await firstPdf(
-            datesAround(dates.results, [0, -1, 1]).flatMap((d) =>
-              year >= 2022
-                ? [`${base}/${newCode}-rms-${d}.pdf`, `${base}/${code}_rms_${d}.pdf`]
-                : [`${base}/${code}_rms_${d}.pdf`, `${base}/${code}_msc_${d}.pdf`, `${base}/${newCode}-rms-${d}.pdf`],
-            ),
-          );
+          const markScheme = await firstPdf(edexcelCandidates(paper, letter, ["rms", "msc"], files.markScheme));
           return { board: "Edexcel", year, month, tier, paper, name: `Paper ${paper}`, note: calculator(paper), questionPaper, markScheme };
         });
       }

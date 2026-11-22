@@ -40,6 +40,8 @@ export interface BoardInfo {
   /** The board's own page listing every paper it has released. */
   indexUrl: string;
   indexLabel: string;
+  /** Why some series are not linked, in a sentence. */
+  missingNote: string;
 }
 
 export const PAPER_BOARDS: BoardInfo[] = [
@@ -48,6 +50,7 @@ export const PAPER_BOARDS: BoardInfo[] = [
     qualification: "GCSE Mathematics (8300)",
     indexUrl: "https://www.aqa.org.uk/subjects/mathematics/gcse/mathematics-8300/assessment-resources",
     indexLabel: "All AQA papers on aqa.org.uk",
+    missingNote: "AQA has not released them to the public yet.",
   },
   {
     board: "Edexcel",
@@ -55,12 +58,15 @@ export const PAPER_BOARDS: BoardInfo[] = [
     indexUrl:
       "https://qualifications.pearson.com/en/qualifications/edexcel-gcses/mathematics-2015.coursematerials.html#%2FfilterQuery=category:Pearson-UK:Category%2FExam-materials",
     indexLabel: "All Edexcel papers on pearson.com",
+    missingNote:
+      "Pearson's site no longer has the 2017 and 2018 papers, and keeps the newest series for teachers for several months.",
   },
   {
     board: "OCR",
     qualification: "GCSE (9–1) Mathematics (J560)",
     indexUrl: "https://www.ocr.org.uk/qualifications/gcse/mathematics-j560-from-2015/assessment/",
     indexLabel: "All OCR papers on ocr.org.uk",
+    missingNote: "OCR has not released them to the public yet.",
   },
 ];
 

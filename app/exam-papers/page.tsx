@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Download, ExternalLink, FileText, Filter, Sparkles } from "lucide-react";
+import { ArrowRight, Download, ExternalLink, FileText, Filter, PenLine, Sparkles } from "lucide-react";
 import type { ExamPaper } from "@/types";
 import {
   PAPER_BOARDS,
@@ -15,6 +15,7 @@ import {
   type PaperTier,
   type PastPaper,
 } from "@/lib/past-papers";
+import { solutionsHref } from "@/lib/paper-solutions";
 
 const BOARD_COLORS: Record<string, string> = {
   AQA: "bg-blue-100 text-blue-700",
@@ -60,6 +61,15 @@ function PaperRow({ paper }: { paper: PastPaper }) {
         </a>
       ) : (
         <span className="text-xs text-gray-400 px-3 py-2">Mark scheme not found</span>
+      )}
+      {paper.markScheme && (
+        <Link
+          href={solutionsHref(paper)}
+          className="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-3 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5"
+        >
+          <PenLine size={12} />
+          Worked solutions
+        </Link>
       )}
     </li>
   );
@@ -132,9 +142,9 @@ export default function ExamPapersPage() {
           </div>
           <h1 className="text-4xl font-extrabold text-gray-900 mb-3">GCSE Maths Past Papers</h1>
           <p className="text-gray-500 max-w-2xl">
-            {PAST_PAPERS.length} question papers with their mark schemes from AQA, Edexcel and OCR.
-            Each button opens the PDF on the exam board&apos;s own website, where you can download or
-            print it.
+            {PAST_PAPERS.length} question papers from AQA, Edexcel and OCR, each with its mark scheme
+            and a worked-solutions paper. The question paper and mark scheme open as PDFs on the exam
+            board&apos;s own website, where you can download or print them.
           </p>
         </div>
 
@@ -269,7 +279,7 @@ export default function ExamPapersPage() {
                 </a>
                 {missing.length > 0 && (
                   <p className="text-xs text-gray-500 mt-3">
-                    Not linked here yet, find them on the {b.board} site: {missing.join(", ")}.
+                    Not here: {missing.join(", ")}. {b.missingNote}
                   </p>
                 )}
               </div>
@@ -308,7 +318,8 @@ export default function ExamPapersPage() {
         <p className="text-xs text-gray-400 mt-10 max-w-3xl">
           Past papers and mark schemes belong to AQA, Pearson Edexcel and OCR. Mathrix does not copy
           them: every link goes to the exam board&apos;s own published file. Links were last checked on{" "}
-          {checked}. Exam boards usually release a series to the public a few months after it is sat.
+          {checked}. The worked solutions are written by Mathrix using AI and checked against the mark
+          scheme; they are not published or endorsed by the exam boards.
         </p>
       </div>
     </div>

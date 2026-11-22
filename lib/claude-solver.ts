@@ -61,6 +61,7 @@ export type AnthropicMessage = {
     | Array<
         | { type: "text"; text: string }
         | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+        | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } }
         | { type: "thinking"; thinking: string; signature: string }
       >;
 };
