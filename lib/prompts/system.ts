@@ -11,6 +11,7 @@ import type { VisualRequirement } from "./required-visuals";
 import type { GroundTruthResult } from "@/lib/ground-truth";
 import { buildGroundTruthPromptBlock } from "@/lib/ground-truth";
 import { PLAIN_ENGLISH_RULES } from "./plain-english";
+import { planForQuestion, planForSolving } from "@/lib/topic-plans";
 
 // ── Shared header ─────────────────────────────────────────────────────────────
 
@@ -1406,6 +1407,11 @@ Use the most appropriate block types for this category. You may combine multiple
   const domain = categoryToDomain(category, questionText);
   const teachingTemplate = domain ? TEACHING_TEMPLATES[domain] : "";
 
+  // A plan for this exact topic, where there is one. A photo question has no
+  // text to tell the topic from, so it gets the strand guidance only.
+  const topicPlan = hasImage ? null : planForQuestion(questionText);
+  const planBlock = topicPlan ? planForSolving(topicPlan) : "";
+
   const parts = [HEADER, tierBlock, teachingTemplate, SCHEMA, categoryNote, `EXAMPLE:${example}`].filter(Boolean);
 
   // ── Mandatory visuals injection ─────────────────────────────────────
@@ -1466,6 +1472,12 @@ CRITICAL RULES FOR IMAGE QUESTIONS:
   if (groundTruth && groundTruth.verified) {
     parts.push(buildGroundTruthPromptBlock(groundTruth));
   }
+
+  // The topic's plan goes last. A model copies the worked example above more
+  // readily than it follows a rule, and the example is for the whole category,
+  // not for this topic. Placed before it, the plan's check and its question
+  // for the pupil were the parts that got dropped.
+  if (planBlock) parts.push(planBlock);
 
   return parts.join("\n\n");
 }

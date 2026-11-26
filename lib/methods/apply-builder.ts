@@ -322,46 +322,6 @@ function isAboutReadingPoints(question: string, block: CoordinateGraphBlock): bo
   );
 }
 
-/** Every number and fraction written in a piece of the model's answer. */
-function numbersIn(text: string): string[] {
-  return (
-    normalizeMathText(text.replace(/\\htmlId\{[^}]*\}\{([^}]*)\}/g, "$1"))
-      .replace(/,/g, " ")
-      .match(/-?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?/g)
-      ?.map((n) => n.replace(/\s/g, "")) ?? []
-  );
-}
-
-/**
- * Whether a build recovered from the model's own working reaches the answer
- * the model reached.
- *
- * A chat answer has no stated answer to compare a recovered build with, so
- * every recovered build used to be accepted. The fraction rule reads the
- * model's working for anything shaped like "a/b × n", and the working for the
- * area of a trapezium or a triangle contains exactly that: "½ × 16 × 4". The
- * whole solution was replaced by "½ × 16 = 8", and the pupil was told the area
- * of a trapezium with parallel sides 6 cm and 10 cm, 4 cm apart, is 8.
- *
- * A recovered build is now used only when its answer is the number the model
- * itself finished on: in its conclusion, or on the last line of its working.
- * If that cannot be told, the model's working stays.
- */
-function agreesWithModelAnswer(built: MethodBuildResult, data: WhiteboardResponse): boolean {
-  const blockAnswer = (built.block as { answer?: unknown }).answer;
-  const actual = expectedNumericAnswer(
-    String(built.answer || (typeof blockAnswer === "string" ? blockAnswer : "") || ""),
-  );
-  if (!actual) return false;
-
-  const working = (data.blocks || []).filter((b): b is EquationStepBlock => b.type === "equation_steps");
-  const lastLine = working[working.length - 1]?.steps?.slice(-1)[0]?.latexAfter ?? "";
-  const stated = [...numbersIn(data.conclusion || ""), ...numbersIn(lastLine)];
-  return stated.some((n) =>
-    n.includes("/") || actual.includes("/") ? n === actual : Number(n) === Number(actual),
-  );
-}
-
 function resolveBuild(
   example: WorkedExampleLike,
   topic?: string,
@@ -370,8 +330,8 @@ function resolveBuild(
    * The test a build must pass when it was recovered from the model's own
    * working rather than from the question. A worksheet example carries its
    * stated answer, and the default compares against that. A chat answer
-   * carries none, so the default passed everything: see
-   * agreesWithModelAnswer.
+   * carries none, so the default passed everything. The chat passes a test
+   * that accepts nothing: see applyMethodBuilderToWhiteboard.
    */
   acceptRecovered?: (built: MethodBuildResult) => boolean,
 ): MethodBuildResult | null {
@@ -743,7 +703,19 @@ export function applyMethodBuilderToWhiteboard(
       conclusion: data.conclusion || "",
     },
   };
-  const built = resolveBuild(fake, topic, subtopics, (recovered) => agreesWithModelAnswer(recovered, data));
+  // In the chat, a built-in method is used only when the QUESTION is the sum.
+  // Nothing is recovered from the model's own working.
+  //
+  // Recovering was written for worksheets, where each example states its
+  // answer and a recovered build can be held to it. A chat answer states none,
+  // and three times a correct answer was replaced by a piece of its own
+  // working: a trapezium's area by "1/2 × 16 = 8", a straight-line graph by a
+  // lesson on one of its points, and (3 × 10^4) × (2 × 10^5) by "10", from a
+  // place-value table the model had drawn. The second attempt at a guard, that
+  // the build's answer must appear in the model's conclusion, let the last one
+  // through, because 10 does appear in "6 × 10^9". No guard on the answer can
+  // tell a piece of working from the whole question; only the question can.
+  const built = resolveBuild(fake, topic, subtopics, () => false);
   if (!built) return data;
 
   // Column and division builders keep their answer on the block, not on

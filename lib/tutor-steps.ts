@@ -70,7 +70,7 @@ export function buildTutorSteps(
   data: WhiteboardResponse,
   plan: NarrationCue[],
 ): TutorStepModel[] {
-  return plan.map((cue, cueIndex) => {
+  const steps = plan.map((cue, cueIndex): TutorStepModel => {
     const narration = cue.text;
 
     if (cue.kind === "intro") {
@@ -302,4 +302,33 @@ export function buildTutorSteps(
         : { type: "intro", text: narration },
     };
   });
+  return askBeforeRevealing(steps);
+}
+
+/** A check that puts a question to the pupil, as opposed to one the teacher works through. */
+function isQuestion(check: string | undefined): boolean {
+  return !!check && /\?\s*$/.test(check.replace(/[✓✔]/g, "").trim());
+}
+
+/**
+ * A question is asked before its answer goes on the board.
+ *
+ * A question for the pupil arrives attached to the step that answers it:
+ * "How much is Amy's share?" on the line that reads £24. Played in that order
+ * the board wrote £24, and then asked what Amy's share was. A teacher asks,
+ * waits, and then writes it. So the question moves to the end of the step
+ * before, where it is followed by the thinking pause and then by the answer.
+ */
+function askBeforeRevealing(steps: TutorStepModel[]): TutorStepModel[] {
+  const out = steps.map((step) => ({ ...step }));
+  for (let i = 1; i < out.length; i++) {
+    const here = out[i];
+    const before = out[i - 1];
+    if (here.kind !== "equation_step" || !isQuestion(here.check)) continue;
+    // Only onto a step of working that has no check of its own.
+    if (before.kind !== "equation_step" || before.check) continue;
+    before.check = here.check;
+    here.check = undefined;
+  }
+  return out;
 }

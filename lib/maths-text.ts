@@ -26,10 +26,30 @@ const COMMAND = /\\[a-zA-Z]+/;
 /** Two ordinary words in a row: this is a sentence, not a line of maths. */
 const SENTENCE = /(?<![\\a-zA-Z])[a-zA-Z]{3,}\s+[a-zA-Z]{3,}/;
 
+/**
+ * Whether there are ordinary words in it. "That is \frac{12}{25}." is a
+ * sentence with a fraction in it; "x = \sqrt{20}" and "\text{Area} = 32" are
+ * maths. Two long words in a row was the old test, and "That is" slipped
+ * through it, so the whole sentence was set as maths, in italics with no spaces.
+ */
+function hasWords(text: string): boolean {
+  const bare = text
+    .replace(/\\(?:text|mathrm|textbf|begin|end)\{[^}]*\}/g, " ")
+    .replace(/\\[a-zA-Z]+/g, " ")
+    .replace(/\b(?:sin|cos|tan|log|cm|mm|km)\b/g, " ");
+  return SENTENCE.test(text) || /[a-zA-Z]{3,}/.test(bare);
+}
+
 /** A power typed with a caret, "3^12" or "x^2": drawn, it is a small raised number. */
 const TYPED_POWER = /(?<![\w\\{])([A-Za-z]|\d+(?:\.\d+)?)\^(?:\{(-?\w+)\}|(-?\d+|[a-z])(?!\w))/g;
 
-export function mathsInDollars(text: string): string {
+export function mathsInDollars(raw: string): string {
+  // "\(\frac{12}{25}\)" is the other way of marking maths. Left as it was, the
+  // fraction inside was wrapped again and the brackets were printed round it:
+  // "\($\frac{12}{25}$\)".
+  const text = raw
+    .replace(/\\\(\s*\$([^$]*)\$\s*\\\)/g, "$$$1$$")
+    .replace(/\\\(([\s\S]*?)\\\)/g, "$$$1$$");
   if (!COMMAND.test(text) && !/\\%/.test(text) && !text.includes("^")) return text;
 
   // Outside the dollar signs, turn one-symbol commands into the symbol, and
@@ -46,7 +66,7 @@ export function mathsInDollars(text: string): string {
 
   // What is left needs drawing (a fraction, a root, a vector). If the text is
   // nothing but maths, the whole of it goes inside dollar signs.
-  if (!tidied.includes("$") && COMMAND.test(tidied) && !SENTENCE.test(tidied)) return `$${tidied}$`;
+  if (!tidied.includes("$") && COMMAND.test(tidied) && !hasWords(tidied)) return `$${tidied}$`;
 
   // A sentence with a fraction or a root typed into it: draw just that piece.
   // "The probability that both are red is \frac{3}{28}." was shown as written.
@@ -82,6 +102,30 @@ export function drawBareMaths<T>(payload: T): T {
     const out: Record<string, unknown> = { ...a };
     for (const key of ["intro", "conclusion"]) {
       if (typeof a[key] === "string") out[key] = mathsInDollars(withoutEmoji(a[key] as string));
+    }
+    for (const key of ["hint", "keyTakeaway", "examTip"]) {
+      if (typeof a[key] === "string") out[key] = mathsInDollars(a[key] as string);
+    }
+    // The words beside each line of working, and any text block. Not the
+    // working itself ("latexBefore", "latexAfter"), which is maths already.
+    if (Array.isArray(a.blocks)) {
+      out.blocks = a.blocks.map((block) => {
+        if (!block || typeof block !== "object") return block;
+        const b = block as Record<string, unknown>;
+        if (b.type === "text" && typeof b.content === "string") return { ...b, content: mathsInDollars(b.content) };
+        if (b.type !== "equation_steps" || !Array.isArray(b.steps)) return block;
+        return {
+          ...b,
+          steps: b.steps.map((step) => {
+            if (!step || typeof step !== "object") return step;
+            const s = { ...(step as Record<string, unknown>) };
+            for (const key of ["operationLabel", "explanation", "why", "selfCheck"]) {
+              if (typeof s[key] === "string") s[key] = mathsInDollars(s[key] as string);
+            }
+            return s;
+          }),
+        };
+      });
     }
     return out;
   };

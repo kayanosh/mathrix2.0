@@ -21,7 +21,14 @@ export function hashLessonKey(
   topic: string,
   level: string,
   tier?: string | null,
+  /**
+   * The topic's teaching plan and its version ("pythagoras@1"), when it has
+   * one. A lesson saved before the plan existed, or under an older plan, is
+   * then not found, and the topic is taught again from the current plan.
+   * Topics without a plan keep the key they always had.
+   */
+  planVersion?: string,
 ): string {
-  const input = [normalizeTopic(topic), level, tier || ""].join("|");
+  const input = [normalizeTopic(topic), level, tier || "", ...(planVersion ? [planVersion] : [])].join("|");
   return createHash("sha256").update(input).digest("hex");
 }

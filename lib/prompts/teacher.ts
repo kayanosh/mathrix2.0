@@ -6,6 +6,7 @@
 
 import { SCHEMA, getTierPersona } from "./system";
 import { PLAIN_ENGLISH_RULES } from "./plain-english";
+import { planForLesson, planForTopic } from "@/lib/topic-plans";
 import { buildLessonContractPromptBlock } from "@/lib/lesson-contract";
 
 // ── Subtopic → Required visuals map ──────────────────────────────────────────
@@ -281,6 +282,8 @@ export function buildLessonPrompt(
   visuals?: TeacherVisual,
 ): string {
   const persona = getTierPersona(tier) || getTierPersona(level);
+  // How this particular topic is taught, where a plan has been written for it.
+  const lessonPlan = planForTopic(topic);
 
   const levelHeader = persona
     ? persona
@@ -316,6 +319,7 @@ CRITICAL: Respond with valid JSON matching the WhiteboardResponse schema. Never 
 Do not put Markdown syntax such as **bold**, # headings, fenced code, or hyphen bullets inside JSON strings. The interface supplies all formatting.
 
 ${buildLessonContractPromptBlock()}
+${lessonPlan ? planForLesson(lessonPlan) : ""}
 ${visualSection}
 INLINE MATH: Wrap all maths in $...$ (e.g. "$x = 3$", "$\\frac{1}{2}$"). Never raw LaTeX in text.
 Do NOT double-write expressions (LaTeX + plain text).

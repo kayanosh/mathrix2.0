@@ -42,6 +42,7 @@ import type { CallUsage } from "@/lib/ai-cost";
 import { simplifyLanguage } from "@/lib/plain-language";
 import { drawBareMaths } from "@/lib/maths-text";
 import { settleShapeAnswers } from "@/lib/shape-answers";
+import { planVersionFor } from "@/lib/topic-plans";
 import {
   followUpFallback,
   followUpMessages as buildFollowUpMessages,
@@ -595,7 +596,7 @@ export async function POST(req: NextRequest) {
         questionText.replace(/\[LESSON MODE\]/i, "").trim() ||
         "Maths";
 
-      const lessonHash = hashLessonKey(lessonTopic, level || "GCSE", tier);
+      const lessonHash = hashLessonKey(lessonTopic, level || "GCSE", tier, planVersionFor(lessonTopic));
 
       // Topic-aware visual requirements are part of validation, including cache hits.
       const visuals = getTeacherRequiredVisuals(lessonTopic);
