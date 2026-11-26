@@ -278,8 +278,10 @@ export function buildNarrationPlan(data: WhiteboardResponse): NarrationCue[] {
 
   // ── Hint ────────────────────────────────────────────────
   // A model often gives the same sentence as both. Said once.
-  const sameAsKeyIdea =
-    (data.hint ?? "").trim().toLowerCase() === (data.keyTakeaway ?? "").trim().toLowerCase();
+  // Or nearly the same: "Whatever you move across the equals sign, watch its
+  // sign!" followed by "Remember, when you move a term across the equals sign,
+  // the sign changes." is one point made twice.
+  const sameAsKeyIdea = sayTheSameThing(data.hint ?? "", data.keyTakeaway ?? "");
   if (data.hint && !sameAsKeyIdea) {
     cues.push({ blockIndex: -4, text: data.hint, kind: "hint" });
   }
@@ -436,6 +438,31 @@ function cuesForColumn(
 }
 
 // ── Utilities ────────────────────────────────────────────────────────────────
+
+const FILLER = new Set([
+  "a", "an", "the", "to", "of", "and", "or", "you", "your", "it", "its", "is", "are", "be", "in", "on", "for",
+  "when", "whatever", "remember", "always", "make", "sure", "that", "this", "with", "by", "as", "at", "so", "then",
+]);
+
+/** Whether two closing lines make the same point: most of their real words are shared. */
+export function sayTheSameThing(a: string, b: string): boolean {
+  const words = (text: string) =>
+    new Set(
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        // "changes" and "change", "signs" and "sign".
+        .map((word) => word.replace(/(?:es|s)$/, ""))
+        .filter((word) => word.length > 1 && !FILLER.has(word)),
+    );
+  const first = words(a);
+  const second = words(b);
+  if (first.size === 0 || second.size === 0) return false;
+  let shared = 0;
+  for (const word of first) if (second.has(word)) shared++;
+  return shared / Math.min(first.size, second.size) >= 0.6;
+}
 
 /**
  * Make any narration text ready for the voice (and for the caption, which

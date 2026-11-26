@@ -80,7 +80,11 @@ export default function TeacherMarkOverlay({ containerRef, mark, delay }: Props)
   const { d, length } = buildMarkPath(mark.style, measured.rect, mark.targetId);
   const filterId = `wb-mark-rough-${mark.targetId}`;
 
-  // Label sits under the mark (or to the right for underlines).
+  // The label sits ABOVE a circle or a box (to the right for an underline).
+  // Underneath is where everything else arrives: the pen comes up from below,
+  // the "quick check" box opens there, and on a phone the step's note is
+  // written there. The label was hidden under the pen and printed straight
+  // across the note.
   const labelX =
     mark.style === "underline"
       ? measured.rect.x + measured.rect.width + 10
@@ -88,7 +92,7 @@ export default function TeacherMarkOverlay({ containerRef, mark, delay }: Props)
   const labelY =
     mark.style === "underline"
       ? measured.rect.y + measured.rect.height + 6
-      : measured.rect.y + measured.rect.height + 14;
+      : measured.rect.y - 22;
 
   return (
     <>

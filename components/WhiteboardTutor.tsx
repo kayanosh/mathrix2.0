@@ -162,13 +162,24 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const currentStep = steps[activeCue];
+  // A rule is named the first time the lesson uses it, and not again.
+  const namesRule = useMemo(() => {
+    const said = new Set<string>();
+    return steps.map((step) => {
+      const rule = (step.rule ?? "").trim().toLowerCase();
+      if (!rule) return true;
+      if (said.has(rule)) return false;
+      said.add(rule);
+      return true;
+    });
+  }, [steps]);
   const speechParts = useMemo(
-    () => buildTeacherSpeechParts(currentStep),
-    [currentStep],
+    () => buildTeacherSpeechParts(currentStep, namesRule[activeCue] ?? true),
+    [currentStep, namesRule, activeCue],
   );
   const nextSpeechParts = useMemo(
-    () => buildTeacherSpeechParts(steps[activeCue + 1]),
-    [activeCue, steps],
+    () => buildTeacherSpeechParts(steps[activeCue + 1], namesRule[activeCue + 1] ?? true),
+    [activeCue, steps, namesRule],
   );
   const pointerSpeechText =
     phase === "check" ? speechParts.check || "" : speechParts.explanation;
@@ -564,7 +575,11 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         );
       }
     } else if (phase === "pupil_pause") {
-      phaseTimer.current = setTimeout(advance, pupilPauseDurationMs(speed));
+      // Thinking time only after a question. Otherwise a breath, then on.
+      phaseTimer.current = setTimeout(
+        advance,
+        pupilPauseDurationMs(speed, speechParts.asksPupil === true),
+      );
     }
 
     return () => {
@@ -671,9 +686,12 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     phase === "check"
       ? speechParts.check || speechParts.explanation
       : phase === "pupil_pause"
-        ? speechParts.check
-          ? "Pause and answer the quick check before we move on."
-          : "Pause and say this step back in your own words."
+        ? speechParts.asksPupil
+          ? speechParts.check || "Have a go before we move on."
+          : // Between two steps the last thing said stays up. It used to be
+            // swapped for "Pause and say this step back in your own words"
+            // after every line.
+            speechParts.check || speechParts.explanation
         : speechParts.explanation;
   const pointerMode =
     phase === "write"
@@ -833,7 +851,13 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
               }`}
               aria-live="polite"
             >
-              {isPlaying ? playbackPhaseLabel(phase) : "Paused"}
+              {!isPlaying
+                ? "Paused"
+                : phase === "pupil_pause" && !speechParts.asksPupil
+                  ? playbackPhaseLabel(speechParts.check ? "check" : "explain")
+                  : phase === "check" && !speechParts.asksPupil
+                    ? "Checking the answer"
+                    : playbackPhaseLabel(phase)}
             </p>
             <SpeechHighlighter
               text={narrationText}

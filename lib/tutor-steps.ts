@@ -269,7 +269,21 @@ export function buildTutorSteps(
     const block = cue.blockIndex >= 0 ? data.blocks[cue.blockIndex] : undefined;
     const titleMap: Partial<Record<NarrationCue["kind"], string>> = {
       graph: "Graph",
-      shape: "Diagram",
+      // "Draw the triangle", not "Diagram": a teacher says what is going up.
+      shape:
+        block?.type === "labeled_shape"
+          ? `Draw the ${
+              block.shape === "rectilinear" || (block.shape === "polygon" && block.vertices?.length === 6)
+                ? "L-shape"
+                : block.shape === "parallel_lines"
+                  ? "parallel lines"
+                  : block.shape === "straight_line" || block.shape === "around_point"
+                    ? "angles"
+                    : block.shape === "polygon"
+                      ? "shape"
+                      : block.shape
+            }`
+          : "Diagram",
       tree: "Probability tree",
       venn: "Venn diagram",
       number_line: "Number line",

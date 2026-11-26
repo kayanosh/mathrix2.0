@@ -14,11 +14,16 @@ export type PlaybackPhase =
 export interface TeacherSpeechParts {
   explanation: string;
   check?: string;
+  /** The check is a question the pupil should stop and answer. */
+  asksPupil?: boolean;
 }
 
 export const FOCUS_SETTLE_MS = 260;
 export const POINTER_SETTLE_MS = 480;
+/** Thinking time after a question the pupil has been asked. */
 export const PUPIL_PAUSE_MS = 2200;
+/** The breath a teacher takes between two lines of working. */
+export const STEP_BREATH_MS = 650;
 
 const phaseOrder: PlaybackPhase[] = [
   "focus",
@@ -45,8 +50,34 @@ function includesMeaningfully(text: string, detail: string): boolean {
  * question the pupil should answer. Keeping the check separate is what lets
  * the player visibly pause instead of racing straight into the next step.
  */
+/**
+ * A rule's name as it is said mid-sentence: "inverse operations", but
+ * "Pythagoras' theorem" and "SOHCAHTOA" keep their capitals.
+ */
+function spokenRuleName(rule: string): string {
+  const name = rule.trim().replace(/\s+rule$/i, "");
+  const first = name.split(/\s+/)[0] ?? "";
+  const isName = /['’]s?$/.test(first) || first === first.toUpperCase() || /^(Pythagoras|Fibonacci|Venn|Euler)/.test(first);
+  return isName ? name : name.charAt(0).toLowerCase() + name.slice(1);
+}
+
+/**
+ * A check a teacher shows ("5(4) − 3 = 17 ✓") is not a question for the pupil.
+ * Only something that asks is "your turn".
+ */
+function isQuestionForPupil(check: string): boolean {
+  return /\?\s*$/.test(check.replace(/[✓✔]/g, "").trim());
+}
+
 export function buildTeacherSpeechParts(
   step: TutorStepModel | undefined,
+  /**
+   * False when an earlier step of this lesson has already named the same rule.
+   * A teacher names "inverse operations" once; the board was saying "We are
+   * using the Inverse operations rule" on every step that used it, three times
+   * in one linear equation.
+   */
+  nameTheRule = true,
 ): TeacherSpeechParts {
   if (!step) return { explanation: "" };
 
@@ -56,18 +87,28 @@ export function buildTeacherSpeechParts(
   // "X: move 0.5 right Here is why." was being read out as one run.
   const closed = (text: string) => (/[.!?]["')\]]?\$?$/.test(text.trim()) ? text.trim() : `${text.trim()}.`);
 
-  if (step.rule && !includesMeaningfully(explanation, step.rule)) {
-    explanation = `${closed(explanation)} We are using the ${step.rule} rule.`;
+  // The reason comes straight after the instruction, as a teacher gives it:
+  // "Subtract 2x from both sides. That brings all the x terms to one side."
+  // It used to be announced first with "Here is why.", on every step.
+  if (step.why && !includesMeaningfully(explanation, step.why)) {
+    explanation = `${closed(explanation)} ${step.why.trim()}`;
   }
 
-  if (step.why && !includesMeaningfully(explanation, step.why)) {
-    explanation = `${closed(explanation)} Here is why. ${step.why}`;
+  if (nameTheRule && step.rule && !includesMeaningfully(explanation, step.rule)) {
+    explanation = `${closed(explanation)} This is called ${spokenRuleName(step.rule)}.`;
   }
 
   const check = step.check?.trim();
+  let spokenCheck: string | undefined;
+  if (check) {
+    spokenCheck = isQuestionForPupil(check)
+      ? `Your turn. ${check}`
+      : `Let's check. ${check.replace(/^check\s*[:.\-–]\s*/i, "").replace(/[✓✔]/g, "").trim()}`;
+  }
   return {
     explanation: sanitizeForTTS(explanation),
-    check: check ? sanitizeForTTS(`Your turn. ${check}`) : undefined,
+    check: spokenCheck ? sanitizeForTTS(spokenCheck) : undefined,
+    asksPupil: check ? isQuestionForPupil(check) : false,
   };
 }
 
@@ -118,8 +159,18 @@ export function playbackPhaseLabel(phase: PlaybackPhase): string {
   }
 }
 
-/** Thinking time never collapses below 1.4 seconds at faster playback speeds. */
-export function pupilPauseDurationMs(speed: number): number {
+/**
+ * How long the board waits before the next step.
+ *
+ * After a question the pupil was asked, real thinking time: never under 1.4
+ * seconds, however fast the lesson is played. After any other step, a breath.
+ * Every step used to get the long pause and a caption telling the pupil to
+ * "say this step back in your own words", eleven times in one equation and
+ * with two seconds to do it in. A teacher stops for questions, not for every
+ * line.
+ */
+export function pupilPauseDurationMs(speed: number, askedSomething = true): number {
   const safeSpeed = Number.isFinite(speed) && speed > 0 ? speed : 1;
+  if (!askedSomething) return Math.max(350, STEP_BREATH_MS / safeSpeed);
   return Math.max(1400, PUPIL_PAUSE_MS / safeSpeed);
 }

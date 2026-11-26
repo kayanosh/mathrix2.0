@@ -1,5 +1,7 @@
 "use client";
 
+import { forVoice } from "@/lib/speech-text";
+
 import { useCallback, useEffect, useRef } from "react";
 import {
   countWords,
@@ -105,7 +107,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts-timing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: forVoice(text) }),
     })
       .then(async (res) => {
         if (!res.ok) return [];
@@ -132,7 +134,7 @@ export function useWhiteboardSpeech() {
     const request = fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text: forVoice(text) }),
     })
       .then(async (res) => {
         if (!res.ok) throw new Error("TTS API error");
@@ -187,7 +189,7 @@ export function useWhiteboardSpeech() {
       }
 
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
+      const utterance = new SpeechSynthesisUtterance(forVoice(text));
       utterance.rate = Math.min(2, Math.max(0.5, rate * 0.85));
       utterance.pitch = 0.85;
       utterance.volume = 1;

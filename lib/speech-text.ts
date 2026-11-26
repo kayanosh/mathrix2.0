@@ -58,6 +58,19 @@ const WORDS_IN_MATHS = new Set([
 const HELD = "\\uE000-\\uF8FF";
 const HELD_ANY = new RegExp(`[${HELD}]`, "g");
 
+/**
+ * Marks a lone "a" that is the unknown, not the word. A voice reads a
+ * lower-case "a" as the word and it all but disappears, so it is sent to the
+ * voice as "A". It used to be written "A" in the caption too, which gave
+ * "A squared plus b squared" under a board that says a² + b².
+ */
+export const SAID_AS_A_LETTER = "\u2060";
+
+/** The text as the voice should be given it. The caption keeps the original. */
+export function forVoice(text: string): string {
+  return text.replace(new RegExp(`a${SAID_AS_A_LETTER}`, "g"), "A").replace(new RegExp(SAID_AS_A_LETTER, "g"), "");
+}
+
 /** Symbols that mean the same thing in maths and in a sentence. */
 function speakSymbols(text: string): string {
   let s = text;
@@ -122,7 +135,7 @@ export function pauseBeforeEquals(spoken: string): string {
     for (let j = i - 1; j >= 0; j--) {
       // Punctuation is already a pause, and the end of whatever came before.
       if (/[,.;:!?]$/.test(words[j])) break;
-      if (!MATHS_TOKEN.test(words[j].replace(/^\(+|\)+$/g, ""))) break;
+      if (!MATHS_TOKEN.test(words[j].replace(/^\(+|\)+$/g, "").replace(SAID_AS_A_LETTER, ""))) break;
       run++;
     }
     if (run >= 3) words[i - 1] = `${words[i - 1]},`;
@@ -214,7 +227,7 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
 
     // A lone "a" is the unknown, said "ay". Lower-case, a voice reads it as
     // the word "a" and it all but disappears.
-    s = s.replace(/(^|[^A-Za-z\\])a(?![A-Za-z])/g, "$1A");
+    s = s.replace(/(^|[^A-Za-z\\])a(?![A-Za-z])/g, `$1a${SAID_AS_A_LETTER}`);
   }
 
   // Roots.
@@ -310,7 +323,12 @@ function speakBrackets(text: string): string {
       const raised = /^(?:squared|cubed|to the power)/.test(after);
       const parts = content.split(/\s+/);
       const oneThing = parts.length === 1 || (parts.length === 2 && parts[0] === "minus" && !raised);
-      if (oneThing) return ` ${content} `;
+      if (oneThing) {
+        // A number against a bracket is a multiplication: "5(4)" is "5 times
+        // 4". Without the word it was read "5 4", which is fifty-four.
+        const before = all.slice(0, offset).trimEnd();
+        return /\d$/.test(before) ? ` times ${content} ` : ` ${content} `;
+      }
 
       if (raised) return ` bracket ${content}${PAUSE} all `;
       // Nothing follows: the sentence around the maths supplies the pause.

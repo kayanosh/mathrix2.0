@@ -115,18 +115,38 @@ export default function BoardLine({
       el.style.fontSize = `${Math.max(normal * 0.6, fitted)}px`;
     };
     fit();
-    if (typeof ResizeObserver === "undefined") return;
+    // While a lesson plays, the line is written a moment after this runs, so
+    // there was nothing to measure and the line stayed full size and ran off a
+    // phone screen. Fit again whenever its contents change.
+    let queued = 0;
+    const refit = () => {
+      if (queued) return;
+      queued = requestAnimationFrame(() => {
+        queued = 0;
+        fit();
+      });
+    };
+    const mutations =
+      typeof MutationObserver !== "undefined" ? new MutationObserver(refit) : null;
+    mutations?.observe(el, { childList: true, subtree: true });
     // Only the width matters: fitting changes the height, which must not
     // start another round.
     let lastWidth = el.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (Math.abs(el.clientWidth - lastWidth) < 2) return;
-      lastWidth = el.clientWidth;
-      fit();
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [isEquation, shownLatex, role]);
+    const resize =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => {
+            if (Math.abs(el.clientWidth - lastWidth) < 2) return;
+            lastWidth = el.clientWidth;
+            fit();
+          })
+        : null;
+    resize?.observe(el);
+    return () => {
+      if (queued) cancelAnimationFrame(queued);
+      mutations?.disconnect();
+      resize?.disconnect();
+    };
+  }, [isEquation, shownLatex, role, playbackPhase]);
   const showNote = kind !== "intro" && kind !== "conclusion" && kind !== "hint";
   const hidden = { visibility: notYetWritten ? ("hidden" as const) : ("visible" as const) };
 

@@ -8,7 +8,7 @@
  * board.
  */
 import { sanitizeForTTS } from "@/lib/narration";
-import { mathsToSpeech, pauseBeforeEquals, proseToSpeech } from "@/lib/speech-text";
+import { forVoice, mathsToSpeech, pauseBeforeEquals, proseToSpeech, SAID_AS_A_LETTER } from "@/lib/speech-text";
 import { spokenTermIndex } from "@/lib/spoken-terms";
 
 describe("a line of working is not one run of numbers", () => {
@@ -49,7 +49,17 @@ describe("letters and numbers written side by side", () => {
     ["$v = u + at$", "v equals u plus A t"],
     ["$x_1 + x_2$", "x 1 plus x 2"],
   ])("%s", (written, spoken) => {
-    expect(sanitizeForTTS(written)).toBe(spoken);
+    // What the voice is given. The unknown "a" goes to it as "A".
+    expect(forVoice(sanitizeForTTS(written))).toBe(spoken);
+  });
+
+  it("writes the unknown a as 'a' in the caption and says it as 'A'", () => {
+    const text = sanitizeForTTS("$a^2 + b^2 = c^2$");
+    // The caption shows the text as it is; the marker after the a is invisible.
+    expect(text.replace(new RegExp(SAID_AS_A_LETTER, "g"), "")).toBe("a squared plus b squared, equals c squared");
+    expect(forVoice(text)).toBe("A squared plus b squared, equals c squared");
+    // The word "a" in a sentence is not touched.
+    expect(forVoice(sanitizeForTTS("Draw a line through $x = 2$."))).toBe("Draw a line through x equals 2.");
   });
 
   it("does not spell out a word someone forgot to wrap in \\text", () => {

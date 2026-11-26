@@ -60,6 +60,17 @@ export function mathsInDollars(text: string): string {
 const DRAWN_PIECE = /\\[dt]?frac\{[^{}]*\}\{[^{}]*\}|\\sqrt(?:\[[^\]]*\])?\{[^{}]*\}/g;
 
 /**
+ * Picture emoji taken out. An answer card that read "So x = 4. 🎉 Let's
+ * check…" is a worksheet with a sticker on it. Ticks and maths symbols stay.
+ */
+export function withoutEmoji(text: string): string {
+  return text
+    .replace(/[\u{1F300}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}\u{2600}-\u{26FF}\u{FE0F}\u{200D}]/gu, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([.,!?])/g, "$1");
+}
+
+/**
  * The opening and closing lines of an answer, with any bare maths drawn.
  * Works on the payload the chat route sends, whichever shape it carries.
  */
@@ -70,7 +81,7 @@ export function drawBareMaths<T>(payload: T): T {
     const a = answer as Record<string, unknown>;
     const out: Record<string, unknown> = { ...a };
     for (const key of ["intro", "conclusion"]) {
-      if (typeof a[key] === "string") out[key] = mathsInDollars(a[key] as string);
+      if (typeof a[key] === "string") out[key] = mathsInDollars(withoutEmoji(a[key] as string));
     }
     return out;
   };

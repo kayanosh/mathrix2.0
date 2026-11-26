@@ -26,6 +26,10 @@ export function tagMathTerms(root: HTMLElement | null): void {
 
     html.querySelectorAll<HTMLElement>("*").forEach((node) => {
       if (node.childElementCount > 0 || node.closest("svg")) return;
+      // A power or a subscript is part of the term it is written on. Tagged on
+      // its own, the 2 of 6² was the first "2" on the line, so "divide by 2"
+      // or "6 and 8" could send the pen to a small raised 2.
+      if (node.closest(".msupsub")) return;
       const owner = node.closest(`[${TERM_ATTRIBUTE}]`);
       if (owner && owner !== node) return;
       const label = normaliseTermLabel(node.textContent || "");

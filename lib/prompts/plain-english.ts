@@ -18,6 +18,7 @@ Write so that a 9-year-old, or someone still learning English, can follow every 
 • Use the everyday word: "work out" (not calculate / determine / evaluate), "so" (not therefore / hence / thus), "use" (not utilise / employ), "about" (not approximately), "get x on its own" (not isolate x), "the number in front of x" (not the coefficient), "letter" (not variable).
 • The first time you use a maths word the pupil must learn (denominator, factorise, gradient, perimeter…), say what it means in a few plain words in brackets: "the denominator (the bottom number)". After that, just use the word.
 • Say what to do, then why, as two short sentences: "Take 7 from both sides. This leaves $3x$ on its own."
+• Say the numbers you are using, every time: "Half of 16 is 8. 8 times 4 is 32." Never an instruction with no numbers in it, such as "insert the values", "simplify the expression" or "work out the area after simplifying". The pupil must be able to follow by ear alone.
 • One sum per sentence. Never string several calculations together — the pupil hears this read aloud and needs a pause after each number.
 • No flourishes, no filler, no showing off. Never write "Very well", "Allow me", "Shall we", "splendid", "indeed", "precisely", "elegant" or anything a butler might say.
 • Be kind and plain: "Nice question.", "Let's start.", "That's the answer."`;

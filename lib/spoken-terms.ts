@@ -66,15 +66,45 @@ export function termMentions(labels: string[], narration: string): Mention[] {
   // Words are counted the way the speech clock counts them — split on
   // whitespace — so `word` lines up with the index it reports. Counting cleaned
   // words instead drifts by one after every dash or stray symbol.
-  narration
-    .split(/\s+/)
-    .filter(Boolean)
+  const tokens = narration.split(/\s+/).filter(Boolean);
+  const pairsSeen = new Map<string, number>();
+  tokens
     .forEach((token, word) => {
       for (const raw of normalizedWords(token)) {
         const spoken = normaliseTermLabel(raw);
         if (NOT_A_VARIABLE.has(spoken)) continue;
         const candidates = byLabel.get(spoken);
         if (!candidates) continue;
+
+        // "3 x" is the 3 that has an x written after it. With "5x − 2x − 3 = 9"
+        // above and "3x − 3 = 9" being written, "simplifies to 3 x" went to the
+        // lone 3 on the line above, because it comes first on the board.
+        const nextLetter = normaliseTermLabel(normalizedWords(tokens[word + 1] ?? "")[0] ?? "");
+        if (/^\d/.test(spoken) && /^[a-z]$/.test(nextLetter) && !NOT_A_VARIABLE.has(nextLetter)) {
+          const withLetter = candidates.filter((c) => normaliseTermLabel(labels[c + 1] ?? "") === nextLetter);
+          if (withLetter.length > 0) {
+            const key = `${spoken}${nextLetter}`;
+            const nth = pairsSeen.get(key) ?? 0;
+            pairsSeen.set(key, nth + 1);
+            mentions.push({ word, term: withLetter[Math.min(nth, withLetter.length - 1)] });
+            break;
+          }
+        }
+
+        // "2 x" said together is one term, 2x. The x meant is the one written
+        // straight after that 2, not the first x on the board: with 5x − 3 =
+        // 2x + 9 above, "move 2 x to the left" sent the pen to the x of 5x.
+        const previous = mentions[mentions.length - 1];
+        if (
+          /^[a-z]$/.test(spoken) &&
+          previous &&
+          previous.word === word - 1 &&
+          /^\d/.test(normaliseTermLabel(labels[previous.term])) &&
+          normaliseTermLabel(labels[previous.term + 1] ?? "") === spoken
+        ) {
+          mentions.push({ word, term: previous.term + 1 });
+          break;
+        }
         const occurrence = seen.get(spoken) ?? 0;
         seen.set(spoken, occurrence + 1);
         mentions.push({ word, term: candidates[Math.min(occurrence, candidates.length - 1)] });

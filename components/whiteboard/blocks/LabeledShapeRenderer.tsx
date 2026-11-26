@@ -402,7 +402,7 @@ export default function LabeledShapeRenderer({ block: rawBlock, baseDelay }: Pro
           return (
             <motion.text
               key={`v-${i}`}
-              data-teacher-target="primary"
+              data-teacher-target={(sides?.length ?? 0) + (angles?.length ?? 0) > 0 ? "detail" : "primary"}
               data-teacher-label={inlineMathToPlainText(label)}
               data-teacher-sequence={i}
               x={p.x + offsetX}
@@ -453,21 +453,21 @@ export default function LabeledShapeRenderer({ block: rawBlock, baseDelay }: Pro
             <motion.g
               key={`side-${i}`}
               data-teacher-target="primary"
-              data-teacher-label={`${side.from} ${side.to} ${inlineMathToPlainText(side.label)}`}
+              data-teacher-label={`${side.from}${side.to} ${inlineMathToPlainText(side.label)}`}
               data-teacher-sequence={vertexLabels.length + i}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: baseDelay + 0.7 + i * 0.1 }}
             >
               <foreignObject
-                x={mx + nx * 16 * sign - 30}
+                x={mx + nx * 16 * sign - 80}
                 y={my + ny * 16 * sign - 12}
-                width={60}
+                width={160}
                 height={24}
               >
                 <div className="flex items-center justify-center">
                   <span
-                    className="text-xs px-1.5 py-0.5 rounded"
+                    className="text-xs px-1.5 py-0.5 rounded whitespace-nowrap"
                     style={{ backgroundColor: "rgba(7,7,14,0.8)", color: COLORS.side }}
                   >
                     <InlineMath text={side.label} />
