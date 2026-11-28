@@ -43,3 +43,6 @@ next-env.d.ts
 # generated KS2 audit / regen logs
 /scripts/output/
 *.log
+
+# accuracy check: the papers asked and the answers given
+/accuracy-reports/

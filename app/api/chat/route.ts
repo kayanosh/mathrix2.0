@@ -50,17 +50,18 @@ import {
   solverMessages,
 } from "@/lib/conversation";
 import { runCasChecks, summariseVerification, type Agreement } from "@/lib/answer-agreement";
-import { runToolChecks } from "@/lib/verification-tools";
+import { runToolChecks, repairArithmetic } from "@/lib/verification-tools";
 import type { WhiteboardResponse, VerificationStatus } from "@/types/whiteboard";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { normalizeQuestion, hashQuestion, lookupCache, writeCache } from "@/lib/question-cache";
+import { normalizeQuestion, hashQuestion, lookupCache, writeCache, worthSaving } from "@/lib/question-cache";
 import { retrieveContentChunks, buildContentChunkBlock } from "@/lib/rag";
 import {
   detectKS2RequiredVisuals,
   mergeVisualRequirements,
 } from "@/lib/ks2-required-visuals";
 import { applyMethodBuilderToWhiteboard } from "@/lib/methods/apply-builder";
+import { boardReady } from "@/lib/board-ready";
 import { checkInputSafety, INJECTION_GUARD } from "@/lib/input-safety";
 import { checkAnonAllowance, recordAnonUse } from "@/lib/anon-usage";
 import { mathsAnswersEquivalent } from "@/lib/ks2-maths-accuracy";
@@ -99,7 +100,13 @@ export async function POST(req: NextRequest) {
         // Every answer leaves through here — fresh, saved, corrected, or a
         // follow-up — so this is where its wording is made plain. See
         // lib/plain-language.ts.
-        const payload = event === "error" ? data : drawBareMaths(simplifyLanguage(data));
+        // … and where the board is given its last tidy-up. See lib/board-ready.ts.
+        const worded = event === "error" ? data : drawBareMaths(simplifyLanguage(data));
+        const withBoard = worded as { whiteboard?: WhiteboardResponse } | null;
+        const payload =
+          withBoard && typeof withBoard === "object" && withBoard.whiteboard
+            ? { ...withBoard, whiteboard: boardReady(withBoard.whiteboard) }
+            : worded;
         controller.enqueue(
           encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
         );
@@ -307,28 +314,36 @@ export async function POST(req: NextRequest) {
           typeof topicContext === "string" ? topicContext : undefined,
           subtopicsArr,
           {
+            level,
             agreesWithGroundTruth: cachedTruth
               ? (builderAnswer) =>
                   cachedTruth.some((truth) => mathsAnswersEquivalent(builderAnswer, truth))
               : undefined,
           },
         );
-        const board = settleShapeAnswers(overlaid, questionText);
+        const board = repairArithmetic(settleShapeAnswers(overlaid, questionText), questionText);
         const cachedChecks = runCasChecks(board, questionText, cachedTruth);
         // The arithmetic checks are local and instant too, so a saved answer
         // gets today's checks rather than the ones it was saved with.
-        const cachedTools = runToolChecks(board);
+        const cachedTools = runToolChecks(board, questionText);
 
         // A cached answer the CAS contradicts is not served. Rows cached while
         // the old question reader was live were written by a model that had
         // been told its answer "MUST match" ground truths like 6 for 6 × 7, so
         // some of them hold exactly that. Serving one with a warning badge
         // would still be teaching the wrong answer; solve it again instead.
-        if (cachedChecks.agreement === "disagree") {
+        //
+        // The same goes for a saved answer that fails a check which is
+        // certain: a sum that does not come to what its own line says, or a
+        // line that does not follow from the one above. Those checks are
+        // newer than many saved answers, and a saved answer is only as good
+        // as the checks that existed the day it was saved.
+        const certainFailures = cachedTools.checks.filter((c) => !c.passed && c.decisive);
+        if (cachedChecks.agreement === "disagree" || certainFailures.length > 0) {
           replaceCachedAnswer = true;
           console.warn(
             `[Cache] Discarding cached answer for ${qHash.slice(0, 12)}: ` +
-              `${cachedChecks.warnings.join("; ")}`,
+              `${[...cachedChecks.warnings, ...certainFailures.map((c) => `${c.check}: ${c.detail}`)].join("; ")}`,
           );
         } else {
           const storedVerification = cached.verification_json;
@@ -1058,6 +1073,7 @@ export async function POST(req: NextRequest) {
         questionText,
         typeof topicContext === "string" ? topicContext : undefined,
         subtopicsArr,
+        { level },
       );
       const rescued = (builderRescue.blocks || []).some(
         (b) =>
@@ -1113,6 +1129,7 @@ export async function POST(req: NextRequest) {
         typeof topicContext === "string" ? topicContext : undefined,
         subtopicsArr,
         {
+          level,
           // Free safety rail: groundTruth was already computed above from the
           // ORIGINAL question by SymPy/nerdamer, so comparing costs nothing and
           // catches a mis-parsing builder before it overwrites a correct answer.
@@ -1128,7 +1145,7 @@ export async function POST(req: NextRequest) {
 
     // What follows from the drawing is worked out from the drawing: the area of
     // an L-shape, and which corner of a triangle is the right angle.
-    solutionData = settleShapeAnswers(solutionData, questionText);
+    solutionData = repairArithmetic(settleShapeAnswers(solutionData, questionText), questionText);
 
     // Attach uploaded image URL so the whiteboard can display it inline
     if (hasImage && lastUserMsg?.imageUrl) {
@@ -1216,7 +1233,7 @@ export async function POST(req: NextRequest) {
     verification.sympyVerified = groundTruth.sympyVerified && verification.preCasVerified;
 
     // ── Deterministic tool checks ─────────────────────────────────────
-    const toolReport = runToolChecks(solutionData);
+    const toolReport = runToolChecks(solutionData, questionText);
     // Only a check that actually RAN can count as verification. Many questions
     // have no applicable deterministic check, and those used to score as a pass.
     verification.toolChecksPassed = toolReport.ran && toolReport.allPassed;
@@ -1373,7 +1390,7 @@ export async function POST(req: NextRequest) {
 
         if (correctedResult.ok && correctedResult.data) {
           console.log("[Pass 2] Correction accepted, using corrected solution");
-          solutionData = settleShapeAnswers(correctedResult.data, questionText);
+          solutionData = repairArithmetic(settleShapeAnswers(correctedResult.data, questionText), questionText);
           rawContent = correctedContent;
           solverModel = correctionModel;
           // The critic rejected the first draft and has never seen this
@@ -1406,7 +1423,7 @@ export async function POST(req: NextRequest) {
           verification.sympyVerified = groundTruth.sympyVerified && verification.preCasVerified;
 
           // Re-run tool checks
-          const reToolReport = runToolChecks(solutionData);
+          const reToolReport = runToolChecks(solutionData, questionText);
           verification.toolChecksPassed = reToolReport.ran && reToolReport.allPassed;
         } else {
           // Correction failed validation — keep original, mark as unverified by critic
@@ -1493,7 +1510,15 @@ export async function POST(req: NextRequest) {
     // ── Write to question cache (async, non-blocking) ─────────────────
     // Never cache an answer the CAS contradicts: the cache has no expiry, so a
     // wrong answer stored once is a wrong answer served to every later pupil.
-    if (cacheable && casAgreement !== "disagree") {
+    //
+    // Nor one the checks could not stand behind. Every answer used to be saved
+    // unless the algebra engine had contradicted it, which it can only do for
+    // the few questions it can solve. A paper of 97 known-answer questions
+    // (scripts/accuracy-check.ts) got four wrong, and all four were saved to
+    // be served to the next pupil who asked. Two of them the app had itself
+    // rated "low". An answer rated low is shown once, with its warning, and
+    // worked out afresh next time.
+    if (cacheable && worthSaving(casAgreement, verification.confidence)) {
       const normalized = normalizeQuestion(questionText);
       const qHash = hashQuestion(normalized, level || "GCSE", tier, examBoard);
       writeCache({

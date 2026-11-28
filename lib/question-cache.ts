@@ -30,8 +30,17 @@ export function normalizeQuestion(text: string): string {
  *    replacement, so the rows cannot be repaired, only solved again.
  * 3: every topic now has a teaching plan. An answer saved before that was
  *    written without one, and would be served in place of a planned lesson.
+ * 4: six topics were being answered by a built-in method written for a
+ *    different one ("Simplify the ratio 18 : 24" saved as "the ratio has 42
+ *    parts"), and those answers were saved. The teaching instructions also
+ *    changed: whole lines of working, and the idea stated at the start.
+ * 5: answers rated "low" by the checks were being saved like any other.
+ *    They are no longer saved, and the ones already saved are left behind.
+ * 6: the answers saved while these changes were being tested, some of them
+ *    wrong, are left behind. The checks that would now send them back did not
+ *    exist when they were saved.
  */
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 6;
 
 export function hashQuestion(
   normalizedText: string,
@@ -41,6 +50,17 @@ export function hashQuestion(
 ): string {
   const input = [normalizedText, level, tier || "", examBoard || "", `v${CACHE_VERSION}`].join("|");
   return createHash("sha256").update(input).digest("hex");
+}
+
+/**
+ * Whether an answer is good enough to be served again to someone else.
+ *
+ * A saved answer has no expiry and goes to every pupil who asks the same
+ * question, so the bar for saving is higher than the bar for showing: not
+ * contradicted by the algebra engine, and not rated "low" by the checks.
+ */
+export function worthSaving(casAgreement: string | null | undefined, confidence: string | null | undefined): boolean {
+  return casAgreement !== "disagree" && confidence !== "low";
 }
 
 /**

@@ -85,13 +85,15 @@ describe("whiteboard playback", () => {
   });
 
   it("keeps enough pupil thinking time at faster playback speeds", () => {
-    expect(pupilPauseDurationMs(1)).toBe(2200);
-    expect(pupilPauseDurationMs(2)).toBe(1400);
+    // Thinking takes as long as it takes: double speed does not halve it.
+    expect(pupilPauseDurationMs(1)).toBe(8000);
+    expect(pupilPauseDurationMs(2)).toBe(8000);
+    expect(pupilPauseDurationMs(0.75)).toBeGreaterThan(8000);
   });
 
   it("only takes a breath between steps where nothing was asked", () => {
     expect(pupilPauseDurationMs(1, false)).toBe(650);
     expect(pupilPauseDurationMs(2, false)).toBe(350);
-    expect(pupilPauseDurationMs(1, true)).toBe(2200);
+    expect(pupilPauseDurationMs(1, true)).toBe(8000);
   });
 });

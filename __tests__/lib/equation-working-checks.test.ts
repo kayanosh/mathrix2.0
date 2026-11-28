@@ -153,6 +153,6 @@ describe("the sentence in the answer card", () => {
       { intro: "", blocks: [], conclusion: "" },
       "Solve 3x + 7 = 25",
     );
-    expect(result.conclusion).toBe("x = 6");
+    expect(result.conclusion).toBe("So $x = 6$.");
   });
 });

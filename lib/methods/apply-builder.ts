@@ -40,11 +40,13 @@ import {
   compactTeachingSteps,
   teachingStepsToCaptions,
   type MethodBuildResult,
+  type MethodBuilderId,
   type TeachingStep,
 } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
 import { planForQuestion } from "@/lib/topic-plans";
+import { valuesIn } from "@/lib/accuracy/grade";
 import { buildCoordinatePlot } from "@/lib/methods/ks2-topic-builders";
 import type {
   ColumnMethodBlock,
@@ -665,6 +667,45 @@ export function applyMethodBuilderToWorkedExample<T extends WorkedExampleLike>(
 }
 
 /**
+ * The built-in methods each GCSE topic may use. See the guard in
+ * applyMethodBuilderToWhiteboard for why this list exists.
+ */
+export const METHODS_FOR_TOPIC: Record<string, MethodBuilderId[]> = {
+  "linear-equations": ["linear_equation"],
+  "quadratic-equations": ["quadratic_solve"],
+  "fractions-decimals-percentages": [
+    "fraction_ops",
+    "fraction_simplify",
+    "fraction_equivalent",
+    "fraction_number_line",
+    "fdp_equivalence",
+    "decimal_column",
+  ],
+  "integers-place-value": [
+    "signed_number_line",
+    "column_addition",
+    "column_subtraction",
+    "column_multiplication",
+    "long_division",
+    "decimal_column",
+    "place_value_chart",
+    "place_value_shift",
+    "order_of_operations",
+    "roman_numerals",
+  ],
+  "hcf-lcm": ["multiples_number_line"],
+  angles: ["angle_diagram", "protractor_measure"],
+  "area-perimeter": [
+    "rect_perimeter_area",
+    "rectilinear_perimeter",
+    "counted_squares_area",
+    "irregular_area_estimate",
+  ],
+  "volume-surface-area": ["cuboid_volume"],
+  transformations: ["coordinate_plot"],
+};
+
+/**
  * For KS2 Ask AI chat: replace arithmetic column_method / place-value tables
  * with builder output when the question text parses cleanly.
  */
@@ -692,6 +733,8 @@ export function applyMethodBuilderToWhiteboard(
      * every question CAS cannot solve.
      */
     agreesWithGroundTruth?: (builderAnswer: string) => boolean;
+    /** "KS2" lets every method run: they were written for primary questions. */
+    level?: string | null;
   },
 ): WhiteboardResponse {
   const fake: WorkedExampleLike = {
@@ -719,15 +762,30 @@ export function applyMethodBuilderToWhiteboard(
   const built = resolveBuild(fake, topic, subtopics, () => false);
   if (!built) return data;
 
-  // Two built-in methods read a question as a sum it was not.
-  //  - "Estimate the value of (4.8 × 31.2) ÷ 0.49" was worked out exactly, to
-  //    305.6326530612. Estimating means rounding first; no exact method applies.
-  //  - "A, B and C are points on a circle with centre O. Angle AOB is 110°…"
-  //    was answered 180° − 110° = 70°, as angles on a straight line. The answer
-  //    is 55°. The angle method is for the angle-facts topic only.
-  const plan = planForQuestion(question);
-  if (plan?.id === "rounding-estimation" || /\bestimat/i.test(question)) return data;
-  if (built.builderId === "angle_diagram" && plan && plan.id !== "angles") return data;
+  // A built-in method is used only on the topic it was written for.
+  //
+  // The methods find their numbers with patterns that match anywhere in a
+  // sentence, and most were written for primary arithmetic. Asked a GCSE
+  // question they still "match", and their working REPLACES the model's:
+  //
+  //   "Write 60 as a product of its prime factors"      -> a place-value chart of 60
+  //   "a = (3, -2) and b = (1, 5). Work out a + 2b"     -> "3 is greater than -2"
+  //   "Simplify the ratio 18 : 24"                      -> "the ratio has 42 parts"
+  //   "The class 10 to 30 has a frequency of 40..."     -> a bar chart, "total 80"
+  //   "Estimate the value of (4.8 x 31.2) / 0.49"       -> 305.6326530612, exactly
+  //   "Angle AOB at the centre is 110..."               -> 180 - 110 = 70 (it is 55)
+  //
+  // Each of those was found one at a time. The topic plan already says what
+  // the question is about, so it now decides: a method may run only when the
+  // question's topic lists it. A topic with no entry uses none.
+  const plan = opts?.level === "KS2" ? null : planForQuestion(question);
+  if (/\bestimat/i.test(question)) return data;
+  if (plan && !(METHODS_FOR_TOPIC[plan.id] ?? []).includes(built.builderId)) {
+    console.warn(
+      `[method-builder] ${built.builderId} is not a method for ${plan.id}; keeping the model's answer for: ${question.slice(0, 120)}`,
+    );
+    return data;
+  }
 
   // Column and division builders keep their answer on the block, not on
   // `built.answer`. Reading only the latter meant this guard never ran for
@@ -749,6 +807,27 @@ export function applyMethodBuilderToWhiteboard(
     return data;
   }
 
+  // The model has already answered the question, and so has the method. When
+  // their answers differ, one of them misread it, and in every case found so
+  // far it was the method (thirteen of them, the last two after the list of
+  // topics above was already in place). So unless the algebra engine has
+  // confirmed the method's answer, a disagreement keeps the model's.
+  //
+  // Primary questions are left as they were: there the methods are the
+  // teaching, and their sums are checked against the question itself.
+  if (opts?.level !== "KS2" && builderAnswer && !opts?.agreesWithGroundTruth) {
+    const fromModel = valuesIn(data.conclusion || "", { parts: false }).map((c) => c.value);
+    const fromMethod = valuesIn(builderAnswer, { parts: false }).map((c) => c.value);
+    const near = (a: number, b: number) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b));
+    if (fromModel.length > 0 && fromMethod.length > 0 && !fromMethod.every((m) => fromModel.some((v) => near(v, m)))) {
+      console.warn(
+        `[method-builder] ${built.builderId} answered "${builderAnswer}" but the model answered ` +
+          `"${(data.conclusion || "").slice(0, 80)}"; keeping the model's answer for: ${question.slice(0, 120)}`,
+      );
+      return data;
+    }
+  }
+
   const applied = applyBuiltToExample(fake, built);
   return {
     ...data,
@@ -768,14 +847,41 @@ export function applyMethodBuilderToWhiteboard(
  * mixed number it was still given top-heavy.
  */
 export function finishChatAnswer(question: string, conclusion: string): string {
-  const fraction = conclusion.trim().match(/^(-?\d+)\s*\/\s*(\d+)$/);
-  if (!fraction) return conclusion;
-  const n = Number(fraction[1]);
-  const d = Number(fraction[2]);
-  const top = Math.abs(n);
-  const drawn = `\\frac{${n}}{${d}}`;
-  if (/mixed number/i.test(question) && d > 0 && top > d && top % d !== 0) {
-    return `$${drawn} = ${n < 0 ? "-" : ""}${Math.floor(top / d)}\\frac{${top % d}}{${d}}$`;
+  const text = conclusion.trim();
+  // Already a sentence, or already drawn: leave it.
+  if (!text || text.includes("$") || /[A-Za-z]{3,}/.test(text.replace(/\\[a-zA-Z]+/g, ""))) return conclusion;
+
+  const draw = (maths: string) =>
+    maths
+      .replace(/(-?\d+)\s*\/\s*(\d+)/g, "\\frac{$1}{$2}")
+      .replace(/×/g, "\\times ")
+      .replace(/÷/g, "\\div ")
+      .replace(/°/g, "^{\\circ}")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const fraction = text.match(/^(-?\d+)\s*\/\s*(\d+)$/);
+  if (fraction) {
+    const n = Number(fraction[1]);
+    const d = Number(fraction[2]);
+    const top = Math.abs(n);
+    const drawn = `\\frac{${n}}{${d}}`;
+    if (/mixed number/i.test(question) && d > 0 && top > d && top % d !== 0) {
+      return `The answer is $${drawn} = ${n < 0 ? "-" : ""}${Math.floor(top / d)}\\frac{${top % d}}{${d}}$.`;
+    }
+    return `The answer is $${drawn}$.`;
   }
-  return `$${drawn}$`;
+
+  // "x = 3, x = 2": the two answers to one equation.
+  const roots = text.split(/\s*,\s*/);
+  if (
+    roots.length > 1 &&
+    roots.every((r) => /^[a-z]\s*=\s*-?[\d./]+$/i.test(r)) &&
+    new Set(roots.map((r) => r[0])).size === 1
+  ) {
+    return `So ${roots.map((r) => `$${draw(r)}$`).join(" or ")}.`;
+  }
+  // A sum and what it comes to: "23 × 47 = 1081".
+  if (text.includes("=")) return `So $${draw(text)}$.`;
+  return `The answer is $${draw(text)}$.`;
 }

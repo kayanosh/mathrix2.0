@@ -404,19 +404,30 @@ describe("how sure the badge is", () => {
 
 describe("how the answer is worded", () => {
   it("draws a fraction, and gives a mixed number when one is asked for", () => {
-    expect(finishChatAnswer("Work out 2/3 + 3/4", "17/12")).toBe("$\\frac{17}{12}$");
+    expect(finishChatAnswer("Work out 2/3 + 3/4", "17/12")).toBe("The answer is $\\frac{17}{12}$.");
     expect(finishChatAnswer("Work out 2/3 + 3/4. Give your answer as a mixed number.", "17/12")).toBe(
-      "$\\frac{17}{12} = 1\\frac{5}{12}$",
+      "The answer is $\\frac{17}{12} = 1\\frac{5}{12}$.",
     );
     // Nothing to convert: a proper fraction, a whole number of them.
-    expect(finishChatAnswer("Give your answer as a mixed number.", "5/12")).toBe("$\\frac{5}{12}$");
-    expect(finishChatAnswer("Give your answer as a mixed number.", "12/4")).toBe("$\\frac{12}{4}$");
+    expect(finishChatAnswer("Give your answer as a mixed number.", "5/12")).toBe("The answer is $\\frac{5}{12}$.");
+    expect(finishChatAnswer("Give your answer as a mixed number.", "12/4")).toBe("The answer is $\\frac{12}{4}$.");
   });
 
-  it("leaves every other answer line as it is", () => {
-    expect(finishChatAnswer("Solve 3x + 7 = 25", "x = 6")).toBe("x = 6");
-    expect(finishChatAnswer("Find angle C", "70°")).toBe("70°");
+  it("says a bare answer as a sentence, with the maths drawn", () => {
+    // These were shown, and read out, exactly as the method left them:
+    // "x = 3, x = 2" and "2/3 + 3/4 = 17/12".
+    expect(finishChatAnswer("Solve 3x + 7 = 25", "x = 6")).toBe("So $x = 6$.");
+    expect(finishChatAnswer("Solve x^2 - 5x + 6 = 0", "x = 3, x = 2")).toBe("So $x = 3$ or $x = 2$.");
+    expect(finishChatAnswer("Work out 2/3 + 3/4", "2/3 + 3/4 = 17/12")).toBe(
+      "So $\\frac{2}{3} + \\frac{3}{4} = \\frac{17}{12}$.",
+    );
+    expect(finishChatAnswer("Work out 23 × 47", "23 × 47 = 1081")).toBe("So $23 \\times 47 = 1081$.");
+    expect(finishChatAnswer("Find angle C", "70°")).toBe("The answer is $70^{\\circ}$.");
+  });
+
+  it("leaves an answer that is already a sentence as it is", () => {
     expect(finishChatAnswer("Area?", "The area is 32 cm².")).toBe("The area is 32 cm².");
+    expect(finishChatAnswer("Solve", "So $x = 4$.")).toBe("So $x = 4$.");
   });
 
   it("reaches the board through the built-in fraction method", () => {
@@ -424,7 +435,7 @@ describe("how the answer is worded", () => {
       { intro: "", blocks: [], conclusion: "", subject: "Maths" },
       "Work out 2/3 + 3/4. Give your answer as a mixed number.",
     );
-    expect(shown.conclusion).toBe("$\\frac{17}{12} = 1\\frac{5}{12}$");
+    expect(shown.conclusion).toBe("The answer is $\\frac{17}{12} = 1\\frac{5}{12}$.");
   });
 
   it("gives a cuboid's volume in the unit the question used", () => {

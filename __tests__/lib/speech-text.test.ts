@@ -70,7 +70,7 @@ describe("letters and numbers written side by side", () => {
 
   it("keeps words inside \\text as words", () => {
     expect(sanitizeForTTS("$\\text{Area} = \\frac{1}{2} \\times \\text{base} \\times \\text{height}$")).toBe(
-      "Area equals 1 over 2 times base times height",
+      "Area equals one half times base times height",
     );
   });
 });
@@ -85,8 +85,8 @@ describe("powers, roots and fractions", () => {
     ["$1.5 \\times 10^3$", "1.5 times 10 cubed"],
     ["$\\sqrt{49} = 7$", "the square root of 49 equals 7"],
     ["$\\sqrt[3]{8} = 2$", "the cube root of 8 equals 2"],
-    ["$\\frac{3}{4}$ of $20$", "3 over 4 of 20"],
-    ["$2\\frac{1}{2}$", "2 and 1 over 2"],
+    ["$\\frac{3}{4}$ of $20$", "three quarters of 20"],
+    ["$2\\frac{1}{2}$", "2 and one half"],
     ["$\\frac{x+1}{2} = 5$", "x plus 1, all over 2, equals 5"],
     ["$\\frac{dy}{dx} = 2x$", "d y by d x, equals 2 x"],
     ["3/4 + 1/4 = 1", "3 over 4 plus 1 over 4, equals 1"],
@@ -137,7 +137,7 @@ describe("a sentence stays a sentence", () => {
     const text = "This is a two-step problem - don't worry. Use the x-axis.";
     expect(sanitizeForTTS(text)).toBe(text);
     expect(sanitizeForTTS("Multiply \\frac{1}{2} by 4 to get 2 - a well-known trick.")).toBe(
-      "Multiply 1 over 2 by 4 to get 2 - a well-known trick.",
+      "Multiply one half by 4 to get 2 - a well-known trick.",
     );
   });
 
@@ -191,7 +191,7 @@ describe("brackets are said aloud", () => {
     ["(-3)^2 = 9", "bracket minus 3, all squared equals 9"],
     ["y = 2(x - 1)^2 + 3", "y equals 2 bracket x minus 1, all squared plus 3"],
     ["2(3 + 4) \\times 5", "2 bracket 3 plus 4 close bracket times 5"],
-    ["\\left(\\frac{1}{2}\\right)^3", "bracket 1 over 2, all cubed"],
+    ["\\left(\\frac{1}{2}\\right)^3", "bracket one half, all cubed"],
     ["\\frac{(x + 1)(x - 2)}{x - 2}", "bracket x plus 1, bracket x minus 2, all over x minus 2"],
   ];
   it.each(cases)("%s", (tex, spoken) => {
@@ -235,7 +235,7 @@ describe("brackets are said aloud", () => {
 describe("a unit outside the maths with its power inside", () => {
   it("is one unit, not 'cmsquared'", () => {
     expect(sanitizeForTTS("The area is $\\frac{1}{2} \\times 8 \\times 6 = 24$ cm$^2$.")).toBe(
-      "The area is 1 over 2 times 8 times 6, equals 24 centimetres squared.",
+      "The area is one half times 8 times 6, equals 24 centimetres squared.",
     );
     expect(sanitizeForTTS("The volume is $60$ m$^3$.")).toBe("The volume is 60 metres cubed.");
     expect(sanitizeForTTS("It is $9$ cm$^{2}$ in area.")).toBe("It is 9 centimetres squared in area.");

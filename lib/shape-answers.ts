@@ -159,6 +159,27 @@ function settleLShape(data: WhiteboardResponse, question: string): WhiteboardRes
     (b): b is LabeledShapeBlock => b.type === "labeled_shape" && b.shape === "rectilinear",
   );
   if (!shape) return data;
+
+  // Only when the question is about this shape.
+  //
+  // "A cuboid is 4 cm long, 4 cm wide and 6 cm high. Work out its total surface
+  // area." was answered "The area of the shape is 23 cm²". The model had drawn
+  // an L-shape beside its working, the question contains the word "area", and
+  // the whole answer was replaced by the area of that drawing. A typed question
+  // must not be about a solid, and the drawing's measurements must be the
+  // question's own: its width, its height, and at least one side of the step.
+  // A photo comes with a message that has no numbers in it ("Solve this
+  // question from the photo"), so there is nothing to hold the drawing to, and
+  // it is left as it was.
+  if (/\b(?:surface\s+area|volume|cuboids?|cubes?|prisms?|cylinders?|spheres?|cones?|pyramids?|nets?|faces?|3D)\b/i.test(question)) return data;
+  const given = numbersIn(question);
+  if (given.length > 0) {
+    const r = shape.rectilinear;
+    const has = (n: number | undefined) => typeof n === "number" && given.some((g) => Math.abs(g - n) < 1e-9);
+    const ofTheStep = r ? [r.notchWidth, r.notchHeight, r.width - r.notchWidth, r.height - r.notchHeight] : [];
+    if (!r || !has(r.width) || !has(r.height) || !ofTheStep.some(has)) return data;
+  }
+
   const asked = `${question} ${data.intro ?? ""} ${data.conclusion ?? ""}`;
   const wantsPerimeter = /\bperimeter\b/i.test(asked);
   const wantsArea = /\barea\b/i.test(asked);

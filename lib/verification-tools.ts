@@ -15,6 +15,7 @@ require("nerdamer/Extra");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 import type { WhiteboardResponse, EquationStepBlock, LabeledShapeBlock, TableBlock } from "@/types/whiteboard";
+import { evaluate as accuracyEvaluate, tidy as accuracyTidy } from "@/lib/accuracy/grade";
 import { evaluateExact, readMathsExpression } from "@/lib/maths-question";
 import { rationalEquals } from "@/lib/maths-value";
 import { assignedValues, plain } from "@/lib/answer-text";
@@ -645,7 +646,7 @@ function verifyLShapeSides(block: LabeledShapeBlock): ToolCheckResult[] {
  *
  * A later line may be the earlier one rounded (153.938… then 153.9).
  */
-function verifyWorkingKeepsItsValue(block: EquationStepBlock): ToolCheckResult[] {
+function verifyWorkingKeepsItsValue(block: EquationStepBlock, question = ""): ToolCheckResult[] {
   const sides = (raw: string | undefined) => {
     if (!raw) return null;
     const latex = raw
@@ -703,19 +704,94 @@ function verifyWorkingKeepsItsValue(block: EquationStepBlock): ToolCheckResult[]
     if (!before || !after) continue;
     // The same thing is being worked out on both lines: "Area =" or "= c²".
     let pair: [number, number, string] | null = null;
+    let sideUsed = 1;
     if (before.left === after.left && before.leftValue === null && before.rightValue !== null && after.rightValue !== null) {
       pair = [before.rightValue, after.rightValue, after.right];
     } else if (before.right === after.right && before.rightValue === null && before.leftValue !== null && after.leftValue !== null) {
       pair = [before.leftValue, after.leftValue, after.left];
+      sideUsed = 0;
     }
-    if (!pair || before.left + before.right === after.left + after.right) continue;
+    if (!pair) {
+      // The reader above could not read one of the lines. The stricter one
+      // may: "Area ≈ \text{30.48 cm}^2" has its number inside the words, and
+      // followed "Area = ½ × 5 × 12 × sin 110°", which is 28.19.
+      const named = (raw: string | undefined) => {
+        const parts = String(raw ?? "").split(/=|\\approx|≈/);
+        if (parts.length !== 2) return null;
+        const label = parts[0].replace(/\\(?:text|htmlId|textcolor)|[{}\s]/g, "");
+        const value = sureValue(parts[1]);
+        return /[a-zA-Z]/.test(label) && value !== null ? { label, value, text: accuracyTidy(parts[1]) } : null;
+      };
+      const earlier = named(step.latexBefore);
+      const later = named(step.latexAfter);
+      if (earlier && later && earlier.label === later.label && /[-+*/^]|\\times|\\div|\\cdot|\\frac|\\sqrt|\\sin|\\cos|\\tan|×|÷/.test(String(step.latexBefore))) {
+        const ok = same(earlier.value, later.value, later.text.replace(/\s+/g, ""));
+        const far = Math.abs(earlier.value - later.value) > 0.005 * Math.max(1, Math.abs(earlier.value));
+        if (!ok) {
+          results.push({
+            check: `Step ${step.stepNumber} keeps its value`,
+            passed: false,
+            decisive: far,
+            detail: `the line before is worth ${Number(earlier.value.toFixed(4))} but the line after says ${Number(later.value.toFixed(4))}. Work it out again and correct every line after it.`,
+          });
+        }
+      }
+      continue;
+    }
+    if (before.left + before.right === after.left + after.right) continue;
     const passed = same(pair[0], pair[1], pair[2]);
+    const namesTheSameThing = before.left === after.left && /[a-zA-Z]/.test(before.left.replace(/\\(?:text|htmlId|textcolor)/g, ""));
+    // Or neither line names anything, and a fraction is rewritten as another
+    // fraction or a number: "18/15", then "1/30" (it is 6/5). Only a fraction.
+    // Any other pair of bare lines may be two different things: "500" students
+    // then "0.6" of them, or "5⁻³" then "5³" worked out on the way to 1/125.
+    const bareFraction = /^\\[dt]?frac\{\d+\}\{\d+\}$/;
+    const strip = (raw: string | undefined) =>
+      String(raw ?? "")
+        .replace(/\\(?:htmlId|textcolor)\{[^{}]*\}\{((?:[^{}]|\{[^{}]*\})*)\}/g, "$1")
+        .replace(/\s+/g, "");
+    const oneSumRewritten =
+      before.left === "" &&
+      after.left === "" &&
+      bareFraction.test(strip(step.latexBefore)) &&
+      (bareFraction.test(strip(step.latexAfter)) || /^-?\d+(?:\.\d+)?$/.test(strip(step.latexAfter))) &&
+      !/\b(?:estimat|round|approximat|significant figure|decimal place)/i.test(question);
+    // The stricter reader has to arrive at the same two values.
+    const sure = (raw: string | undefined, value: number) => {
+      const parts = String(raw ?? "").split(/=|\\approx|≈/);
+      // A line with no "=" is one expression.
+      const read = sureValue((parts.length === 1 ? parts[0] : parts[sideUsed]) ?? "");
+      return read !== null && Math.abs(read - value) <= 1e-6 * Math.max(1, Math.abs(value));
+    };
+    const bothReadForCertain = sure(step.latexBefore, pair[0]) && sure(step.latexAfter, pair[1]);
+    // A calculator step rounded the wrong way. "x = 8 × sin 42°" is 5.353…,
+    // and the next line said "x ≈ 5.3". To 1 decimal place it is 5.4. When the
+    // later line is one plain decimal and is out by less than one in its last
+    // place, there is nothing else it can be, so it is sent back to be redone.
+    const stated = pair[2].replace(/\\text\{[^}]*\}.*$/, "").match(/^-?\d+\.(\d+)$/);
+    const places = stated ? stated[1].length : 0;
+    const correctlyRounded = Math.round((pair[0] + Number.EPSILON) * 10 ** places) / 10 ** places;
+    const roundedWrongly = !passed && !!stated && Math.abs(pair[0] - pair[1]) < 10 ** -places;
     results.push({
       check: `Step ${step.stepNumber} keeps its value`,
       passed,
+      // "x² = 100 + 144 − 240 cos 50°" became "x² = 224 − …", and the answer
+      // came out as 8.4 cm instead of 9.5. The check failed it, and it was
+      // shown anyway with a warning. When both lines name the same thing
+      // ("x² =" and "x² =") and are well apart, the later line is wrong and
+      // the answer goes back to be redone.
+      //
+      // Only then. Run over 262 saved answers, this check also "failed" lines
+      // that were never meant to be equal: "500" then "0.6" (a total, then a
+      // fraction), and "59062" then "59000" (a rounding question).
+      decisive:
+        bothReadForCertain &&
+        (roundedWrongly || (!passed && (namesTheSameThing || oneSumRewritten) && Math.abs(pair[0] - pair[1]) > 0.005 * Math.max(1, Math.abs(pair[0])))),
       detail: passed
         ? `${Number(pair[0].toFixed(4))} → ${Number(pair[1].toFixed(4))} ✓`
-        : `the line before is worth ${Number(pair[0].toFixed(4))} but the line after says ${Number(pair[1].toFixed(4))}`,
+        : roundedWrongly
+          ? `the line before is worth ${Number(pair[0].toFixed(4))}, which is ${correctlyRounded.toFixed(places)} to ${places} decimal place${places === 1 ? "" : "s"}, not ${pair[2].replace(/\\text\{[^}]*\}.*$/, "")}. Round it again and correct the answer.`
+          : `the line before is worth ${Number(pair[0].toFixed(4))} but the line after says ${Number(pair[1].toFixed(4))}`,
     });
   }
   return results;
@@ -756,7 +832,286 @@ function verifyLShapeAnswer(block: LabeledShapeBlock, conclusion: string): ToolC
  * Run all deterministic tool-based checks on a WhiteboardResponse.
  * These are fast, exact checks that supplement the LLM critic.
  */
-export function runToolChecks(data: WhiteboardResponse): VerificationReport {
+// A unit is only a unit straight after a number: "g" in "g(-3)" is a function.
+const UNITS_AFTER_A_NUMBER =
+  /(?<=\d)\s*(?:mm|cm|km|kg|ml|mph|m|g|l|p|units?|miles?|hours?|minutes?|seconds?|pounds?|pence|degrees?|cubes?|squares?|parts?|sides?)\b(?:\s*\^\s*\(?[23]\)?)?/gi;
+const KNOWN_COMMANDS =
+  /\\(?:[dt]?frac|times|div|cdot|sqrt|pi|text|left|right|htmlId|textcolor|pounds|circ|quad|approx|[,;:! ]|%|\$)(?![a-zA-Z])/g;
+
+/**
+ * What a side of a line of working is worth, or null unless that is certain.
+ *
+ * The checks that use this send an answer back to be redone, so it reads only
+ * what it is sure of. Anything it does not know (a matrix, "mod", a function
+ * of x) and it says nothing. The older reader in this file joined "2 hours 30
+ * minutes" into 230 and read a density of 1780 g over 200 cm³ as 1,780,200;
+ * that is fine for a warning and not for a verdict.
+ *
+ * Sine, cosine and tangent of a number of degrees are worked out here.
+ */
+function sureValue(side: string): number | null {
+  // tan⁻¹(1.8), in degrees. The inside is read first.
+  const inverse = side.replace(
+    /\\(?:arc(sin|cos|tan)|(sin|cos|tan)\s*\^\s*\{\s*-\s*1\s*\})\s*(?:\\left)?\(([^()]*)(?:\\right)?\)/g,
+    (whole, arc: string | undefined, raised: string | undefined, inside: string) => {
+      const of = sureValue(inside);
+      const fn = arc ?? raised;
+      if (of === null || (fn !== "tan" && Math.abs(of) > 1)) return whole;
+      const radians = fn === "sin" ? Math.asin(of) : fn === "cos" ? Math.acos(of) : Math.atan(of);
+      return `(${((radians * 180) / Math.PI).toFixed(10)})`;
+    },
+  );
+  const withTrig = inverse.replace(
+    /\\(sin|cos|tan)\s*\(?\s*(\d+(?:\.\d+)?)\s*(?:\^\s*\{?\s*\\circ\s*\}?|°)\s*\)?/g,
+    (_m, fn: string, degrees: string) => {
+      const angle = (Number(degrees) * Math.PI) / 180;
+      const value = fn === "sin" ? Math.sin(angle) : fn === "cos" ? Math.cos(angle) : Math.tan(angle);
+      return `(${value.toFixed(10)})`;
+    },
+  );
+  if (/\\[a-zA-Z]/.test(withTrig.replace(KNOWN_COMMANDS, "")) || /\bmod\b/i.test(withTrig)) return null;
+  const plainText = accuracyTidy(withTrig).replace(UNITS_AFTER_A_NUMBER, " ").replace(/\s+/g, " ").trim();
+  return plainText ? accuracyEvaluate(plainText) : null;
+}
+
+/** Whether `stated` is `exact` written to some number of decimal places or significant figures. */
+function isARoundingOf(exact: number, stated: number, text: string): boolean {
+  if (Math.abs(exact - stated) <= 1e-9 * Math.max(1, Math.abs(exact))) return true;
+  const places = (text.match(/\d\.(\d+)(?!.*\d\.\d)/)?.[1] ?? "").length;
+  const toPlaces = Math.round((exact + Number.EPSILON) * 10 ** places) / 10 ** places;
+  if (Math.abs(toPlaces - stated) < 1e-9) return true;
+  // A whole number may be the value to some number of significant figures
+  // (9472.6 as 9470). A decimal states its own precision: 60.0 is not 60.9
+  // "to 1 significant figure".
+  if (places === 0) {
+    for (let figures = 1; figures <= 6; figures++) {
+      if (Math.abs(Number(exact.toPrecision(figures)) - stated) <= 1e-9 * Math.max(1, Math.abs(stated))) return true;
+    }
+  }
+  // A long decimal that is out in its last places ("44 × 0.9511 = 41.8474",
+  // which is 41.8484) does not change the answer and is not worth redoing.
+  return places >= 3 && Math.abs(exact - stated) <= 1e-4 * Math.max(1, Math.abs(exact));
+}
+
+/**
+ * The sums in the working, done by code.
+ *
+ * A language model does not have a calculator. It writes "x = 15 × sin 51°"
+ * correctly and then recalls what that comes to, and sometimes recalls it
+ * wrongly: 11.6 for 11.657, 60.0° for tan⁻¹(1.8), which is 60.9°, and
+ * "c² = 169 + 64 + 71.136 = 161.864", which is 304.136, giving 12.7 cm for a
+ * side of 17.4 cm. Sent back with the mistake pointed out, it often makes it
+ * again. In three papers of 97 known-answer questions, this was the cause of
+ * most of the wrong answers that were left once the built-in methods had been
+ * fenced in.
+ *
+ * So where a line says what something IS as a sum, and the next thing written
+ * is the number it comes to, the number is worked out here and corrected if it
+ * is wrong:
+ *
+ *   on one line          Final value = £1500 × 1.02³ = £1591.22      → £1591.81
+ *   on the next line     x = 15 × sin 51°   then   x ≈ 11.6 cm       → 11.7 cm
+ *   after a square       c² = 304.136       then   c = 12.7 cm       → 17.4 cm
+ *
+ * A corrected number is carried forward, so a slip in the middle of the
+ * working is corrected through to the answer line.
+ *
+ * It only acts when the two lines name the same thing ("x =" and "x ="), when
+ * the sum can be read for certain (see sureValue), and when the number given
+ * is not simply that sum rounded. An estimate, where lines are meant to
+ * change, is left alone. A built-in method's working is left alone.
+ */
+export function repairArithmetic<T extends WhiteboardResponse>(data: T, question = ""): T {
+  if (!data || !Array.isArray(data.blocks) || (data.teachingSteps?.length ?? 0) > 0) return data;
+  if (/\bestimat|\bapproximate\b|^\s*round\b|\bround\s+[\d£-]/i.test(question)) return data;
+
+  const unwrap = (text: string) => text.replace(/\\(?:htmlId|textcolor)\{[^{}]*\}\{((?:[^{}]|\{[^{}]*\})*)\}/g, "$1");
+  const labelOf = (side: string) => unwrap(side).replace(/\\text|[{}\s]|\\[,;:! ]/g, "");
+  /** A part that is one number (with its unit, £ or °), and the digits as written. */
+  const singleNumber = (part: string): { value: number; token: string } | null => {
+    // A percentage is not a plain number: "100% = £120" does not say 100 = 120.
+    if (/%/.test(part)) return null;
+    const plainText = accuracyTidy(unwrap(part))
+      // A unit made of two ("g/cm³", "miles per hour") goes with its number.
+      .replace(/(?<=\d)\s*[a-zA-Z]+\s*(?:\/|\bper\b)\s*[a-zA-Z]+(?:\s*\^\s*\(?[23]\)?)?/gi, " ")
+      .replace(UNITS_AFTER_A_NUMBER, " ")
+      .trim();
+    if (!/^-?\d+(?:\.\d+)?$/.test(plainText)) return null;
+    const token = unwrap(part).replace(/(\d),(?=\d{3}(?!\d))/g, "$1").match(/(?<![\d.])\d+(?:\.\d+)?(?!\d|\.\d)/)?.[0];
+    if (!token || Math.abs(Number(token) - Math.abs(Number(plainText))) > 1e-9) return null;
+    return { value: Number(plainText), token };
+  };
+
+  const replaced: Array<[from: string, to: string]> = [];
+  const swap = (text: string | undefined, pairs: Array<[string, string]>) => {
+    if (typeof text !== "string") return text;
+    let out = text;
+    for (const [from, to] of pairs) {
+      out = out.replace(new RegExp(`(?<![\\d.])${from.replace(/\./g, "\\.")}(?!\\d|\\.\\d)`, "g"), to);
+    }
+    return out;
+  };
+
+  let changed = false;
+  const blocks = data.blocks.map((block) => {
+    if (block.type !== "equation_steps") return block;
+    // `worked`: the value came from a sum that was worked out here, and is not
+    // just a number the line stated. Only a worked value can correct the next
+    // number. "Time = 30 minutes" then "Time = 0.5 hours" are both right, and
+    // nothing says the second must equal 30.
+    let previous: { label: string; value: number; worked: boolean } | null = null;
+    let carryOver: Array<[string, string]> = [];
+    const steps = block.steps.map((step) => {
+      const fromAbove = carryOver;
+      carryOver = [];
+      const pieces = String(step.latexAfter ?? "").split(/(=|\\approx|≈)/);
+      if (pieces.length < 3) {
+        previous = null;
+        return fromAbove.length ? { ...step, latexBefore: swap(step.latexBefore, fromAbove) ?? step.latexBefore } : step;
+      }
+      const label = labelOf(pieces[0]);
+      const named = /[a-zA-Z]/.test(label);
+      // What this line's number must be, if the line above settles it.
+      let due: number | null = null;
+      let worked = false;
+      if (named && previous) {
+        if (previous.label === label && previous.worked) {
+          due = previous.value;
+          worked = true;
+        } else if (previous.label === `${label}^2` && previous.value >= 0) {
+          // "c² = 304.136", then "c =": the square root, whoever wrote the 304.136.
+          due = Math.sqrt(previous.value);
+          worked = true;
+        }
+      }
+      const here: Array<[string, string]> = [];
+      for (let i = 2; i < pieces.length; i += 2) {
+        const single = singleNumber(pieces[i]);
+        if (single) {
+          if (due !== null && worked && due < 0 === single.value < 0 && !isARoundingOf(due, single.value, single.token)) {
+            const places = (single.token.split(".")[1] ?? "").length;
+            const right = Math.abs(due).toFixed(places);
+            pieces[i] = pieces[i].replace(new RegExp(`(?<![\\d.])${single.token.replace(/\./g, "\\.")}(?!\\d|\\.\\d)`), right);
+            here.push([single.token, right]);
+          } else if (due === null || !worked) {
+            due = single.value;
+            worked = false;
+          }
+        } else {
+          // A sum: what follows it must be what it comes to.
+          due = sureValue(pieces[i]);
+          worked = due !== null;
+        }
+      }
+      previous = named && due !== null ? { label, value: due, worked } : null;
+      if (here.length === 0) {
+        return fromAbove.length ? { ...step, latexBefore: swap(step.latexBefore, fromAbove) ?? step.latexBefore } : step;
+      }
+      changed = true;
+      replaced.push(...here);
+      carryOver = here;
+      console.log(`[Repair] step ${step.stepNumber}: ${here.map(([f, t]) => `${f} → ${t}`).join(", ")}`);
+      return {
+        ...step,
+        latexBefore: swap(step.latexBefore, fromAbove) ?? step.latexBefore,
+        latexAfter: pieces.join(""),
+        explanation: swap(step.explanation, here) ?? step.explanation,
+        why: swap(step.why, here),
+        selfCheck: swap(step.selfCheck, here),
+      };
+    });
+    return changed ? { ...block, steps } : block;
+  });
+
+  if (!changed) return data;
+  return { ...data, blocks, conclusion: swap(data.conclusion, replaced) ?? data.conclusion };
+}
+
+/**
+ * A sum and what it is said to come to, on one line.
+ *
+ * "Final value = £1500 × 1.02³ = £1591.22". It is £1591.81. The other checks
+ * compare one line with the next and read lines with a single "="; this line
+ * has two, and its mistake is inside it. Found by the accuracy paper.
+ *
+ * Each "=" on a line is checked where both sides are plain sums. The right
+ * side may be the left rounded, to any number of decimal places or
+ * significant figures.
+ */
+function verifySumsOnALine(block: EquationStepBlock): ToolCheckResult[] {
+  const worth = sureValue;
+  const roundsTo = isARoundingOf;
+
+  const results: ToolCheckResult[] = [];
+  for (const step of block.steps) {
+    const line = String(step.latexAfter ?? "");
+    if (!line.includes("=") && !/\\approx|≈/.test(line)) continue;
+    const sides = line.split(/=|\\approx|≈/);
+    for (let i = 0; i + 1 < sides.length; i++) {
+      const left = worth(sides[i]);
+      const right = worth(sides[i + 1]);
+      if (left === null || right === null) continue;
+      // Only where the right-hand side is the simpler one: a sum, then its total.
+      if (!/[-+*/^]|\\times|\\div|\\cdot|\\frac|\\sqrt|×|÷/.test(sides[i])) continue;
+      const passed = roundsTo(left, right, accuracyTidy(sides[i + 1]));
+      results.push({
+        check: `Step ${step.stepNumber}: the sum and its total`,
+        passed,
+        decisive: !passed,
+        detail: passed
+          ? `${Number(left.toFixed(4))} ✓`
+          : `${accuracyTidy(sides[i]).trim()} comes to ${Number(left.toFixed(4))}, but the line says ${accuracyTidy(sides[i + 1]).trim()}. Work it out again and correct every line after it.`,
+      });
+    }
+  }
+  return results;
+}
+
+/**
+ * Rounding to 1 significant figure, in an estimate.
+ *
+ * "By rounding each number to 1 significant figure, estimate (9.2 × 58.9) ÷ 4.8"
+ * was answered 120: the working said "9.2 ≈ 10". To 1 significant figure 9.2
+ * is 9, and the estimate is 108. Every later line followed correctly from the
+ * wrong rounding, so the arithmetic checks all passed. Found by the accuracy
+ * paper (lib/accuracy), not by a pupil.
+ *
+ * Any line that rounds one number to another is held to the rounding the
+ * question asked for.
+ */
+function verifyRoundingInAnEstimate(block: EquationStepBlock, question: string): ToolCheckResult[] {
+  const asksForOne = /\b(?:1|one)\s+significant\s+figure|\b1\s*s\.?\s?f\b/i.test(question);
+  if (!asksForOne && !/\bestimat/i.test(question)) return [];
+  const checks: ToolCheckResult[] = [];
+  const seen = new Set<string>();
+  for (const step of block.steps) {
+    const line = String(step.latexAfter ?? "")
+      .replace(/\\(?:htmlId|textcolor)\{[^{}]*\}\{((?:[^{}]|\{[^{}]*\})*)\}/g, "$1")
+      .replace(/\\,|\\;|\\!/g, "");
+    const rounding = /(?<![\d.}/^])(\d+(?:\.\d+)?)\s*(?:\\approx|≈|\\to|\\rightarrow|→)\s*(\d+(?:\.\d+)?)(?![\d.]*\s*(?:\\times|×|\\div|÷|[+*/^-]))/g;
+    for (const match of line.matchAll(rounding)) {
+      const from = Number(match[1]);
+      const to = Number(match[2]);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from === 0 || seen.has(match[0])) continue;
+      seen.add(match[0]);
+      const right = Number(from.toPrecision(1));
+      const passed = Math.abs(to - right) < 1e-9 * Math.max(1, Math.abs(right));
+      // Without the words "1 significant figure" a different sensible rounding
+      // is allowed, so the failure is reported but does not force a rewrite.
+      checks.push({
+        check: "Rounding to 1 significant figure",
+        passed,
+        decisive: !passed && asksForOne,
+        detail: passed
+          ? `${match[1]} rounds to ${right} ✓`
+          : `${match[1]} to 1 significant figure is ${right}, not ${match[2]}. Round it again and redo every line after it.`,
+      });
+    }
+  }
+  return checks;
+}
+
+export function runToolChecks(data: WhiteboardResponse, question = ""): VerificationReport {
   const checks: ToolCheckResult[] = [];
 
   for (const block of data.blocks) {
@@ -764,7 +1119,9 @@ export function runToolChecks(data: WhiteboardResponse): VerificationReport {
       checks.push(...verifyEquationSteps(block));
       checks.push(...verifyStepsAgainstAnswer(block));
       checks.push(...verifyGeometryArithmetic(block));
-      checks.push(...verifyWorkingKeepsItsValue(block));
+      checks.push(...verifyWorkingKeepsItsValue(block, question));
+      if (question) checks.push(...verifyRoundingInAnEstimate(block, question));
+      checks.push(...verifySumsOnALine(block));
     }
     if (block.type === "table") {
       checks.push(...verifyFrequencyTableMean(block, data.conclusion || ""));

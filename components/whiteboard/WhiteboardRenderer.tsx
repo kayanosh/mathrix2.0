@@ -16,6 +16,7 @@ import { estimateMathWriteMs } from "@/lib/handwriting";
 import { getVerificationBadge, type VerificationBadge } from "@/lib/verification-badge";
 import { useLessonProgress } from "@/lib/hooks/useLessonProgress";
 import { lessonPresentation } from "@/lib/lesson-presentation";
+import { boardReady } from "@/lib/board-ready";
 
 // ── Card types ────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ interface Props {
 }
 
 export default function WhiteboardRenderer({
-  data,
+  data: given,
   revealAll = false,
   persist = false,
   persistKind = "solve",
@@ -100,6 +101,8 @@ export default function WhiteboardRenderer({
   const [revealed, setRevealed] = useState(revealAll ? Infinity : 1);
   const [showCelebration, setShowCelebration] = useState(false);
 
+  // An answer saved before a board fix existed is put right here.
+  const data = useMemo(() => boardReady(given), [given]);
   const cards = useMemo(() => buildCards(data), [data]);
   const answerIndex = cards.findIndex((c) => c.kind === "answer");
   const allRevealed = revealed >= cards.length;

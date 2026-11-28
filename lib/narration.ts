@@ -333,10 +333,19 @@ function cuesForGraph(
   block: CoordinateGraphBlock,
   bi: number,
 ) {
-  const lines = block.plots.map((p) => p.label || p.equation).join(", ");
-  const pts = block.points?.map((p) => p.label).join(", ");
-  let text = `Here's the graph showing ${lines || "the function"}.`;
-  if (pts) text += ` Key points: ${pts}.`;
+  const lines = block.plots.map((p) => p.label || p.equation).filter(Boolean).join(", ");
+  const labels = (block.points ?? []).map((p) => p.label).filter(Boolean);
+  // With no line drawn there is no "function" to announce: "Here's the graph
+  // showing the function" was said over a scatter graph and over two points.
+  let text = lines
+    ? `Here's the graph of ${lines}.`
+    : labels.length > 0
+      ? "Here are the points, plotted on a grid."
+      : "Here's the grid.";
+  // Up to four points are worth naming. Twelve are a list nobody hears.
+  if (labels.length > 0 && labels.length <= 4) {
+    text += ` ${labels.length === 1 ? "The point is" : "The points are"} ${labels.join(", ")}.`;
+  }
   cues.push({ blockIndex: bi, text, kind: "graph" });
 }
 
@@ -366,10 +375,17 @@ function cuesForTree(
   block: ProbabilityTreeBlock,
   bi: number,
 ) {
-  const branches = block.branches.map((b) => b.event).join(", ");
+  const events = block.branches.map((b) => b.event).filter(Boolean);
+  const first = lowerFirst(block.rootLabel || "the first event");
+  const said =
+    events.length === 0
+      ? ""
+      : events.length === 1
+        ? ` It has one branch: ${events[0]}.`
+        : ` It splits into ${events.slice(0, -1).join(", ")} and ${events[events.length - 1]}.`;
   cues.push({
     blockIndex: bi,
-    text: `Here's the probability tree for ${block.rootLabel}. First branches: ${branches}.`,
+    text: `Here's the tree diagram. The first set of branches is for ${first}.${said} Each branch has its probability written on it.`,
     kind: "tree",
   });
 }
@@ -382,7 +398,7 @@ function cuesForVenn(
   const sets = block.sets.map((s) => s.label).join(" and ");
   cues.push({
     blockIndex: bi,
-    text: `Here's the Venn diagram for ${sets}.`,
+    text: `Here's the Venn diagram, with one circle for ${sets.replace(" and ", " and one for ")}. Where the circles overlap is for things in both.`,
     kind: "venn",
   });
 }
@@ -401,19 +417,39 @@ function cuesForNumberLine(
 }
 
 function cuesForTable(cues: NarrationCue[], block: TableBlock, bi: number) {
-  const caption = block.caption || "the data";
-  cues.push({
-    blockIndex: bi,
-    text: `Here's a table showing ${caption}.`,
-    kind: "table",
-  });
+  // The caption is a heading ("List of given numbers", "Proportion table").
+  // Dropped into a sentence as it stood, it was read "Here's a table showing
+  // List of given numbers" and "showing Proportion table".
+  const caption = lowerFirst((block.caption || "").trim().replace(/[.:]+$/, ""));
+  const isJustATable = !caption || /^(?:the\s+)?(?:\w+\s+)?table$/i.test(caption);
+  const headers = (block.headers ?? []).map((h) => h.trim()).filter(Boolean);
+  const hasItsOwnArticle = /^(?:the|a|an|my|our|your|this|these)\b/i.test(caption);
+  const text = isJustATable
+    ? headers.length >= 2 && headers.length <= 4
+      ? `Here's a table, with columns for ${headers.slice(0, -1).join(", ")} and ${headers[headers.length - 1]}.`
+      : "Here's a table of what we know."
+    : /\b(?:table|grid)\b/i.test(caption)
+      ? `Here's ${hasItsOwnArticle ? caption : `the ${caption}`}.`
+      : `This table shows ${caption.replace(/^list of\s+/i, "the ")}.`;
+  cues.push({ blockIndex: bi, text, kind: "table" });
 }
 
 function cuesForChart(cues: NarrationCue[], block: ChartBlock, bi: number) {
-  const title = block.title || block.chartType.replace(/_/g, " ");
+  // "Here's the Pie Chart - Color Choices chart."
+  const kind = block.chartType.replace(/_/g, " ");
+  const about = (block.title || "")
+    .replace(/\b(?:pie|bar|line)\s+(?:chart|graph)\b|\bhistogram\b|\bchart\b/gi, "")
+    .replace(/^[\s\-–—:]+|[\s\-–—:]+$/g, "")
+    .trim();
+  const named =
+    kind === "cumulative frequency"
+      ? "cumulative frequency graph"
+      : /chart|graph|histogram|plot|diagram|polygon/i.test(kind)
+        ? kind
+        : `${kind} chart`;
   cues.push({
     blockIndex: bi,
-    text: `Here's the ${title} chart.`,
+    text: about ? `Here's the ${named}. It shows ${lowerFirst(about)}.` : `Here's the ${named}.`,
     kind: "chart",
   });
 }
@@ -438,6 +474,13 @@ function cuesForColumn(
 }
 
 // ── Utilities ────────────────────────────────────────────────────────────────
+
+/** A heading put into the middle of a sentence. Names and acronyms keep their capital. */
+function lowerFirst(text: string): string {
+  const first = text.split(/\s+/)[0] ?? "";
+  if (first.length <= 1 || first === first.toUpperCase() || /^[A-Z][a-z]*[A-Z]/.test(first)) return text;
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
 
 const FILLER = new Set([
   "a", "an", "the", "to", "of", "and", "or", "you", "your", "it", "its", "is", "are", "be", "in", "on", "for",
@@ -503,6 +546,11 @@ export function sanitizeForTTS(raw: string): string {
   s = s.replace(/\s+/g, " ");
   s = s.replace(/\s+([.,;:!?])/g, "$1");
   s = s.replace(/,(\s*,)+/g, ",");
+  // "Let's find angle $\\angle ACB$" came out as "angle angle A C B": the word
+  // is in the sentence and again in the symbol.
+  s = s.replace(/\b(angle|triangle|degrees|percent)(\s+\1\b)+/gi, "$1");
+  // A stray dollar sign left by unbalanced maths is not said.
+  s = s.replace(/\$/g, "");
   s = pauseBeforeEquals(s.trim());
 
   return s;

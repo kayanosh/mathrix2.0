@@ -46,7 +46,9 @@ NO MISSING STEPS (critical — the whole point of the whiteboard):
 • Reference exam board specs where natural
 • If off-topic, include a kind redirect in the intro
 • Maximum 10 blocks per response
-• The "intro" field: one short, friendly opening sentence in plain English (e.g. "Let's solve this step by step.")
+• The "intro" field: two short sentences, as a teacher opens at the board. First what we are asked to find, then the idea we will use to find it (e.g. "We need the value of $x$. We undo what has been done to $x$, one step at a time."). Never just "Let's solve this step by step": it tells the pupil nothing.
+• Every "latexAfter" is a whole line that makes sense on its own: what it is, the working and the result ("\\text{Area} = \\frac{1}{2} \\times 10 \\times 6 = 30 \\text{ cm}^2"). Never a bare number, and never leave it empty. A sum that is said in the "explanation" is also written on the line.
+• British spelling throughout: centre, favourable, factorise, colour, metres.
 • The "conclusion" field: clearly state the final answer in plain words (e.g. "So $x = 3$. Done!")
 • The "hint" field: one common mistake to avoid, phrased plainly (e.g. "Watch the sign — when $+5$ crosses the equals sign it becomes $-5$."), or null
 
@@ -361,7 +363,7 @@ export const SCHEMA = `
 ━━━ WhiteboardResponse SCHEMA ━━━
 
 {
-  "intro": "string — one short, friendly opening sentence in plain everyday English",
+  "intro": "string — two short sentences in plain everyday English: what we are asked to find, then the idea we will use",
   "blocks": [ ...VisualBlock[] — rendered in order on the whiteboard ],
   "conclusion": "string — final answer clearly stated",
   "hint": "string | null — common mistake to avoid",
@@ -842,7 +844,7 @@ EXAMPLE — Algebra (Solve 2x + 4 = 10):
 EXAMPLE — Algebra (Solve $x^{2} - 5x - 6 = 0$ by factorising):
 Factorising uses arrowDirection "simplify" (no curly arrows). Solving each linear factor DOES use arrows when a term crosses =.
 {
-  "intro": "Let's solve this quadratic step by step — factorise, then use the zero product property.",
+  "intro": "We need the values of $x$ that make this equal zero. We put it into two brackets, because two things can only multiply to make zero if one of them is zero.",
   "blocks": [
     {
       "type": "equation_steps",
@@ -996,7 +998,7 @@ NOTE: For geometry equation steps —
   probability: `
 EXAMPLE — Probability (Two coin flips, find P(at least one head)):
 {
-  "intro": "A probability question — excellent. A tree diagram will lay out every possible outcome with admirable clarity.",
+  "intro": "We need the chance of at least one head from two coin flips. A tree diagram shows every way the two flips can come out.",
   "blocks": [
     {
       "type": "probability_tree",
@@ -1100,7 +1102,7 @@ EXAMPLE — Statistics (Find mean from frequency table):
   graphs: `
 EXAMPLE — Graphs (Plot y = 2x + 1):
 {
-  "intro": "Right then — we shall construct a table of values first, then plot the line on a coordinate graph.",
+  "intro": "We need to draw this line. We work out a few points in a table of values, then plot them and join them up.",
   "blocks": [
     {
       "type": "table",
@@ -1190,7 +1192,7 @@ EXAMPLE — Trigonometry (Find missing side using SOH CAH TOA):
   number: `
 EXAMPLE — Number (Convert 0.375 to a fraction):
 {
-  "intro": "Let's turn a recurring decimal into a fraction. It is easy once you see the trick.",
+  "intro": "We need to write this recurring decimal as a fraction. We multiply it so the repeating part lines up, then subtract to make it disappear.",
   "blocks": [
     {
       "type": "equation_steps",
@@ -1233,7 +1235,7 @@ EXAMPLE — Number (Convert 0.375 to a fraction):
   calculus: `
 EXAMPLE — Calculus (Differentiate y = 3x² + 2x − 5):
 {
-  "intro": "Differentiation — we shall apply the power rule to each term. Remarkably satisfying, I assure you.",
+  "intro": "We need the gradient function. We use the power rule on each term, one at a time.",
   "blocks": [
     {
       "type": "equation_steps",

@@ -104,6 +104,29 @@ const SWAPS: Array<[pattern: string, replacement: Replacement]> = [
   ["manipulat(?:e|es)", "change"],
   ["manipulating", "changing"],
 
+  // British spelling. The pupils sit British exams.
+  ["favorable", "favourable"],
+  ["center(s|ed)?", (end) => `centre${end === "ed" ? "d" : end ?? ""}`],
+  ["factori[sz]ation", "factorisation"],
+  ["factorize(s|d)?", (end) => `factorise${end ?? ""}`],
+  ["factorizing", "factorising"],
+  ["color(s|ed)?", (end) => `colour${end ?? ""}`],
+  ["totaling", "totalling"],
+  ["labeled", "labelled"],
+  ["meters", "metres"],
+  ["centimeters", "centimetres"],
+
+  // Textbook words with a plain one that says the same.
+  ["exponents", "powers"],
+  ["exponent", "power"],
+  ["perfect square trinomial", "squared bracket"],
+  ["trinomial", "expression"],
+  ["yield(s)?", (s) => `give${s ?? ""}`],
+  ["yielding", "giving"],
+  ["joint event", "two things both happening"],
+  ["like bases", "the same base"],
+  ["zero product property", "fact that if two things multiply to make zero, one of them is zero"],
+
   // Describing words.
   ["approximately", "about"],
   ["sufficient", "enough"],
@@ -132,7 +155,7 @@ const GLOSSARY: Array<[term: string, pattern: string, meaning: string, plural?: 
   ["inverse", "inverse(?: operations?)?", "the opposite"],
   ["gradient", "gradient", "how steep the line is"],
   ["y-intercept", "y[- ]intercept", "where the line crosses the y-axis"],
-  ["circumference", "circumference", "the distance around the circle"],
+  ["circumference", "(?<!\\b(?:at|on|to|touching|touches) the )circumference", "the distance around the circle"],
   ["perimeter", "perimeter", "the distance around the outside"],
   ["radius", "radius", "from the centre to the edge"],
   ["diameter", "diameter", "all the way across the circle"],
@@ -242,6 +265,9 @@ const PROSE_FIELDS = new Set([
 /** Short labels: wording is simplified, but there is no room to explain a word. */
 const LABEL_FIELDS = new Set(["operationLabel", "signRule"]);
 
+/** Parts of one step that the pupil hears as a single run, in this order. */
+const SPOKEN_TOGETHER = new Set(["explanation", "why", "selfCheck", "check"]);
+
 /** Said last, after the working, whatever order the fields arrive in. */
 const CLOSING_FIELDS = ["conclusion", "hint", "keyTakeaway", "examTip"];
 
@@ -272,9 +298,15 @@ export function simplifyLanguage<T>(value: T, options: { alsoProse?: string[] } 
     }
 
     const atStart = new Set(explained);
+    // A step's explanation, its reason and its check are said one after the
+    // other, so a word explained in the first is not explained again in the
+    // second. They used to be treated as alternatives, and the pupil heard
+    // "it's the mode (the most common value). The mode (the most common value)
+    // is the number that appears most often."
+    const spokenTogether = new Set(atStart);
     for (const [key, child] of Object.entries(source)) {
       if (key === "intro" || CLOSING_FIELDS.includes(key)) continue;
-      const seen = new Set(atStart);
+      const seen = SPOKEN_TOGETHER.has(key) ? spokenTogether : new Set(atStart);
       if (typeof child === "string") {
         if (prose.has(key)) out[key] = plainLanguage(child, { explained: seen });
         else if (LABEL_FIELDS.has(key)) out[key] = plainLanguage(child, { gloss: false });

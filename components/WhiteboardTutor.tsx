@@ -13,9 +13,13 @@ import {
   RotateCcw,
   ShieldCheck,
   AlertTriangle,
+  ArrowRight,
+  MessageCircleQuestion,
+  PencilLine,
 } from "lucide-react";
 import type { WhiteboardResponse } from "@/types/whiteboard";
 import { buildNarrationPlan } from "@/lib/narration";
+import { boardReady } from "@/lib/board-ready";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
 import {
   estimateColumnStepWriteMs,
@@ -58,6 +62,10 @@ import {
 interface Props {
   data: WhiteboardResponse;
   onClose: () => void;
+  /** "Try one like this": the chat fetches a practice question on the topic. */
+  onTryAnother?: (topic: string) => void;
+  /** "Ask about a step": the chat opens with the step named, ready to send. */
+  onAskAbout?: (step: string) => void;
 }
 
 const WRITE_MS = 900;
@@ -71,7 +79,9 @@ type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
 
 // ── Main tutor ────────────────────────────────────────────────────────────────
 
-export default function WhiteboardTutor({ data, onClose }: Props) {
+export default function WhiteboardTutor({ data: given, onClose, onTryAnother, onAskAbout }: Props) {
+  // An answer saved before a board fix existed is put right here.
+  const data = useMemo(() => boardReady(given), [given]);
   const plan = useMemo(() => buildNarrationPlan(data), [data]);
   const steps = useMemo(() => buildTutorSteps(data, plan), [data, plan]);
   const totalCues = plan.length;
@@ -189,16 +199,25 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     const ids = currentStep?.focusTargetIds;
     return ids && ids.length > 0 ? ids : undefined;
   }, [currentStep]);
+  // A line that is a sentence (the opening, the answer, the key idea, the
+  // warning) and not maths or a drawing.
+  const isProseLine =
+    currentStep?.visual.type === "intro" ||
+    currentStep?.visual.type === "conclusion" ||
+    currentStep?.visual.type === "hint" ||
+    (currentStep?.visual.type === "text" && !currentStep.visual.latex);
   const pointerPlaybackRef = useRef<{
     phase: typeof phase;
     activeWord: number;
     narration: string;
     focusTargetIds?: string[];
+    prose?: boolean;
   }>({
     phase,
     activeWord,
     narration: pointerSpeechText,
     focusTargetIds: pointerFocusIds,
+    prose: isProseLine,
   });
   const schedulePointerPlaceRef = useRef<() => void>(() => undefined);
 
@@ -208,8 +227,9 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       activeWord,
       narration: pointerSpeechText,
       focusTargetIds: pointerFocusIds,
+      prose: isProseLine,
     };
-  }, [activeWord, phase, pointerSpeechText, pointerFocusIds]);
+  }, [activeWord, phase, pointerSpeechText, pointerFocusIds, isProseLine]);
 
   const { speak, prepare, cancel } = useWhiteboardSpeech();
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -410,14 +430,31 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
         return;
       }
       const rect = target.getBoundingClientRect();
-      const swept = teacherPointerPoint(
-        rect,
-        teacherSpeechProgress(
-          playback.narration,
-          playback.activeWord,
-          playback.phase,
-        ),
+      const progress = teacherSpeechProgress(
+        playback.narration,
+        playback.activeWord,
+        playback.phase,
       );
+      // A sentence is underlined as it is read. The pen used to travel through
+      // the middle of the writing, so its barrel lay across the words being
+      // read out. Now its tip runs along underneath the row it has reached.
+      if (playback.prose && targets.length === 1) {
+        const lineHeight = parseFloat(getComputedStyle(target).lineHeight) || 34;
+        const rows = Math.max(1, Math.round(rect.height / lineHeight));
+        const scaled = Math.min(0.9999, Math.max(0, progress)) * rows;
+        const row = Math.min(rows - 1, Math.floor(scaled));
+        const next = {
+          x: rect.left + rect.width * (0.02 + (scaled - row) * 0.96),
+          y: rect.top + ((row + 1) * rect.height) / rows + 2,
+        };
+        setPointerSide("below");
+        setPointerPos((current) =>
+          Math.abs(current.x - next.x) < 0.5 && Math.abs(current.y - next.y) < 0.5 ? current : next,
+        );
+        setPointerVisible(true);
+        return;
+      }
+      const swept = teacherPointerPoint(rect, progress);
       // A small target (a digit in a column, a single term) is touched at its
       // lower edge, not its middle: the nib of a pen held from below would
       // otherwise sit on top of the very digit being pointed at.
@@ -675,6 +712,37 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
     setActiveCue(index);
   };
 
+  // Space pauses and plays, the arrows step back and forward, as on any video.
+  const keysRef = useRef({ toggle: () => {}, prev: () => {}, next: () => {} });
+  useEffect(() => {
+    keysRef.current = {
+      toggle: isPlaying ? handlePause : handlePlay,
+      prev: handlePrev,
+      next: handleNext,
+    };
+  });
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const el = event.target as HTMLElement | null;
+      if (el && /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key === " " || event.code === "Space") {
+        // On a button, space already presses it.
+        if (el?.tagName === "BUTTON") return;
+        event.preventDefault();
+        keysRef.current.toggle();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        keysRef.current.prev();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        keysRef.current.next();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   const toggleMute = () => setIsMuted((m) => !m);
   const cycleSpeed = () =>
     setSpeed((s) => PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(s) + 1) % PLAYBACK_SPEEDS.length]);
@@ -699,6 +767,14 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
       : phase === "check" || phase === "pupil_pause"
         ? "check"
         : "point";
+  const isThinkingTime = isPlaying && phase === "pupil_pause" && speechParts.asksPupil === true;
+  const thinkingMs = pupilPauseDurationMs(speed, true);
+  const finished = phase === "complete";
+  // The step the pupil was last on, for "ask about a step".
+  const stepToAskAbout = (() => {
+    const working = steps.filter((step) => step.kind === "equation_step" || step.kind === "teaching_step");
+    return working.length > 0 ? working[working.length - 1].title : "";
+  })();
   const badge = getVerificationBadge(data);
   const showBadge =
     currentStep?.kind === "conclusion" || activeCue === totalCues - 1;
@@ -805,6 +881,56 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
           </div>
         )}
 
+        {/* A teacher does not finish a worked example and walk out. They ask
+            if it made sense and set one to try. The lesson used to end on its
+            last line with the pause button showing. */}
+        {finished && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mt-6 mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm"
+            data-lesson-end
+            // It appears below the last line, which may be the bottom of the
+            // screen, so it is brought into view.
+            ref={(el) => {
+              if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "end" }));
+            }}
+          >
+            <p className="text-base font-semibold text-slate-900">Did that make sense?</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Tap any line on the board to hear that step again. The best way to check you have it is to try one yourself.
+            </p>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              {onTryAnother && (
+                <button
+                  onClick={() => onTryAnother(data.topic || "")}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  <PencilLine size={15} />
+                  Try one like this
+                </button>
+              )}
+              {onAskAbout && (
+                <button
+                  onClick={() => onAskAbout(stepToAskAbout)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <MessageCircleQuestion size={15} />
+                  I&apos;m stuck on a step
+                </button>
+              )}
+              <button
+                onClick={handleReplay}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <RotateCcw size={15} />
+                Watch again
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         <div className="h-8" />
       </WhiteboardCanvas>
 
@@ -864,7 +990,29 @@ export default function WhiteboardTutor({ data, onClose }: Props) {
               activeWordIndex={activeWord}
               isSpeaking={isSpeaking}
             />
+            {/* Thinking time runs down in view, so the wait reads as a wait
+                and not as the lesson having stopped. */}
+            {isThinkingTime && (
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-emerald-100" aria-hidden>
+                <motion.div
+                  key={`think-${activeCue}-${runId}`}
+                  className="h-full rounded-full bg-emerald-500"
+                  initial={{ width: "100%" }}
+                  animate={{ width: "0%" }}
+                  transition={{ duration: thinkingMs / 1000, ease: "linear" }}
+                />
+              </div>
+            )}
           </div>
+          {isThinkingTime && (
+            <button
+              onClick={advance}
+              className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+            >
+              Show me
+              <ArrowRight size={14} />
+            </button>
+          )}
         </div>
 
         <ProgressRail total={totalCues} current={activeCue} />

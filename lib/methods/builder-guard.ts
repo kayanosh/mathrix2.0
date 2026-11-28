@@ -183,6 +183,19 @@ function wrongKindOfAnswer(question: string, built: MethodBuildResult): string |
     return `a unit conversion answered by the ${built.builderId} builder`;
   }
 
+  // "A cuboid is 6 cm long, 4 cm wide and 6 cm high. Work out its total
+  // surface area." has three lengths, so the volume method took it and
+  // answered 144 cm³. The surface area is 168 cm².
+  if (/\bsurface\s+area\b/i.test(question) && (built.builderId === "cuboid_volume" || built.builderId === "rect_perimeter_area")) {
+    return `asked for a surface area but answered by the ${built.builderId} builder`;
+  }
+  // "A regular polygon has 18 sides. Work out the size of each exterior
+  // angle." was answered 180° − 18° = 162°: the number of sides was read as an
+  // angle. The angle method needs an angle in the question to start from.
+  if (built.builderId === "angle_diagram" && !/\d\s*(?:°|\^\s*\{?\s*\\circ|degrees?\b)/i.test(question)) {
+    return "the question gives no angle for the angle method to start from";
+  }
+
   // A measurement cannot be negative. "Angles 90°, 80° and 110°. Find the
   // missing angle." → −100° is a builder that subtracted from the wrong total.
   // Deliberately limited to measurements: equations, coordinates and vectors

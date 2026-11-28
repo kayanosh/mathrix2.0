@@ -181,7 +181,7 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const treeCue = plan.find((c) => c.kind === "tree");
     expect(treeCue).toBeDefined();
-    expect(treeCue!.text).toContain("First pick");
+    expect(treeCue!.text).toContain("first pick");
   });
 
   it("generates venn cue", () => {
@@ -199,7 +199,7 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const vennCue = plan.find((c) => c.kind === "venn");
     expect(vennCue).toBeDefined();
-    expect(vennCue!.text).toContain("A and B");
+    expect(vennCue!.text).toContain("one circle for A and one for B");
   });
 
   it("generates number_line cue", () => {
@@ -239,7 +239,7 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const tableCue = plan.find((c) => c.kind === "table");
     expect(tableCue).toBeDefined();
-    expect(tableCue!.text).toContain("My data table");
+    expect(tableCue!.text).toBe("Here's my data table.");
   });
 
   it("generates chart cue", () => {
@@ -249,7 +249,7 @@ describe("buildNarrationPlan", () => {
         {
           type: "chart",
           chartType: "bar",
-          title: "Test Chart",
+          title: "Bar chart - Favourite colours",
         },
       ],
       conclusion: "Done",
@@ -257,7 +257,7 @@ describe("buildNarrationPlan", () => {
     const plan = buildNarrationPlan(data);
     const chartCue = plan.find((c) => c.kind === "chart");
     expect(chartCue).toBeDefined();
-    expect(chartCue!.text).toContain("Test Chart");
+    expect(chartCue!.text).toBe("Here's the bar chart. It shows favourite colours.");
   });
 
   it("generates column method cue", () => {
@@ -302,8 +302,8 @@ describe("sanitizeForTTS", () => {
   });
 
   it("converts LaTeX fractions to speech", () => {
-    const result = sanitizeForTTS("$\\frac{3}{4}$");
-    expect(result).toContain("over");
+    expect(sanitizeForTTS("$\\frac{3}{4}$")).toBe("three quarters");
+    expect(sanitizeForTTS("$\\frac{5}{18}$")).toContain("over");
   });
 
   it("converts squared to speech", () => {

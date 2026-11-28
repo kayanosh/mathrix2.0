@@ -282,17 +282,26 @@ export default function ChatInterface() {
   useEffect(() => {
     const handler = async (e: Event) => {
       const { topic } = (e as CustomEvent<{ topic?: string }>).detail;
+      // Writing a question needs a signed-in pupil. For anyone else the box is
+      // filled with the request instead, so the button never does nothing.
+      const askForOne = () => {
+        setInput(`Give me a practice question on ${topic || "this topic"}, and let me try it before you show the answer.`);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      };
       try {
         const res = await fetch("/api/generate-practice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ topic: topic || "mixed maths", tier: level }),
         });
-        if (!res.ok) return;
+        if (!res.ok) return askForOne();
         const { question } = await res.json() as { question: string };
+        if (!question) return askForOne();
         setInput(question);
         setTimeout(() => inputRef.current?.focus(), 50);
-      } catch { /* ignore */ }
+      } catch {
+        askForOne();
+      }
     };
     window.addEventListener("mathrix:practice", handler);
     return () => window.removeEventListener("mathrix:practice", handler);
@@ -1000,7 +1009,23 @@ export default function ChatInterface() {
       {/* ── Whiteboard overlay ─────────────────────────────── */}
       <AnimatePresence>
         {whiteboardData && (
-          <WhiteboardTutor data={whiteboardData} onClose={() => setWhiteboardData(null)} />
+          <WhiteboardTutor
+            data={whiteboardData}
+            onClose={() => setWhiteboardData(null)}
+            onTryAnother={(topic) => {
+              setWhiteboardData(null);
+              window.dispatchEvent(new CustomEvent("mathrix:practice", { detail: { topic } }));
+            }}
+            onAskAbout={(step) => {
+              setWhiteboardData(null);
+              setInput(
+                step
+                  ? `I didn't understand the step "${step.replace(/\$/g, "")}". Can you explain it another way?`
+                  : "I didn't understand part of that. Can you explain it another way?",
+              );
+              setTimeout(() => inputRef.current?.focus(), 50);
+            }}
+          />
         )}
       </AnimatePresence>
 

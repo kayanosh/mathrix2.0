@@ -150,7 +150,7 @@ describe("WhiteboardTutor playback", () => {
       "pupil_pause",
     );
     expect(screen.getByText("Add the ones").closest("article")).toBe(activeCard);
-    expect(screen.getByText("Your thinking time")).toBeInTheDocument();
+    expect(screen.getByText("Your turn: have a go")).toBeInTheDocument();
     expect(audioFetchCount()).toBe(preparedRequests);
   });
 

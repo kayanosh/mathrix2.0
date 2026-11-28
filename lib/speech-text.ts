@@ -89,6 +89,8 @@ function speakSymbols(text: string): string {
   s = s.replace(/³/g, " cubed");
   s = s.replace(/°\s*C\b/g, " degrees Celsius");
   s = s.replace(/°/g, " degrees");
+  s = s.replace(/∩/g, " intersection ").replace(/∪/g, " union ").replace(/[ξℰ]/g, " the universal set ");
+  s = s.replace(/∈/g, " is in ").replace(/∉/g, " is not in ");
   s = s.replace(/∠/g, " angle ");
   s = s.replace(/[△▵]/g, " triangle ");
   s = s.replace(/∴/g, " so ");
@@ -113,9 +115,20 @@ const NAMED: Record<string, string> = {
   approx: "is about", lt: "is less than", gt: "is greater than",
   ldots: "and so on", dots: "and so on", cdots: "and so on",
   rightarrow: "gives", to: "gives", Rightarrow: "so", implies: "so", therefore: "so",
+  cap: "intersection", cup: "union", xi: "the universal set", varnothing: "the empty set",
+  emptyset: "the empty set", in: "is in", notin: "is not in", subset: "is a subset of",
   angle: "angle", triangle: "triangle",
   parallel: "is parallel to", perp: "is at right angles to",
   circ: "degrees",
+};
+
+/** Fractions a teacher says as words. Held so later rules leave them whole. */
+const EVERYDAY_FRACTIONS: Record<string, string> = {
+  "1/2": "one half",
+  "1/3": "one third",
+  "2/3": "two thirds",
+  "1/4": "one quarter",
+  "3/4": "three quarters",
 };
 
 const MATHS_TOKEN =
@@ -160,8 +173,16 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
     return ` ${String.fromCharCode(0xe000 + held.length - 1)} `;
   };
 
-  // \htmlId{id}{content} → content
-  s = s.replace(/\\htmlId\{[^}]*\}\{([^}]*)\}/g, "$1");
+  // Wrappers that carry no sound: \htmlId{id}{content}, \textcolor{#dc2626}{content},
+  // \boxed{content}. The content may hold one level of braces of its own
+  // (\htmlId{a}{\frac{15}{3}}). A colour used to be read out: "#d c 2626 the
+  // square root of 67".
+  const INNER = "((?:[^{}]|\\{[^{}]*\\})*)";
+  for (let i = 0; i < 3; i++) {
+    s = s.replace(new RegExp(`\\\\(?:htmlId|textcolor|color|colorbox|htmlClass)\\{[^{}]*\\}\\{${INNER}\\}`, "g"), "$1");
+    s = s.replace(new RegExp(`\\\\(?:boxed|underline|cancel|mathbf|boldsymbol|bm)\\{${INNER}\\}`, "g"), "$1");
+  }
+  s = s.replace(/\\color\{[^{}]*\}/g, " ");
 
   // Spacing commands and sizing wrappers carry no sound.
   s = s.replace(/\\[,;:!]|\\ |~/g, " ");
@@ -174,7 +195,11 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
   s = s.replace(/\\[{}]/g, " ");
 
   // Degrees, before the power rule reads "^\circ" as a power.
-  s = s.replace(/\^\s*\{\s*\\circ\s*\}|\^\s*\\circ(?![a-zA-Z])|\\degree(?![a-zA-Z])/g, "°");
+  // "250^{\textdegree}" was read as "250 to the power of".
+  s = s.replace(
+    /\^\s*\{\s*(?:\\circ|\\textdegree|\\degree|°)\s*\}|\^\s*(?:\\circ|\\textdegree|\\degree)(?![a-zA-Z])|\^\s*°|\\(?:textdegree|degree)(?![a-zA-Z])/g,
+    "°",
+  );
 
   // A unit written as \text{cm} after a number: here even "m" is a unit.
   s = s.replace(
@@ -239,6 +264,12 @@ export function mathsToSpeech(tex: string, options: { prose?: boolean } = {}): s
   // Fractions. A whole number in front makes a mixed number ("2 and 1 over 2").
   // A top or bottom with more than one term gets "all over", as a teacher says
   // it, so "x plus 1 over 2" is not heard as x + ½.
+  // The everyday fractions are said as words: "a half", not "1 over 2".
+  s = s.replace(/(\d)?\s*\\[dt]?frac\s*\{\s*([123])\s*\}\s*\{\s*([234])\s*\}/g, (whole_, lead: string | undefined, top: string, bottom: string) => {
+    const said = EVERYDAY_FRACTIONS[`${top}/${bottom}`];
+    if (!said) return whole_;
+    return lead ? `${lead} and ${said} ` : ` ${said} `;
+  });
   for (let i = 0; i < 4; i++) {
     s = s.replace(
       /(\d)?\s*\\[dt]?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,

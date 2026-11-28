@@ -299,9 +299,34 @@ const SPOKEN_SHAPE: Partial<Record<LabeledShapeBlock["shape"], string>> = {
  * equals. Angles: 90 degrees at A". Each fact is now a short sentence, a side
  * with nothing written on it is not mentioned, and a height is called a height.
  */
+const POLYGON_NAMES: Record<number, string> = {
+  3: "triangle",
+  4: "quadrilateral",
+  5: "pentagon",
+  6: "hexagon",
+  7: "heptagon",
+  8: "octagon",
+  9: "nonagon",
+  10: "decagon",
+};
+
+/**
+ * What a teacher would call the shape: "triangle", "L-shape", "hexagon".
+ *
+ * A polygon used to be called an L-shape whenever it had six corners, so the
+ * lesson on the angles of a regular hexagon opened with "Draw the L-shape".
+ */
+export function shapeName(raw: LabeledShapeBlock): string {
+  const block = tidyShapeBlock(raw);
+  if (block.shape === "polygon") return POLYGON_NAMES[block.vertices?.length ?? 0] ?? "shape";
+  return SPOKEN_SHAPE[block.shape] ?? block.shape;
+}
+
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
 export function describeShape(raw: LabeledShapeBlock): string {
   const block = tidyShapeBlock(raw);
-  const parts = [`Here's the ${SPOKEN_SHAPE[block.shape] ?? block.shape}.`];
+  const parts = [`Here's the ${shapeName(block)}.`];
   const labels = (block.vertices ?? []).map((v) => v.label);
 
   if (block.shape === "rectilinear" && block.rectilinear) {
@@ -334,9 +359,21 @@ export function describeShape(raw: LabeledShapeBlock): string {
     if (isHeightMark(side, labels)) parts.push(`The height is ${heightText(side.label)}.`);
     else parts.push(`${side.from}${side.to} is ${side.label}.`);
   }
+  // Every angle the same is said once. A regular hexagon was read out corner
+  // by corner: "The angle at A is x. The angle at B is x." six times.
+  const marked = (block.angles ?? []).filter((a) => !a.isRightAngle && hasText(a.label));
+  const allTheSame = marked.length >= 3 && marked.every((a) => a.label.trim() === marked[0].label.trim());
+  if (allTheSame) {
+    const every = marked.length === (block.vertices?.length ?? -1);
+    parts.push(
+      every
+        ? `Every angle is ${marked[0].label}.`
+        : `${COUNT_WORDS[marked.length] ?? marked.length} of the angles are ${marked[0].label}.`.replace(/^./, (c) => c.toUpperCase()),
+    );
+  }
   for (const angle of block.angles ?? []) {
     if (angle.isRightAngle) parts.push(`There is a right angle at ${angle.vertex}.`);
-    else if (hasText(angle.label)) parts.push(`The angle at ${angle.vertex} is ${angle.label}.`);
+    else if (hasText(angle.label) && !allTheSame) parts.push(`The angle at ${angle.vertex} is ${angle.label}.`);
   }
   return parts.join(" ");
 }

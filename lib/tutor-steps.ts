@@ -6,6 +6,7 @@
 import type { NarrationCue } from "@/lib/narration";
 import type { WhiteboardResponse, EquationStep, VisualBlock } from "@/types/whiteboard";
 import { buildColumnRevealTimeline } from "@/lib/column-reveal";
+import { shapeName } from "@/lib/shape-geometry";
 
 export interface TutorStepModel {
   cueIndex: number;
@@ -64,6 +65,13 @@ export function teacherFocusPath(step: {
   (step.cellKeys ?? []).forEach((k) => push(`cell:${k}`));
   (step.carryKeys ?? []).forEach((k) => push(`carry:${k}`));
   return derived.length > 0 ? derived : undefined;
+}
+
+/** The shape as named in a step's title: "Draw the triangle", "Draw the angles". */
+function boardShapeName(block: Extract<VisualBlock, { type: "labeled_shape" }>): string {
+  if (block.shape === "parallel_lines") return "parallel lines";
+  if (block.shape === "straight_line" || block.shape === "around_point") return "angles";
+  return shapeName(block);
 }
 
 export function buildTutorSteps(
@@ -270,20 +278,7 @@ export function buildTutorSteps(
     const titleMap: Partial<Record<NarrationCue["kind"], string>> = {
       graph: "Graph",
       // "Draw the triangle", not "Diagram": a teacher says what is going up.
-      shape:
-        block?.type === "labeled_shape"
-          ? `Draw the ${
-              block.shape === "rectilinear" || (block.shape === "polygon" && block.vertices?.length === 6)
-                ? "L-shape"
-                : block.shape === "parallel_lines"
-                  ? "parallel lines"
-                  : block.shape === "straight_line" || block.shape === "around_point"
-                    ? "angles"
-                    : block.shape === "polygon"
-                      ? "shape"
-                      : block.shape
-            }`
-          : "Diagram",
+      shape: block?.type === "labeled_shape" ? `Draw the ${boardShapeName(block)}` : "Diagram",
       tree: "Probability tree",
       venn: "Venn diagram",
       number_line: "Number line",
@@ -305,10 +300,34 @@ export function buildTutorSteps(
   return askBeforeRevealing(steps);
 }
 
-/** A check that puts a question to the pupil, as opposed to one the teacher works through. */
-function isQuestion(check: string | undefined): boolean {
-  return !!check && /\?\s*$/.test(check.replace(/[✓✔]/g, "").trim());
+/**
+ * Whether a check is a real question for the pupil to stop and answer.
+ *
+ * It has to end in a question mark and ask for something: "How many parts are
+ * there altogether?". Ending in a question mark is not enough. These were all
+ * being put to the pupil as "Your turn", with a pause for an answer:
+ *
+ *   "Have you cancelled a common factor from both top and bottom?"
+ *   "All products: x², −4x, 3x, −12 — ready to collect like terms?"
+ *   "5 students remain when you subtract the ones taking languages. Is that correct?"
+ *   "Check: Is 2.65 between the smallest (1) and largest (4)?"
+ *
+ * The first three have nothing to work out, and the last is the teacher's own
+ * check with its answer in it.
+ */
+export function isQuestionForPupil(check: string | undefined): boolean {
+  const text = (check ?? "").replace(/[✓✔]/g, "").trim();
+  if (!/\?\s*$/.test(text)) return false;
+  // The last sentence is the question; anything before it is the lead-in.
+  const sentences = text.split(/(?<=[.!:;—–])\s+/);
+  const asked = sentences[sentences.length - 1].trim();
+  if (/^check\b/i.test(text)) return false;
+  if (/^(?:have you|are you|ready|is that (?:correct|right)|does that|did that|make sense|got it|see how|can you see|happy with)/i.test(asked)) return false;
+  if (/\bready to\b[^?]*\?$/i.test(asked)) return false;
+  return /^(?:what|which|how|why|where|when|who|whose|can you|could you|do|does|did|is|are|will|would|should|if)\b/i.test(asked);
 }
+
+const isQuestion = isQuestionForPupil;
 
 /**
  * A question is asked before its answer goes on the board.

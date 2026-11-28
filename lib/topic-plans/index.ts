@@ -126,7 +126,10 @@ export function planForSolving(written: TopicPlan): string {
 ━━━ HOW TO TEACH THIS TOPIC: ${plan.title.toUpperCase()} ━━━
 This question is on ${plan.title}. Teach it the way set out here. Where this differs from the general guidance above, follow this. The format rules (JSON, arrows, block types) still apply.
 
-THE BIG IDEA. Say it once, in the "intro", after naming what we are finding, and put it in "keyTakeaway" in your own short words:
+THE OPENING. "intro" is exactly two sentences, as a teacher starts at the board. First, what we are asked to find, with this question's own numbers. Second, the idea we will use to find it, in plain words. Never "Let's work through this step by step": that says nothing.
+  Good: "We need the length of the arc of a 60° slice of a circle with radius 6 cm. An arc is a fraction of the whole way round, so we find that fraction and take it of the circumference."
+
+THE BIG IDEA. It is the second sentence of the "intro", and it goes in "keyTakeaway" in your own short words, as a rule the pupil can use on the next question (never this question's answer):
   ${plan.bigIdea}
 ${
   plan.picture
@@ -139,11 +142,23 @@ THE PICTURE. Your first block must be a "${plan.picture.block}" block, before an
 THE METHOD. Use the steps that this question needs, in this order, one move per step:
 ${numbered(plan.method)}
 
+WRITE WHOLE LINES. Each "latexAfter" is a complete line of working that makes sense read on its own: what it is, the working, and the result. A line is never a bare number.
+  Bad:  "12\\\\pi"            Good: "\\\\text{Circumference} = 2 \\\\times \\\\pi \\\\times 6 = 12\\\\pi \\\\text{ cm}"
+  Bad:  "9"                 Good: "\\\\text{Edges} = 3 + 3 + 3 = 9"
+  Bad:  "£24"               Good: "\\\\text{Amy} = 2 \\\\times £12 = £24"
+Any sum that is said must also be written. If the "explanation" says "5 times 6 is 30", the line shows "5 \\\\times 6 = 30". Every step has a "latexAfter".
+
+ONE MOVE PER LINE. A pupil must be able to see how each line came from the one before. Do not do two things in one step: "x^2 + 6x + 2" does not become "(x + 3)^2 - 7" in one line. Show "(x + 3)^2 - 9 + 2" first.
+
 SAY THE NUMBERS. Every "explanation" names the numbers on its own line: "9 squared is 81 and 12 squared is 144", never "work out the squares".
 
-THE REASON. Every step that changes the line has a "why": one sentence giving the reason the step is allowed or needed. Never a "why" that only repeats the step ("Amy's share is calculated").
+THE REASON. EVERY step has a "why": one short sentence giving the reason the step is allowed or needed. A teacher never writes a line without saying why. Never leave it out, and never a "why" that only repeats the step ("Amy's share is calculated").
+  Step: "Divide £60 by 5."          "why": "There are 5 equal parts, so one part is a fifth of the money."
+  Step: "Take 60 over 360."         "why": "A full turn is 360°, so the slice is that fraction of the circle."
 
-ASK ONE REAL QUESTION. On one step before the last, put a question for the pupil in "selfCheck", ending in a question mark, about this question's own numbers. It should be this kind of question: "${plan.ask}"
+ASK ONE REAL QUESTION. Choose one step in the middle of the working. In that step's "selfCheck", put a question whose answer is that step's own line. The board asks it and waits BEFORE the line is written, so the pupil can work it out first. It starts with What, Which or How, ends in a question mark, uses this question's own numbers, and has one short answer. Never ask about something already on the board, and never "Does that make sense?" or "Ready?".
+  It should be this kind of question: "${plan.ask}"
+  Example: on the step whose line is "\\\\text{One part} = £60 \\\\div 5 = £12", the "selfCheck" is "What is one part worth?"
 
 CHECK THE ANSWER. On the last step, put the check in "selfCheck" as a statement with the numbers worked through, not as a question:
   ${plan.check}
@@ -156,9 +171,13 @@ HOW THE MARKS ARE GIVEN. Put it in "examTip" in one sentence:
   ${plan.marks}
 
 BEFORE YOU ANSWER, check your JSON has every one of these. An answer missing any of them is incomplete:
-  □ "keyTakeaway" gives the big idea
-${plan.picture ? `  □ the first block is a "${plan.picture.block}"\n` : ""}  □ each step's "explanation" names its numbers, and each step that changes the line has a "why"
-  □ one step before the last has a "selfCheck" that ends in a question mark
+  □ "intro" is two sentences: what we are finding, then the idea we will use
+  □ "keyTakeaway" gives the big idea as a rule for next time
+  □ every "latexAfter" is a whole line (what it is = working = result), never a bare number
+  □ no step makes two moves at once
+${plan.picture ? `  □ the first block is a "${plan.picture.block}"\n` : ""}  □ each step's "explanation" names its numbers
+  □ EVERY step has a "why" with a real reason in it
+  □ one step in the middle has a "selfCheck" question whose answer is that step's own line
   □ the last step has a "selfCheck" that is a worked check, not a question
   □ "hint" warns about the mistake
   □ "examTip" says how the marks are given`;
