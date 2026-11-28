@@ -28,8 +28,10 @@ export function normalizeQuestion(text: string): string {
  *    and 10 cm, 4 cm apart" was saved, and would have been served to everyone
  *    who asked it, as "1/2 × 16 = 8". A saved answer is the working after that
  *    replacement, so the rows cannot be repaired, only solved again.
+ * 3: every topic now has a teaching plan. An answer saved before that was
+ *    written without one, and would be served in place of a planned lesson.
  */
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 export function hashQuestion(
   normalizedText: string,

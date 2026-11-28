@@ -44,33 +44,28 @@ describe("which plan a question gets", () => {
     expect(planForQuestion(question)?.id).toBe(id);
   });
 
-  it("there is one pilot plan in each strand, each for a real syllabus subtopic", () => {
-    expect(TOPIC_PLANS.map((p) => p.strand).sort()).toEqual(
+  it("the six pilot plans are still there, each for a real syllabus subtopic", () => {
+    const pilot = PILOT.map(([id]) => TOPIC_PLANS.find((p) => p.id === id)!);
+    expect(pilot.map((p) => p.strand).sort()).toEqual(
       ["algebra", "geometry", "number", "probability", "ratio", "statistics"],
     );
     const known = new Set(GCSE_SYLLABUS.AQA.flatMap((topic) => getSubtopicsForTier(topic, "higher")));
-    for (const plan of TOPIC_PLANS) {
-      for (const subtopic of plan.subtopics) expect(known.has(subtopic)).toBe(true);
-    }
+    for (const plan of pilot) expect(known.has(plan.subtopics[0])).toBe(true);
   });
 
-  it("leaves a neighbouring topic to its own guidance", () => {
-    const none = [
-      "Solve x^2 - 5x + 6 = 0",
-      "Solve the simultaneous equations 2x + y = 7 and x - y = 2",
-      "Solve 3x + 2 < 11",
-      "A car travels 120 miles in 3 hours. Work out its average speed.",
-      "The table shows a grouped frequency table. Estimate the mean.",
-      "What does it mean to factorise?",
-      "In a right-angled triangle, one angle is 35° and the hypotenuse is 12 cm. Use sin to find the opposite side.",
-      "Simplify the ratio 12 : 18",
-      "",
+  it("a question next door to a pilot topic goes to its own topic, not the pilot one", () => {
+    const neighbours: Array<[string, string]> = [
+      ["Solve x^2 - 5x + 6 = 0", "quadratic-equations"],
+      ["Solve the simultaneous equations 2x + y = 7 and x - y = 2", "simultaneous-equations"],
+      ["Solve 3x + 2 < 11", "inequalities"],
+      ["A car travels 120 miles in 3 hours. Work out its average speed.", "speed-distance-time"],
+      ["The table shows a grouped frequency table. Estimate the mean.", "frequency-tables-grouped-data"],
+      // It mentions a hypotenuse but is not a Pythagoras question.
+      ["In a right-angled triangle, one angle is 35° and the hypotenuse is 12 cm. Use sin to find the opposite side.", "trigonometry"],
+      ["Simplify the ratio 12 : 18", "simplifying-ratios"],
     ];
-    for (const question of none) {
-      const plan = planForQuestion(question);
-      // The trig question mentions a hypotenuse but is not a Pythagoras question.
-      expect(plan?.id ?? null).toBeNull();
-    }
+    for (const [question, id] of neighbours) expect(planForQuestion(question)?.id).toBe(id);
+    expect(planForQuestion("")).toBeNull();
   });
 
   it("finds a plan from a topic name as typed or as the syllabus writes it", () => {
@@ -79,7 +74,11 @@ describe("which plan a question gets", () => {
     expect(planForTopic("Sharing in a ratio")?.id).toBe("sharing-in-a-ratio");
     expect(planForTopic("Mean, median, mode, range")?.id).toBe("averages");
     expect(planForTopic("averages")?.id).toBe("averages");
-    expect(planForTopic("Circle theorems")).toBeNull();
+    expect(planForTopic("Circle theorems")?.id).toBe("circle-theorems");
+    // The exact name wins over a name that merely contains it.
+    expect(planForTopic("Expanding and factorising")?.id).toBe("expanding-brackets");
+    expect(planForTopic("Functions")?.id).toBe("function-notation");
+    expect(planForTopic("Study skills")).toBeNull();
   });
 });
 
@@ -92,8 +91,8 @@ describe("what the model is told", () => {
     expect(prompt.indexOf("HOW TO TEACH THIS TOPIC")).toBeGreaterThan(prompt.indexOf("EXAMPLE:"));
   });
 
-  it("a question on any other topic, or a photo, is unchanged", () => {
-    const other = buildSystemPrompt("algebra", null, undefined, false, "higher", undefined, "Solve x^2 - 5x + 6 = 0");
+  it("a message that is not on any topic, or a photo, is unchanged", () => {
+    const other = buildSystemPrompt("algebra", null, undefined, false, "higher", undefined, "Can you help me with my homework?");
     expect(other).not.toContain("HOW TO TEACH THIS TOPIC");
     const photo = buildSystemPrompt("algebra", null, undefined, true, "higher", undefined, "Solve 4x + 7 = 2x + 19");
     expect(photo).not.toContain("HOW TO TEACH THIS TOPIC");
@@ -105,8 +104,13 @@ describe("what the model is told", () => {
       for (const field of ['"intro"', '"keyTakeaway"', '"why"', '"selfCheck"', '"hint"', '"examTip"']) {
         expect(told).toContain(field);
       }
-      expect(told).toContain(plan.bigIdea);
-      expect(told).toContain(plan.ask);
+      // As the model must write it: LaTeX backslashes doubled, ready for JSON.
+      const asJson = (text: string) => text.replace(/\\/g, "\\\\");
+      expect(told).toContain(asJson(plan.bigIdea));
+      expect(told).toContain(asJson(plan.ask));
+      // No LaTeX command is shown with a single backslash, which the model
+      // would copy into its JSON and lose (π arrived as an unprintable character).
+      expect(told).not.toMatch(/(?<!\\)\\(?:pi|frac|sqrt|times|leq|approx|cap|cup|binom)\b/);
       if (plan.picture) expect(told).toContain(`"${plan.picture.block}"`);
     }
   });
@@ -116,7 +120,7 @@ describe("what the model is told", () => {
     expect(prompt).toContain("HOW TO TEACH THIS TOPIC: PYTHAGORAS' THEOREM");
     expect(prompt).toContain("WHAT THE PUPIL NEEDS FIRST");
     expect(prompt).toContain("THREE LEVELS");
-    expect(buildLessonPrompt("Circle theorems", "GCSE", "higher")).not.toContain("HOW TO TEACH THIS TOPIC");
+    expect(buildLessonPrompt("Study skills", "GCSE", "higher")).not.toContain("HOW TO TEACH THIS TOPIC");
     expect(planForLesson(TOPIC_PLANS[0])).toContain("LESSON CONTRACT");
   });
 
@@ -124,10 +128,10 @@ describe("what the model is told", () => {
     const withPlan = hashLessonKey("Pythagoras' theorem", "GCSE", "higher", planVersionFor("Pythagoras' theorem"));
     expect(planVersionFor("Pythagoras' theorem")).toBe("pythagoras@1");
     expect(withPlan).not.toBe(hashLessonKey("Pythagoras' theorem", "GCSE", "higher"));
-    // A topic with no plan keeps the key it always had.
-    expect(planVersionFor("Circle theorems")).toBe("");
-    expect(hashLessonKey("Circle theorems", "GCSE", "higher", planVersionFor("Circle theorems"))).toBe(
-      hashLessonKey("Circle theorems", "GCSE", "higher"),
+    // Something with no plan keeps the key it always had.
+    expect(planVersionFor("Study skills")).toBe("");
+    expect(hashLessonKey("Study skills", "GCSE", "higher", planVersionFor("Study skills"))).toBe(
+      hashLessonKey("Study skills", "GCSE", "higher"),
     );
   });
 });

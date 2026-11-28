@@ -549,6 +549,20 @@ export function validateResponse(
     return { ok: false, errors: [`JSON parse error: ${String(e)}`] };
   }
 
+  // 2a. A LaTeX command written with one backslash. In JSON, "\pi" and
+  // "\approx" are not legal escapes, and a model held to valid JSON writes an
+  // unprintable character in their place: π and ≈ arrived as U+001F and
+  // U+001A, and were then shown as nothing. The symbols cannot be recovered,
+  // so the answer is sent back to be written again.
+  if (/\\u00(?:0[0-8be-f]|1[0-9a-f])/i.test(jsonStr)) {
+    return {
+      ok: false,
+      errors: [
+        'Some LaTeX commands were written with a single backslash and were lost (for example \\pi or \\approx). Inside a JSON string every LaTeX command needs TWO backslashes: write "\\\\pi", "\\\\approx", "\\\\sqrt". Write the whole answer again.',
+      ],
+    };
+  }
+
   // 2b. Repair the two things models reliably get wrong about the schema, so a
   // cosmetic mismatch cannot cost the pupil the whole lesson.
   parsed = repairAngleArcs(dropNullFields(parsed));

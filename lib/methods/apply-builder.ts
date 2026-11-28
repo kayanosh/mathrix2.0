@@ -44,6 +44,7 @@ import {
 } from "@/lib/methods/types";
 import { normalizeColumnDigits } from "@/lib/column-method-layout";
 import { normalizeMathText } from "@/lib/methods/normalize-math-text";
+import { planForQuestion } from "@/lib/topic-plans";
 import { buildCoordinatePlot } from "@/lib/methods/ks2-topic-builders";
 import type {
   ColumnMethodBlock,
@@ -717,6 +718,16 @@ export function applyMethodBuilderToWhiteboard(
   // tell a piece of working from the whole question; only the question can.
   const built = resolveBuild(fake, topic, subtopics, () => false);
   if (!built) return data;
+
+  // Two built-in methods read a question as a sum it was not.
+  //  - "Estimate the value of (4.8 × 31.2) ÷ 0.49" was worked out exactly, to
+  //    305.6326530612. Estimating means rounding first; no exact method applies.
+  //  - "A, B and C are points on a circle with centre O. Angle AOB is 110°…"
+  //    was answered 180° − 110° = 70°, as angles on a straight line. The answer
+  //    is 55°. The angle method is for the angle-facts topic only.
+  const plan = planForQuestion(question);
+  if (plan?.id === "rounding-estimation" || /\bestimat/i.test(question)) return data;
+  if (built.builderId === "angle_diagram" && plan && plan.id !== "angles") return data;
 
   // Column and division builders keep their answer on the block, not on
   // `built.answer`. Reading only the latter meant this guard never ran for
